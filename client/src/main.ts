@@ -129,7 +129,7 @@ const playersRenderer = createPlayersRenderer(scene)
 showLobby().then(session => {
   if (!session) return
   startPing(session.transport, netStats)
-  snapStore = attachSnapshots(session.transport, session.yourId, s => playersRenderer.update(s.players))
+  snapStore = attachSnapshots(session.transport, session.yourId, s => playersRenderer.update(s.players, s.yourId))
   setNetHooks({
     onCmd: cmd => session.transport.send({ t: MsgType.Inputs, cmds: [cmd] }),
     authoritative: () => snapStore?.self ?? null,

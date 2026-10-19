@@ -28,10 +28,14 @@ export function createPlayersRenderer(scene: THREE.Scene) {
   }
 
   return {
-    // Vẽ đúng danh sách người chơi trong snapshot; ai không còn trong danh sách thì xoá
-    update(players: NetPlayer[]) {
+    // Vẽ đúng danh sách người chơi trong snapshot; ai không còn trong danh sách thì xoá.
+    // Không vẽ chính mình: camera nằm trong capsule, lệch quá bán kính vài frame (jitter) là lộ ra.
+    update(players: NetPlayer[], selfId = -1) {
       const seen = new Set<number>()
-      for (const p of players) { seen.add(p.id); place(ensure(p.id), p) }
+      for (const p of players) {
+        if (p.id === selfId) continue
+        seen.add(p.id); place(ensure(p.id), p)
+      }
       for (const [id, m] of meshes) {
         if (seen.has(id)) continue
         scene.remove(m)
