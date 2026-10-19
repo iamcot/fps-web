@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { Btn, MsgType, defaultMovement, loadMap, type AnyMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
+import { Btn, INPUT_STARVE_GRACE_TICKS, MsgType, defaultMovement, loadMap, type AnyMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { RoomManager } from './room'
 import { enqueueCmds, stepPlayer, sendSnapshots } from './simulation'
@@ -82,11 +82,32 @@ describe('stepPlayer', () => {
     stepPlayer(p, defaultMovement)
     const vy1 = p.state.vel[1]
     expect(vy1).toBeGreaterThan(0)                 // đã nhảy
-    stepPlayer(p, defaultMovement)                 // idle
+    for (let i = 0; i < INPUT_STARVE_GRACE_TICKS; i++) stepPlayer(p, defaultMovement)   // chờ cmd
+    expect(p.state.vel[1]).toBe(vy1)
+    stepPlayer(p, defaultMovement)                 // hết thời gian chờ → idle
     expect(p.lastProcessedSeq).toBe(1)
     expect(p.idleCmd.buttons & Btn.Jump).toBe(0)
     expect(p.idleCmd.buttons & Btn.Forward).toBe(Btn.Forward)
     expect(p.state.vel[1]).toBeLessThan(vy1)      // chỉ còn trọng lực
+  })
+
+  it('hàng đợi trống thoáng qua: không chạy bước thừa, cmd đến sau được bù', () => {
+    // a: cmd đến đều; b: cmd 1 đến trễ một tick (queue trống 1 tick) rồi cmd 1,2 đến cùng lúc
+    const a = setup().p, b = setup().p
+    for (const p of [a, b]) { enqueueCmds(p, [cmd(0, Btn.Forward)]); stepPlayer(p, defaultMovement) }
+    enqueueCmds(a, [cmd(1, Btn.Forward)]); stepPlayer(a, defaultMovement)
+    enqueueCmds(a, [cmd(2, Btn.Forward)]); stepPlayer(a, defaultMovement)
+    stepPlayer(b, defaultMovement)                                  // trống, không bước
+    enqueueCmds(b, [cmd(1, Btn.Forward), cmd(2, Btn.Forward)]); stepPlayer(b, defaultMovement)
+    expect(b.lastProcessedSeq).toBe(2)
+    expect(b.state).toEqual(a.state)
+  })
+
+  it('người chưa gửi cmd nào vẫn chạy idle (rơi xuống đất)', () => {
+    const { p } = setup()
+    p.state = { ...p.state, pos: [0, 5, 0] }
+    stepPlayer(p, defaultMovement)
+    expect(p.state.pos[1]).toBeLessThan(5)
   })
 
   it('chưa có world thì không chạy', () => {

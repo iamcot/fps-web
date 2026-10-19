@@ -13,14 +13,15 @@ function _buildCmd(): InputCmd {
   return { seq: _seq++, buttons: sampleButtons(), yaw, pitch, weapon: 0 }
 }
 
-// Chế độ online "client câm" (3.4): không tự mô phỏng, gửi cmd và lấy state từ server.
-// 3.6 sẽ thay bằng prediction.
+// Chế độ online (3.6): state do Prediction giữ; loop chỉ tạo cmd, gọi step và vẽ.
 export interface NetHooks {
-  onCmd(cmd: InputCmd): void
-  authoritative(): PlayerState | null
+  current(): PlayerState                                   // state dự đoán (đã reconcile) trước tick này
+  step(cmd: InputCmd): PlayerState                         // gửi cmd + chạy dự đoán, trả state mới
+  visualOffset(): readonly [number, number, number]        // gọi mỗi frame hiển thị (tự giảm dần)
 }
 let _net: NetHooks | null = null
 export function setNetHooks(h: NetHooks | null): void { _net = h }
+export function currentState(): PlayerState { return _curr }
 
 export function startLoop(
   world: CollisionWorld,
@@ -37,12 +38,11 @@ export function startLoop(
 
     while (acc >= DT) {
       const cmd = _buildCmd()
-      _prev  = _curr
       if (_net) {
-        _net.onCmd(cmd)
-        const auth = _net.authoritative()
-        if (auth) _curr = auth
+        _prev = _net.current()   // sau reconcile: nội suy từ state đã sửa, không phải state cũ
+        _curr = _net.step(cmd)
       } else {
+        _prev = _curr
         _curr = stepMovement(_curr, cmd, world, cfg, DT)
       }
       // Thời gian mô phỏng (ms) — client và server tính giống nhau, không dùng performance.now()
@@ -50,7 +50,12 @@ export function startLoop(
       acc   -= DT
     }
 
-    onRender(lerpState(_prev, _curr, acc / DT))
+    const view = lerpState(_prev, _curr, acc / DT)
+    if (_net) {
+      const o = _net.visualOffset()
+      view.pos[0] += o[0]; view.pos[1] += o[1]; view.pos[2] += o[2]
+    }
+    onRender(view)
     requestAnimationFrame(frame)
   }
 

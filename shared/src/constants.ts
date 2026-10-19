@@ -8,3 +8,4 @@ export const MAX_INPUT_QUEUE = 10;
 export const MAX_INPUTS_PER_TICK = 2;
 export const RESPAWN_DELAY_MS = 3000;
 export const SPAWN_INVULN_MS = 2000;
+export const INPUT_STARVE_GRACE_TICKS = 6;   // hàng đợi input trống ≤ ngần này tick: đứng chờ cmd, không chạy bước 'idle'

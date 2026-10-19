@@ -7,7 +7,7 @@ import type { MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, applyCameraRotation, isLocked, yaw, pitch } from './input'
-import { startLoop, initGameState, defaultMovement, setNetHooks } from './loop'
+import { startLoop, initGameState, defaultMovement, setNetHooks, currentState } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
@@ -15,6 +15,8 @@ import { clock } from './net/clock'
 import { attachSnapshots, type SnapshotStore } from './net/snapshots'
 import { createPlayersRenderer } from './render/players'
 import { Interpolator, InterpDelay } from './net/interpolation'
+import { Prediction } from './net/prediction'
+import { createGhosts } from './render/ghosts'
 import { MsgType } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
@@ -129,17 +131,22 @@ let snapStore: SnapshotStore | null = null
 const playersRenderer = createPlayersRenderer(scene)
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
-showLobby().then(session => {
+let prediction: Prediction | null = null
+const ghosts = createGhosts(scene)
+const sessionP = showLobby()
+sessionP.then(session => {
   if (!session) return
   startPing(session.transport, netStats)
-  snapStore = attachSnapshots(session.transport, session.yourId, s => interpolator.push(s.serverTime, s.players, s.yourId))
-  setNetHooks({
-    onCmd: cmd => session.transport.send({ t: MsgType.Inputs, cmds: [cmd] }),
-    authoritative: () => snapStore?.self ?? null,
+  snapStore = attachSnapshots(session.transport, session.yourId, s => {
+    interpolator.push(s.serverTime, s.players, s.yourId)
+    if (s.self) prediction?.onSnapshot(s.ack, s.self)
   })
-  session.transport.onClose(() => { setNetHooks(null); snapStore = null; interpolator.push(0, []); playersRenderer.clear() })
+  session.transport.onClose(() => {
+    setNetHooks(null); snapStore = null; prediction = null
+    interpolator.push(0, []); playersRenderer.clear(); ghosts.clear()
+  })
 })
-const updateDebug = initDebugOverlay(netStats, () => snapStore)
+const updateDebug = initDebugOverlay(netStats, () => snapStore, () => prediction)
 initTuningPanel(cfg)
 
 let debugLines: THREE.LineSegments | null = null
@@ -155,6 +162,18 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   scene.add(debugLines)
 
   initGameState(spawn.pos, spawn.yaw)
+
+  // Online: prediction giữ state; loop chỉ gửi cmd + chạy dự đoán
+  sessionP.then(session => {
+    if (!session) return
+    const pred = new Prediction(world, cfg, currentState())
+    prediction = pred
+    setNetHooks({
+      current: () => pred.predicted,
+      step: cmd => { session.transport.send({ t: MsgType.Inputs, cmds: [cmd] }); return pred.step(cmd) },
+      visualOffset: () => pred.decayOffset(),
+    })
+  })
 
   // Bia + HUD
   const targets = createTargets(scene)
@@ -198,6 +217,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     renderer.render(vm.scene, vm.cam)
 
     // Người khác: vẽ trễ (INTERP_DELAY_MS + trễ một chiều) bằng nội suy; chưa vào phòng thì danh sách rỗng
+    if (snapStore) ghosts.update(snapStore.players, snapStore.yourId)
     if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)))
     clock.tick()
     updateDebug(state, fps)

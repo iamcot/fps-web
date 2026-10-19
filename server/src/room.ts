@@ -15,6 +15,7 @@ export interface Player {
   lastCmd: InputCmd | null
   world: CollisionWorld | null   // Rapier world riêng mỗi người (capsule kinematic); nạp bất đồng bộ sau khi join
   idleCmd: InputCmd              // scratch tái sử dụng khi hàng đợi trống
+  starvedTicks: number           // số tick liên tiếp hàng đợi trống
 }
 
 export class Room {
@@ -49,6 +50,7 @@ export class Room {
       lastCmd: null,
       world: null,
       idleCmd: { seq: 0, buttons: 0, yaw: sp.yaw, pitch: 0, weapon: 0 },
+      starvedTicks: 0,
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name })
     for (const other of this.players.values()) {

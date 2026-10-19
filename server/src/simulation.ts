@@ -1,5 +1,5 @@
 import {
-  Btn, DT, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SNAPSHOT_EVERY_TICKS,
+  Btn, DT, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SNAPSHOT_EVERY_TICKS,
   isValidCmd, stateToNet, stepMovement,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
@@ -31,15 +31,22 @@ export function stepPlayer(p: Player, cfg: MovementConfig): void {
     p.lastCmd = cmd
     ran++
   }
-  if (ran === 0) {
-    // Hàng đợi trống: chạy tiếp lastCmd đã bỏ Jump/Fire/Reload, không tăng lastProcessedSeq
-    const idle = p.idleCmd
-    const last = p.lastCmd
-    idle.buttons = last ? last.buttons & HELD_MASK : 0
-    idle.yaw = last ? last.yaw : p.state.yaw
-    idle.pitch = last ? last.pitch : p.state.pitch
-    p.state = stepMovement(p.state, idle, p.world, cfg, DT)
-  }
+  if (ran > 0) { p.starvedTicks = 0; return }
+
+  // Hàng đợi trống. Cmd đến trễ vài ms do jitter là chuyện thường: nếu chạy ngay một bước 'idle'
+  // thì server tiến thêm một bước mà client chưa hề dự đoán → reconcile lệch liên tục. Nên chờ tối
+  // đa INPUT_STARVE_GRACE_TICKS tick (cmd tới sau sẽ được bù, tối đa MAX_INPUTS_PER_TICK mỗi tick).
+  // Người chưa gửi cmd nào (lastCmd null) hoặc im quá lâu thì mới chạy idle.
+  p.starvedTicks++
+  if (p.lastCmd && p.starvedTicks <= INPUT_STARVE_GRACE_TICKS) return
+
+  // Chạy tiếp lastCmd đã bỏ Jump/Fire/Reload, không tăng lastProcessedSeq
+  const idle = p.idleCmd
+  const last = p.lastCmd
+  idle.buttons = last ? last.buttons & HELD_MASK : 0
+  idle.yaw = last ? last.yaw : p.state.yaw
+  idle.pitch = last ? last.pitch : p.state.pitch
+  p.state = stepMovement(p.state, idle, p.world, cfg, DT)
 }
 
 export function stepRoom(room: Room, cfg: MovementConfig): void {

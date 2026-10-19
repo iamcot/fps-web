@@ -9,6 +9,7 @@ export interface SnapshotStore {
   players: NetPlayer[]
   self: PlayerState | null    // state của chính mình trong snapshot mới nhất
   count: number
+  perSec: number              // số snapshot nhận mỗi giây (cập nhật mỗi ~1s)
 }
 
 export function attachSnapshots(
@@ -16,7 +17,9 @@ export function attachSnapshots(
   yourId: number,
   onSnapshot?: (store: SnapshotStore) => void,
 ): SnapshotStore {
-  const store: SnapshotStore = { yourId, tick: 0, serverTime: 0, ack: -1, players: [], self: null, count: 0 }
+  const store: SnapshotStore = { yourId, tick: 0, serverTime: 0, ack: -1, players: [], self: null, count: 0, perSec: 0 }
+  let windowStart = performance.now()
+  let windowCount = 0
   transport.onMessage(msg => {
     if (msg.t !== MsgType.Snapshot) return
     if (msg.tick <= store.tick) return   // cũ hoặc trùng
@@ -25,6 +28,12 @@ export function attachSnapshots(
     store.ack = msg.ack
     store.players = msg.players
     store.count++
+    windowCount++
+    const now = performance.now()
+    if (now - windowStart >= 1000) {
+      store.perSec = windowCount * 1000 / (now - windowStart)
+      windowStart = now; windowCount = 0
+    }
     const me = msg.players.find(p => p.id === yourId)
     store.self = me ? netToState(me) : null
     onSnapshot?.(store)
