@@ -168,7 +168,7 @@ export function playShot(id: number, ammoLeft: number): void {
   registerVoice(g, id, shot, p.maxVoices)
   playShotLayers(g, p, shot, now, true)
 
-  if (p.shell) playShell(g, p.shell, g.gunGroup, now + p.shellDelayMs / 1000)
+  // if (p.shell) playShell(g, p.shell, g.gunGroup, now + p.shellDelayMs / 1000)
   if (p.cockFile) playCock(g, p, bus.low, now + 0.6 * def.fireIntervalMs / 1000)
   if (settings.lowAmmoWarning && lowAmmoActive(ammoLeft, def.magSize)) playLowAmmo(g, ammoLeft, def.magSize, now)
 }
