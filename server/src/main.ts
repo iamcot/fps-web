@@ -24,7 +24,7 @@ setInterval(() => rooms.sweep(), 5000)
 let ticksThisWindow = 0
 const loop = new TickLoop(() => performance.now(), (tick, serverTime) => {
   for (const room of rooms.rooms.values()) {
-    stepRoom(room, cfg)
+    stepRoom(room, cfg, serverTime)
     sendSnapshots(room, tick, serverTime)
   }
   ticksThisWindow++
@@ -63,6 +63,8 @@ wss.on('connection', ws => {
       transport.send({ t: MsgType.Pong, clientTime: msg.clientTime, serverTime: performance.now() })
     } else if (msg.t === MsgType.Inputs) {
       if (player) enqueueCmds(player, msg.cmds)
+    } else if (msg.t === MsgType.SetDebug) {
+      if (player) player.debugShots = msg.shots === true
     } else if (msg.t === MsgType.Join) {
       if (player) return   // mỗi kết nối chỉ join một lần
       const name = sanitizeName(msg.name)

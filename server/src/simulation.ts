@@ -60,8 +60,11 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
   p.state = stepMovement(p.state, idle, p.world, cfg, DT)
 }
 
-export function stepRoom(room: Room, cfg: MovementConfig): void {
+// serverTime = thời điểm của tick này; lịch sử hitbox ghi theo mốc này sau khi mọi người đã bước
+export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serverNow): void {
+  room.serverNow = serverTime
   for (const p of room.players.values()) stepPlayer(p, cfg, room)
+  room.history.record(serverTime, room.players.values())
 }
 
 // Snapshot chứa mọi người; chỉ `ack` khác nhau giữa các client

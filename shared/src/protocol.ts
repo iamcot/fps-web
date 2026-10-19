@@ -1,5 +1,6 @@
 import { encode as mpEncode, decode as mpDecode } from '@msgpack/msgpack'
 import { Btn, type InputCmd, type PlayerState } from './movement'
+import type { HitBox } from './hitbox'
 import { WEAPONS, type WeaponState } from './weapons'
 
 // Phân loại message theo plan/04-phase3-netcode-move.md (C2S 1-3, S2C 101-105)
@@ -8,6 +9,7 @@ export const MsgType = {
   Join: 1,
   Inputs: 2,
   Ping: 3,
+  SetDebug: 4,
   // Server → Client
   Welcome: 101,
   Pong: 102,
@@ -16,6 +18,7 @@ export const MsgType = {
   PlayerLeft: 105,
   HitConfirm: 106,
   ShotFx: 109,
+  DebugShot: 110,
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -35,6 +38,12 @@ export interface JoinMsg {
   t: typeof MsgType.Join
   name: string
   room: string
+}
+
+// Bật/tắt DebugShot (F7); ngoài plan, cần để server biết khi nào gửi
+export interface SetDebugMsg {
+  t: typeof MsgType.SetDebug
+  shots: boolean
 }
 
 // Server → Client
@@ -102,6 +111,14 @@ export interface ShotFxMsg {
   dist: number
 }
 
+// Chỉ gửi người bắn khi đã bật debug: tia + hitbox mọi người khác ở thời điểm đã tua
+export interface DebugShotMsg {
+  t: typeof MsgType.DebugShot
+  origin: [number, number, number]
+  dir: [number, number, number]
+  boxes: HitBox[]
+}
+
 export interface PongMsg {
   t: typeof MsgType.Pong
   clientTime: number
@@ -109,8 +126,8 @@ export interface PongMsg {
 }
 
 export type AnyMsg =
-  | JoinMsg | InputsMsg | PingMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg
+  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)

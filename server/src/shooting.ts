@@ -1,13 +1,24 @@
 import {
-  MsgType, WEAPONS, computeShot, hitboxesFor, rayAabb, shotSpread,
-  type InputCmd, type MovementConfig,
+  MAX_REWIND_MS, MsgType, WEAPONS, computeShot, hitboxesFor, rayAabb, shotSpread,
+  type HitBox, type InputCmd, type MovementConfig, type PlayerState,
 } from '@fps/shared'
 import type { Player, Room } from './room'
+import type { PastPlayer } from './lagComp'
 
 const dir: [number, number, number] = [0, 0, 0]
 const eye: [number, number, number] = [0, 0, 0]
+const past: PastPlayer = { pos: [0, 0, 0], crouching: false, alive: true }
+// hitboxesFor chỉ đọc pos/crouching
+const pastState = { pos: past.pos, crouching: false } as unknown as PlayerState
 
-// Chấm một phát bắn của `shooter` (vừa chạy cmd, state đã là sau cmd). Chưa tua thời gian (4.3).
+// Thời điểm cần tua về: fireRenderTime kẹp trong [serverNow − MAX_REWIND_MS, serverNow];
+// không có fireRenderTime thì không tua.
+export function rewindTime(fireRenderTime: number | undefined, serverNow: number): number {
+  if (fireRenderTime === undefined) return serverNow
+  return Math.min(serverNow, Math.max(serverNow - MAX_REWIND_MS, fireRenderTime))
+}
+
+// Chấm một phát bắn của `shooter` (vừa chạy cmd, state đã là sau cmd). Đối thủ được tua về cmd.fireRenderTime (lag compensation); tường và người bắn thì không.
 // Gốc tia = mắt người bắn; hướng = yaw/pitch + recoil + spread (seed playerId, shotSeq) như client;
 // tường: castRay trong world riêng của người bắn; người khác: ray vs AABB.
 export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, cfg: MovementConfig): void {
@@ -23,12 +34,32 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, cfg: Mov
   let hitId = -1
   let hitPart: 'head' | 'body' | 'legs' = 'body'
 
+  const t = rewindTime(cmd.fireRenderTime, room.serverNow)
+  if (cmd.fireRenderTime !== undefined && cmd.fireRenderTime < t) shooter.rewindClamped++   // yêu cầu tua quá giới hạn
+  const rewound = t < room.serverNow && room.history.locate(t)
+  const debugBoxes: HitBox[] | null = shooter.debugShots ? [] : null
+
   for (const other of room.players.values()) {
     if (other === shooter) continue
-    for (const box of hitboxesFor(other.state, cfg)) {
+    let state: PlayerState = other.state
+    let alive = other.alive
+    if (rewound && room.history.get(other.id, past)) {
+      pastState.crouching = past.crouching
+      state = pastState
+      alive = past.alive
+    }
+    if (!alive) continue
+    for (const box of hitboxesFor(state, cfg)) {
+      debugBoxes?.push(box)
       const d = rayAabb(eye, dir, box, bestDist)
       if (d !== null && d < bestDist) { bestDist = d; hitId = other.id; hitPart = box.part }
     }
+  }
+  if (debugBoxes) {
+    shooter.transport.send({
+      t: MsgType.DebugShot,
+      origin: [eye[0], eye[1], eye[2]], dir: [dir[0], dir[1], dir[2]], boxes: debugBoxes,
+    })
   }
 
   if (hitId >= 0) {

@@ -19,6 +19,7 @@ import { reconcileWeapon } from './net/weaponSync'
 import { Prediction } from './net/prediction'
 import { createGhosts } from './render/ghosts'
 import { createTracers } from './render/tracers'
+import { createDebugShots } from './render/debugShots'
 import { MsgType } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
@@ -139,6 +140,7 @@ let prediction: Prediction | null = null
 let hudRef: ReturnType<typeof initHUD> | null = null
 const ghosts = createGhosts(scene)
 const tracers = createTracers(scene)
+const debugShots = createDebugShots(scene)
 const sessionP = showLobby()
 sessionP.then(session => {
   if (!session) return
@@ -151,7 +153,17 @@ sessionP.then(session => {
     } else if (msg.t === MsgType.ShotFx) {
       tracers.add(msg.origin, msg.dir, msg.dist)
       playShotOther(msg.weapon, msg.origin)
+    } else if (msg.t === MsgType.DebugShot) {
+      debugShots.add(msg.origin, msg.dir, msg.boxes)
     }
+  })
+  // F7: server gửi DebugShot (tia + hitbox đã tua) cho mỗi phát của mình
+  let debugOn = false
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'F7') return
+    e.preventDefault()
+    debugOn = !debugOn
+    session.transport.send({ t: MsgType.SetDebug, shots: debugOn })
   })
   snapStore = attachSnapshots(session.transport, session.yourId, s => {
     interpolator.push(s.serverTime, s.players, s.yourId)
@@ -242,6 +254,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     if (snapStore) ghosts.update(snapStore.players, snapStore.yourId)
     if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)))
     tracers.update(dt * 1000)
+    debugShots.update(dt * 1000)
     clock.tick()
     updateDebug(state, fps)
   }, (state, cmd, nowMs) => {

@@ -1,5 +1,6 @@
 import { MsgType, makeWeaponState, makeRecoilState, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
+import { LagHistory } from './lagComp'
 
 export const EMPTY_ROOM_TTL_MS = 60_000
 export const MAX_NAME_LEN = 16
@@ -18,6 +19,9 @@ export interface Player {
   starvedTicks: number           // số tick liên tiếp hàng đợi trống
   weapon: WeaponState            // đạn/reload/fire rate do server giữ (4.1)
   recoil: RecoilState            // recoil tích luỹ để tính hướng đạn (cùng công thức với client)
+  alive: boolean                 // người chết không có hitbox (4.4 dùng)
+  debugShots: boolean            // F7: gửi DebugShot cho người này
+  rewindClamped: number          // số phát bị kẹp vì fireRenderTime cũ hơn MAX_REWIND_MS
   shotsFired: number             // số phát bắn hợp lệ từ lúc vào phòng (log/test)
   seqOffset: number | null       // now − seq*1000/TICK_RATE của cmd đầu tiên; chặn seq chạy nhanh hơn thời gian thực
 }
@@ -25,6 +29,8 @@ export interface Player {
 export class Room {
   readonly players = new Map<number, Player>()
   emptySince: number | null
+  readonly history = new LagHistory()
+  serverNow = 0   // serverTime của tick đang chạy (stepRoom đặt)
   private nextId = 1
   private spawnTurn = 0   // phase 5 mới có đội: tạm xen kẽ spawn A/B
 
@@ -57,6 +63,9 @@ export class Room {
       starvedTicks: 0,
       weapon: makeWeaponState(),
       recoil: makeRecoilState(),
+      alive: true,
+      debugShots: false,
+      rewindClamped: 0,
       shotsFired: 0,
       seqOffset: null,
     }
