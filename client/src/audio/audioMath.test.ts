@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   dbToGain, pickNoRepeat, lowAmmoActive, lowAmmoPitchFactor, reloadInsertTimes,
-  distanceCutoff, ComboTracker, HitDeduper,
+  distanceCutoff, ComboTracker, HitDeduper, StepTracker,
 } from './audioMath'
 
 describe('audioMath', () => {
@@ -67,5 +67,33 @@ describe('audioMath', () => {
     expect(d.accept(15, 3)).toBe(true)    // kill đè hit
     expect(d.accept(20, 2)).toBe(false)
     expect(d.accept(100, 1)).toBe(true)   // ngoài 30ms
+  })
+})
+
+describe('StepTracker', () => {
+  const dt = 1 / 60
+  const run = (t: StepTracker, n: number, o: { g?: boolean; vy?: number; v?: number; slide?: boolean } = {}) => {
+    const ev: (string | null)[] = []
+    for (let i = 0; i < n; i++) ev.push(t.update(o.g ?? true, o.vy ?? 0, o.v ?? 8.5, o.slide ?? false, dt, 2.4, 4, 1))
+    return ev.filter(Boolean)
+  }
+  const armed = () => { const t = new StepTracker(); t.update(true, 0, 0, false, dt, 2.4, 4, 1); return t }
+
+  it('chạy 8.5 m/s trong 1s: 3 bước (mỗi 2.4m)', () => {
+    expect(run(armed(), 60)).toEqual(['step', 'step', 'step'])
+  })
+  it('không bước khi đứng yên, trượt hoặc trên không', () => {
+    expect(run(armed(), 60, { v: 0.5 })).toEqual([])
+    expect(run(armed(), 60, { slide: true })).toEqual([])
+    expect(run(armed(), 60, { g: false, vy: 2 })).toEqual([])
+  })
+  it('tiếp đất chỉ khi rơi > 4 m/s; chạm đất đầu tiên (spawn) bị bỏ qua', () => {
+    const t = new StepTracker()
+    run(t, 5, { g: false, vy: -9 })
+    expect(run(t, 1, { v: 0 })).toEqual([])            // rơi từ spawn: im lặng
+    run(t, 5, { g: false, vy: -9 })
+    expect(run(t, 1, { v: 0 })).toEqual(['land'])
+    run(t, 5, { g: false, vy: -3 })
+    expect(run(t, 1, { v: 0 })).toEqual([])            // rơi nhẹ
   })
 })

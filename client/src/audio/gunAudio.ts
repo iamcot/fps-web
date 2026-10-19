@@ -9,7 +9,7 @@ import {
 import { getGraph, listenerPos, settings, type AudioGraph } from './context'
 import { tone, noise } from './synth'
 import { gunKey, commonKey, getBuffer } from './loader'
-import { GUN_SOUNDS, type GunSoundProfile, type LayerDef, type ReloadStep, type ReloadSynth } from './gunProfiles'
+import { GUN_SOUNDS, SHELL_SYNTH, type GunSoundProfile, type LayerDef, type ReloadStep, type ReloadSynth } from './gunProfiles'
 
 type Vec3 = [number, number, number]
 
@@ -122,10 +122,21 @@ function playShell(g: AudioGraph, kind: 'rifle' | 'pistol', dest: AudioNode, whe
     playBuffer(g, getBuffer(key)!, dest, 1 + randSpread(0.05), -14 + extraDb, when)
     return
   }
-  const lo = kind === 'rifle' ? 3500 : 4200
-  const hi = kind === 'rifle' ? 5200 : 6000
-  tone(g.ctx, dest, { type: 'sine', freq: lo + Math.random() * (hi - lo), gainDb: -18 + extraDb, decayMs: 80, when })
-  tone(g.ctx, dest, { type: 'sine', freq: lo + Math.random() * (hi - lo), gainDb: -22 + extraDb, decayMs: 70, when: when + 0.07 + Math.random() * 0.06 })
+  synthShell(g, kind, dest, when, extraDb)
+}
+
+function synthShell(g: AudioGraph, kind: 'rifle' | 'pistol', dest: AudioNode, when: number, extraDb: number): void {
+  const c = SHELL_SYNTH[kind]
+  noise(g.ctx, dest, { filter: 'highpass', freq: 4000, gainDb: c.clickDb + extraDb, decayMs: 8, when })   // va đập đầu tiên
+  let t = when
+  for (let i = 0; i < c.gainsDb.length; i++) {
+    const freq = c.freqMin + Math.random() * (c.freqMax - c.freqMin)
+    const decay = c.decayMs * Math.pow(c.decayMul, i)
+    const db = c.gainsDb[i]! + extraDb
+    tone(g.ctx, dest, { type: 'sine', freq, gainDb: db, decayMs: decay, when: t })
+    tone(g.ctx, dest, { type: 'sine', freq: freq * c.partialRatio, gainDb: db + c.partialDb, decayMs: decay, when: t })
+    t += (c.firstGapMs / 1000) * Math.pow(c.gapMul, i)   // khoảng nảy ngắn dần
+  }
 }
 
 function playThump(g: AudioGraph, dest: AudioNode, p: GunSoundProfile, when: number): void {

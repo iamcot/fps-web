@@ -5,6 +5,8 @@ import { playShot, refreshBus } from './gunAudio'
 import { playHit, playHurt, HIT, type HitKind, type HitMode } from './hitAudio'
 import { getGraph, settings, saveSettings } from './context'
 import { setHealthForAudio } from './hitAudio'
+import { FOOTSTEPS, playFootstep, playLanding, playFootstepOther, refreshFootstepBus } from './footsteps'
+import { listenerPos } from './context'
 
 type Range = [min: number, max: number, step: number]
 
@@ -22,7 +24,14 @@ const css = {
   head: 'font-weight:bold;color:#ff0;margin:8px 0 2px',
 }
 
+const KEY_RANGES: Record<string, Range> = {
+  stepDistM: [0.5, 6, 0.1], minSpeed: [0, 5, 0.1], minFallSpeed: [1, 15, 0.5],
+  pitchRand: [0, 0.3, 0.01], gainRandDb: [0, 6, 0.5], pan: [0, 1, 0.01],
+  maxDistM: [5, 80, 1], refDistance: [1, 10, 0.5], rolloff: [0.5, 4, 0.1], bandQ: [0.1, 6, 0.1],
+}
+
 function rangeFor(key: string, v: number): Range {
+  if (KEY_RANGES[key]) return KEY_RANGES[key]!
   if (/Db$/.test(key)) return [-40, 10, 0.5]
   if (/Hz$/.test(key)) return [20, Math.max(100, v * 3), 1]
   if (/Ms$/.test(key)) return [1, Math.max(50, v * 3), 1]
@@ -107,19 +116,20 @@ export function initAudioTuning(): void {
   const body = document.createElement('div')
   panel.appendChild(body)
 
-  let tab: 'gun' | 'hit' | 'misc' = 'gun'
+  let tab: 'gun' | 'hit' | 'foot' | 'misc' = 'gun'
   let gunId = 0
   let rifling = 0
 
   function render() {
     body.replaceChildren()
     tabs.replaceChildren()
-    for (const [id, name] of [['gun', 'Súng'], ['hit', 'Hit'], ['misc', 'Chung']] as const) {
+    for (const [id, name] of [['gun', 'Súng'], ['hit', 'Hit'], ['foot', 'Footsteps'], ['misc', 'Chung']] as const) {
       const b = button(tabs, name, () => { tab = id; render() })
       if (id === tab) b.style.background = '#664'
     }
     if (tab === 'gun') renderGun()
     else if (tab === 'hit') renderHit()
+    else if (tab === 'foot') renderFoot()
     else renderMisc()
   }
 
@@ -198,6 +208,29 @@ export function initAudioTuning(): void {
       heading(body, `lớp ${group}`)
       const obj = HIT[group] as Record<string, number>
       for (const k of Object.keys(obj)) slider(body, k, () => obj[k]!, v => { obj[k] = v }, rangeFor(k, obj[k]!))
+    }
+  }
+
+  function renderFoot() {
+    const act = document.createElement('div'); body.appendChild(act)
+    button(act, 'Bước (đứng)', () => playFootstep(false))
+    button(act, 'Bước (ngồi)', () => playFootstep(true))
+    button(act, 'Đi 6 bước', () => { for (let i = 0; i < 6; i++) setTimeout(() => playFootstep(false), i * 350) })
+    button(act, 'Tiếp đất', () => playLanding())
+    button(act, 'Người khác (phải, 5m)', () => playFootstepOther([listenerPos[0] + 5, listenerPos[1], listenerPos[2]]))
+    button(act, 'Người khác (xa 30m)', () => playFootstepOther([listenerPos[0] + 30, listenerPos[1], listenerPos[2]]))
+    const copy = button(act, 'Copy JSON', () => copyJson(copy, FOOTSTEPS))
+
+    for (const [name, value] of Object.entries(FOOTSTEPS)) {
+      if (typeof value === 'number') {
+        slider(body, name, () => FOOTSTEPS[name as 'stepDistM'], v => { (FOOTSTEPS as Record<string, unknown>)[name] = v }, rangeFor(name, value))
+        continue
+      }
+      heading(body, name)
+      const obj = value as Record<string, number>
+      for (const k of Object.keys(obj)) {
+        slider(body, k, () => obj[k]!, v => { obj[k] = v; if (name === 'own') refreshFootstepBus() }, rangeFor(k, obj[k]!))
+      }
     }
   }
 

@@ -3,11 +3,12 @@ import { initAudioContext, onAudioReady } from './context'
 import { preload, gunKey, commonKey } from './loader'
 import { allGunSoundKeys } from './gunProfiles'
 import { HIT_FILE_NAMES } from './hitAudio'
-import { tone, noise } from './synth'
-import { getGraph } from './context'
+import { FOOTSTEP_FILES } from './footsteps'
 
 export { updateListener, settings, saveSettings } from './context'
 export { playShot, playShotOther, playDry, playDraw, startReload, cancelReload } from './gunAudio'
+export { playFootstep, playLanding, playFootstepOther, FOOTSTEPS } from './footsteps'
+export { StepTracker } from './audioMath'
 export { playHit, playHurt, setHealthForAudio } from './hitAudio'
 export type { HitKind } from './hitAudio'
 
@@ -15,17 +16,7 @@ export type { HitKind } from './hitAudio'
 export function initAudio(): void {
   initAudioContext()
   onAudioReady((g) => {
-    const keys = [...allGunSoundKeys(gunKey, commonKey), ...HIT_FILE_NAMES.map(commonKey)]
+    const keys = [...allGunSoundKeys(gunKey, commonKey), ...HIT_FILE_NAMES.map(commonKey), ...FOOTSTEP_FILES]
     void preload(g.ctx, keys)
   })
-}
-
-/** Bước chân (tổng hợp, chưa có file): `volume` 0..1. */
-export function playStep(volume: number): void {
-  const g = getGraph()
-  if (!g) return
-  const t = g.ctx.currentTime
-  const db = 20 * Math.log10(Math.max(0.01, volume))
-  noise(g.ctx, g.master, { filter: 'lowpass', freq: 700 + Math.random() * 300, q: 0.7, gainDb: db - 6, attackMs: 3, decayMs: 70, when: t })
-  tone(g.ctx, g.master, { type: 'sine', freq: 90, freqEnd: 60, gainDb: db - 10, decayMs: 60, when: t })
 }

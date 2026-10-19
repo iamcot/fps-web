@@ -16,7 +16,7 @@ import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
 import {
   initAudio, updateListener, playShot, playDry, playDraw, startReload, cancelReload,
-  playHit, playStep,
+  playHit, playFootstep, playLanding, StepTracker, FOOTSTEPS,
 } from './audio'
 import { initAudioTuning } from './audio/tuning'
 import mapFileRaw from '@assets/maps/deathmatch.json'
@@ -86,7 +86,7 @@ initAudioTuning()
 
 // ── Logic súng (shared) ───────────────────────────────────────────────────────
 const PLAYER_ID = 1   // offline; phase 4 dùng id người chơi thật làm seed spread
-const STEP_DIST = 2.2 // m giữa hai tiếng bước chân
+const steps = new StepTracker()
 const ws  = makeWeaponState()
 const rec = makeRecoilState()
 const shotDir: [number, number, number] = [0, 0, 0]
@@ -139,7 +139,6 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
 
   let eyeY   = cfg.eyeStand
   let lastMs = performance.now()
-  let stepAcc = 0
 
   hud.setHealth(100)
 
@@ -209,9 +208,11 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     }
     recoverRecoil(rec, def, ws, nowMs, DT)
 
-    if (state.grounded && speed > 1) {
-      stepAcc += speed * DT
-      if (stepAcc >= STEP_DIST) { stepAcc -= STEP_DIST; playStep(state.crouching ? 0.25 : 0.5) }
-    }
+    const stepEv = steps.update(
+      state.grounded, state.vel[1], speed, state.slideTimer > 0, DT,
+      FOOTSTEPS.stepDistM, FOOTSTEPS.landing.minFallSpeed, FOOTSTEPS.minSpeed,
+    )
+    if (stepEv === 'step') playFootstep(state.crouching)
+    else if (stepEv === 'land') playLanding()
   })
 })

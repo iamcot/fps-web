@@ -51,6 +51,23 @@ const rifleReload = (boltFile: string): ReloadSoundDef => ({
   ],
 })
 
+/**
+ * Âm vỏ đạn tổng hợp (khi thiếu file shell_*): chuỗi n cú "keng" nảy, n = gainsDb.length.
+ * Khoảng cách cú 1→2 là firstGapMs, các khoảng sau nhân gapMul (nảy dồn dần); độ vang
+ * cú thứ i = decayMs * decayMul^i. Mỗi cú: sine tần số ngẫu nhiên [freqMin, freqMax] + họa âm
+ * ×partialRatio (lệch partialDb), thêm một tiếng "tách" clickDb ở cú đầu.
+ */
+export interface ShellSynthDef {
+  firstGapMs: number; gapMul: number; gainsDb: number[]
+  freqMin: number; freqMax: number
+  partialRatio: number; partialDb: number
+  decayMs: number; decayMul: number; clickDb: number
+}
+export const SHELL_SYNTH: Record<'rifle' | 'pistol', ShellSynthDef> = {
+  rifle:  { firstGapMs: 60, gapMul: 0.55, gainsDb: [-20, -25, -29, -33], freqMin: 4800, freqMax: 6200, partialRatio: 2.4, partialDb: -12, decayMs: 50, decayMul: 0.65, clickDb: -14 },
+  pistol: { firstGapMs: 50, gapMul: 0.55, gainsDb: [-23, -28, -32],      freqMin: 5600, freqMax: 7200, partialRatio: 2.4, partialDb: -12, decayMs: 40, decayMul: 0.65, clickDb: -16 },
+}
+
 export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
   0: { // AK47: nặng, đục, rền
     folder: 'ak47',

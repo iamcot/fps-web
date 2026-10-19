@@ -68,3 +68,39 @@ export class HitDeduper {
     return true
   }
 }
+
+// ── Bước chân ─────────────────────────────────────────────────────────────────
+export type StepEvent = 'step' | 'land' | null
+
+/**
+ * Quyết định lúc nào phát bước chân / tiếp đất. Mỗi `stepDist` mét đi trên mặt đất một bước;
+ * không có bước khi trượt hoặc trên không. Tiếp đất khi vận tốc rơi (tick trước đó) > landSpeed.
+ * Lần chạm đất đầu tiên (rơi từ điểm spawn) bị bỏ qua.
+ */
+export class StepTracker {
+  private acc = 0
+  private airVy = 0
+  private wasGrounded = false
+  private armed = false
+
+  update(
+    grounded: boolean, vy: number, speedXZ: number, sliding: boolean, dt: number,
+    stepDist: number, landSpeed: number, minSpeed: number,
+  ): StepEvent {
+    if (!grounded) {
+      this.airVy = vy
+      this.wasGrounded = false
+      return null
+    }
+    if (!this.wasGrounded) {
+      this.wasGrounded = true
+      const wasArmed = this.armed
+      this.armed = true
+      if (wasArmed && -this.airVy > landSpeed) { this.acc = 0; return 'land' }
+    }
+    if (sliding || speedXZ <= minSpeed) return null
+    this.acc += speedXZ * dt
+    if (this.acc >= stepDist) { this.acc -= stepDist; return 'step' }
+    return null
+  }
+}
