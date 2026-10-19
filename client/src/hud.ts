@@ -37,7 +37,7 @@ function buildHitmarker() {
 
 // ── Bullet holes ──────────────────────────────────────────────────────────────
 const BH_MAT    = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 })
-const BH_GEO    = new THREE.CircleGeometry(0.10, 12)   // 10cm radius
+const BH_GEO    = new THREE.CircleGeometry(0.05, 12)   // 10cm radius
 const MAX_HOLES = 50
 
 function buildBulletHoles(scene: THREE.Scene) {
@@ -114,7 +114,7 @@ function buildCrosshair() {
 function buildStatus() {
   const mk = (css: string) => {
     const el = document.createElement('div')
-    el.style.cssText = 'position:fixed;pointer-events:none;z-index:12;color:#fff;font:bold 28px monospace;text-shadow:0 0 4px #000;' + css
+    el.style.cssText = 'position:fixed;pointer-events:none;z-index:12;color:#fff;font:bold 48px monospace;text-shadow:0 0 4px #000;' + css
     document.body.appendChild(el)
     return el
   }
