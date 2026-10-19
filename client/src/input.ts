@@ -93,6 +93,9 @@ export function applyCameraRotation(camera: THREE.Camera): void {
   camera.rotation.x = pitch
 }
 
+// Server đặt hướng nhìn (hồi sinh)
+export function setLook(y: number, p: number): void { yaw = y; pitch = p }
+
 export function isKeyDown(code: string): boolean {
   return !!_keys[code]
 }

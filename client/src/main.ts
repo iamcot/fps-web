@@ -1,13 +1,13 @@
 import * as THREE from 'three'
 import {
-  loadMap, DT, Btn, WEAPONS, makeWeaponState, makeRecoilState,
+  loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
   stepWeaponCmd, shotSpread, spreadFor, computeShot, recoverRecoil,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
-import { initInput, applyCameraRotation, isLocked, yaw, pitch } from './input'
-import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon } from './loop'
+import { initInput, applyCameraRotation, isLocked, yaw, pitch, setLook } from './input'
+import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, setDead } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
@@ -20,6 +20,7 @@ import { Prediction } from './net/prediction'
 import { createGhosts } from './render/ghosts'
 import { createTracers } from './render/tracers'
 import { createDebugShots } from './render/debugShots'
+import { createKillfeed, createDeathScreen, createHurtIndicator } from './hudNet'
 import { MsgType } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
@@ -28,7 +29,7 @@ import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
 import {
   initAudio, updateListener, playShot, playDry, playDraw, startReload, cancelReload,
-  playHit, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS,
+  playHit, playHurt, setHealthForAudio, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS,
 } from './audio'
 import { initAudioTuning } from './audio/tuning'
 import mapFileRaw from '@assets/maps/deathmatch.json'
@@ -141,6 +142,10 @@ let hudRef: ReturnType<typeof initHUD> | null = null
 const ghosts = createGhosts(scene)
 const tracers = createTracers(scene)
 const debugShots = createDebugShots(scene)
+const killfeed = createKillfeed()
+const deathScreen = createDeathScreen()
+const hurtIndicator = createHurtIndicator()
+let lastHp = 100
 const sessionP = showLobby()
 sessionP.then(session => {
   if (!session) return
@@ -155,6 +160,32 @@ sessionP.then(session => {
       playShotOther(msg.weapon, msg.origin)
     } else if (msg.t === MsgType.DebugShot) {
       debugShots.add(msg.origin, msg.dir, msg.boxes)
+    } else if (msg.t === MsgType.Kill) {
+      const name = (id: number) => session.names.get(id) ?? `#${id}`
+      const me = session.yourId
+      killfeed.add(name(msg.killerId), WEAPONS[msg.weapon]?.name ?? '?', name(msg.victimId), msg.headshot,
+        msg.killerId === me, msg.victimId === me)
+      if (msg.killerId === me && msg.victimId !== me) playHit(msg.headshot ? 'killHead' : 'kill')
+      if (msg.victimId === me) {
+        setDead(true)
+        deathScreen.show(name(msg.killerId), RESPAWN_DELAY_MS - clock.oneWayMs)
+      }
+    } else if (msg.t === MsgType.Respawn && msg.id === session.yourId) {
+      // Hồi sinh: teleport (không làm mượt), đạn đầy, nhìn theo hướng spawn
+      setDead(false)
+      deathScreen.hide()
+      prediction?.teleport({
+        pos: [msg.pos[0], msg.pos[1], msg.pos[2]], vel: [0, 0, 0], yaw: msg.yaw, pitch: 0,
+        grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0,
+      })
+      setLook(msg.yaw, 0)
+      for (const w of WEAPONS) ws.ammo[w.id] = w.magSize
+      ws.reloadEndMs = 0; ws.nextFireMs = 0; ws.triggerHeld = false
+      cancelReload()
+    } else if (msg.t === MsgType.Hurt) {
+      const dx = msg.origin[0] - camera.position.x, dy = msg.origin[1] - camera.position.y, dz = msg.origin[2] - camera.position.z
+      hurtIndicator.show(dx, dz, yaw)
+      playHurt(dx, dy, dz)
     }
   })
   // F7: server gửi DebugShot (tia + hitbox đã tua) cho mỗi phát của mình
@@ -167,11 +198,13 @@ sessionP.then(session => {
   })
   snapStore = attachSnapshots(session.transport, session.yourId, s => {
     interpolator.push(s.serverTime, s.players, s.yourId)
+    if (s.hp !== lastHp) { lastHp = s.hp; hudRef?.setHealth(s.hp); setHealthForAudio(s.hp) }
     if (s.self) prediction?.onSnapshot(s.ack, s.self)
     if (s.wpn && prediction) reconcileWeapon(ws, s.wpn, prediction.pending)
   })
   session.transport.onClose(() => {
     setNetHooks(null); snapStore = null; prediction = null
+    setDead(false); deathScreen.hide()
     interpolator.push(0, []); playersRenderer.clear(); ghosts.clear()
   })
 })
@@ -255,6 +288,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)))
     tracers.update(dt * 1000)
     debugShots.update(dt * 1000)
+    deathScreen.tick()
+    hurtIndicator.tick(dt * 1000)
     clock.tick()
     updateDebug(state, fps)
   }, (state, cmd, nowMs) => {

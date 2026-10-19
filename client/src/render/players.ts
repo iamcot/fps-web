@@ -17,7 +17,7 @@ export function createPlayersRenderer(scene: THREE.Scene) {
   function ensure(id: number): THREE.Mesh {
     let m = meshes.get(id)
     if (!m) {
-      m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: COLORS[id % COLORS.length]! }))
+      m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: COLORS[id % COLORS.length]!, transparent: true }))
       m.castShadow = true
       scene.add(m)
       meshes.set(id, m)
@@ -30,6 +30,9 @@ export function createPlayersRenderer(scene: THREE.Scene) {
     m.scale.y = h / standHeight
     m.position.set(p.pos[0], p.pos[1] + h / 2, p.pos[2])
     m.rotation.y = p.yaw
+    m.visible = !(p.flags & NetFlag.Dead)   // người chết không vẽ
+    // Bất tử: nhấp nháy mờ
+    ;(m.material as THREE.MeshLambertMaterial).opacity = (p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(performance.now() / 70) : 1
   }
 
   return {

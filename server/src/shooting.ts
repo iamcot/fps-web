@@ -64,10 +64,18 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, cfg: Mov
 
   if (hitId >= 0) {
     const mult = hitPart === 'head' ? def.headMult : hitPart === 'legs' ? def.legMult : 1
-    shooter.transport.send({
-      t: MsgType.HitConfirm, damage: Math.round(def.damage * mult), headshot: hitPart === 'head', targetId: hitId,
-    })
-    // Trừ máu ở 4.4
+    const target = room.players.get(hitId)!
+    const damage = Math.round(def.damage * mult)
+    const headshot = hitPart === 'head'
+    // Bất tử tính theo giờ hiện tại của server (không tua). Chỉ trừ máu người còn sống và chưa bị chốt chết.
+    const invuln = room.serverNow < target.invulnUntil
+    const applied = invuln || !target.alive || target.hp <= 0 ? 0 : damage
+    if (applied > 0) {
+      target.hp -= applied
+      if (target.hp <= 0) { target.killerId = shooter.id; target.killWeapon = def.id; target.killHeadshot = headshot }
+      target.transport.send({ t: MsgType.Hurt, origin: [eye[0], eye[1], eye[2]], damage: applied })
+    }
+    shooter.transport.send({ t: MsgType.HitConfirm, damage: applied, headshot, targetId: hitId })
   }
 
   const fx = {

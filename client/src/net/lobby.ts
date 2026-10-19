@@ -4,6 +4,7 @@ import { connectWebSocket, maybeNetsim } from './transport'
 export interface Session {
   transport: Transport
   yourId: number
+  names: Map<number, string>   // id → tên (killfeed); giữ cả người đã rời
 }
 
 const STORE_KEY = 'fps.lobby'
@@ -42,14 +43,14 @@ function connectAndJoin(name: string, room: string): Promise<Session> {
     transport.onMessage(msg => {
       if (msg.t === MsgType.Welcome && !welcomed) {
         welcomed = true
+        for (const p of msg.players) names.set(p.id, p.name)
         log(`Vào phòng "${room}" với id ${msg.yourId}`)
-        resolve({ transport, yourId: msg.yourId })
+        resolve({ transport, yourId: msg.yourId, names })
       } else if (msg.t === MsgType.PlayerJoined) {
         names.set(msg.id, msg.name)
         log(`${msg.name} (#${msg.id}) vào`)
       } else if (msg.t === MsgType.PlayerLeft) {
         log(`${names.get(msg.id) ?? '#' + msg.id} đã rời`)
-        names.delete(msg.id)
       }
     })
     transport.onClose(() => {

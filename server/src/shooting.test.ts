@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { Btn, MsgType, defaultMovement, loadMap, type AnyMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
+import { Btn, MsgType, NetFlag, defaultMovement, loadMap, type AnyMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { RoomManager, type Player } from './room'
 import { enqueueCmds, stepPlayer } from './simulation'
@@ -162,3 +162,130 @@ describe('lag compensation (4.3)', () => {
   })
 })
 
+
+describe('máu, chết, hồi sinh (4.4)', () => {
+  // a bắn b ở 10m. pitch -0.05 trúng thân (AK 36 dmg), pitch 0 trúng đầu (126)
+  function duel() {
+    const r = setup()
+    place(r.a, r.b)
+    r.b.invulnUntil = 0
+    enqueueCmds(r.a, [{ seq: 0, buttons: 0, yaw: 0, pitch: 0, weapon: 1 }], 0)   // đổi sang M16 (khoá bắn 300ms)
+    stepPlayer(r.a, defaultMovement, r.room)
+    return r
+  }
+  let seq = 0
+  const nextShot = (room: ReturnType<typeof setup>['room'], a: Player, extra: Partial<InputCmd> = {}) => {
+    seq += 12   // đủ cách nhau vượt fireIntervalMs của M16 (80ms = 5 tick)
+    enqueueCmds(a, [fireCmd(seq, { weapon: 1, ...extra })], seq * 1000 / 60)   // M16: 30 sát thương, đổi súng khoá 300ms
+    stepPlayer(a, defaultMovement, room)
+    room.finalizeDeaths()
+  }
+
+  it('bắn thân M16 trừ 30 máu mỗi phát, 3 phát chưa chết, phát 4 chết', () => {
+    seq = 12
+    const { room, a, b, logs } = duel()
+    for (let i = 0; i < 3; i++) nextShot(room, a, { pitch: -0.05 })
+    expect(b.hp).toBe(100 - 30 * 3)
+    expect(b.alive).toBe(true)
+    nextShot(room, a, { pitch: -0.05 })
+    expect(b.alive).toBe(false)
+    const kill = logs.get(a.id)!.find(m => m.t === MsgType.Kill)
+    expect(kill).toMatchObject({ killerId: a.id, victimId: b.id, weapon: 1, headshot: false })
+    expect(logs.get(b.id)!.some(m => m.t === MsgType.Kill)).toBe(true)   // cả phòng nhận
+  })
+
+  it('bắn đầu: 1 phát chết, Kill đánh dấu headshot', () => {
+    seq = 12
+    const { room, a, b, logs } = duel()
+    nextShot(room, a)
+    expect(b.alive).toBe(false)
+    expect(logs.get(a.id)!.find(m => m.t === MsgType.Kill)).toMatchObject({ headshot: true })
+  })
+
+  it('người chết không có hitbox: bị bắn tiếp không HitConfirm/Hurt', () => {
+    seq = 12
+    const { room, a, b, logs } = duel()
+    nextShot(room, a)
+    const before = logs.get(a.id)!.filter(m => m.t === MsgType.HitConfirm).length
+    nextShot(room, a)
+    expect(logs.get(a.id)!.filter(m => m.t === MsgType.HitConfirm).length).toBe(before)
+    expect(b.hp).toBe(0)
+  })
+
+  it('người chết không bắn, không đi', () => {
+    seq = 12
+    const { room, a, b } = duel()
+    nextShot(room, a)
+    enqueueCmds(b, [fireCmd(0, { buttons: Btn.Fire | Btn.Forward })], 0)
+    stepPlayer(b, defaultMovement, room)
+    expect(b.shotsFired).toBe(0)
+    expect(b.state.pos[2]).toBeCloseTo(-10)
+  })
+
+  it('hồi sinh sau RESPAWN_DELAY_MS: hp đầy, đạn đầy, bất tử, Respawn gửi cả phòng, xa kẻ địch', () => {
+    seq = 12
+    const { room, a, b, logs } = duel()
+    room.serverNow = 1000
+    nextShot(room, a)
+    expect(b.alive).toBe(false)
+    expect(b.respawnAt).toBe(1000 + 3000)
+    b.weapon.ammo[0] = 3
+    room.serverNow = 3999; room.respawnDue(); expect(b.alive).toBe(false)
+    room.serverNow = 4000; room.respawnDue()
+    expect(b.alive).toBe(true)
+    expect(b.hp).toBe(100)
+    expect(b.weapon.ammo[0]).toBe(30)
+    expect(b.invulnUntil).toBe(4000 + 2000)
+    const rs = logs.get(a.id)!.find(m => m.t === MsgType.Respawn)
+    expect(rs).toMatchObject({ id: b.id })
+  })
+
+  it('bất tử: bị bắn không mất máu (damage 0); bắn một phát thì hết bất tử', () => {
+    seq = 12
+    const { room, a, b, logs } = duel()
+    room.serverNow = 1000
+    b.invulnUntil = 3000
+    nextShot(room, a, { pitch: -0.05 })
+    expect(b.hp).toBe(100)
+    expect(logs.get(a.id)!.find(m => m.t === MsgType.HitConfirm)).toMatchObject({ damage: 0 })
+    // b bắn một phát hợp lệ → hết bất tử, rồi bị bắn thì mất máu
+    enqueueCmds(b, [fireCmd(0, { yaw: Math.PI })], 0)
+    stepPlayer(b, defaultMovement, room)
+    expect(b.invulnUntil).toBe(0)
+    nextShot(room, a, { pitch: -0.05 })
+    expect(b.hp).toBe(70)
+  })
+
+  it('hai người bắn chết nhau cùng tick: cả hai đều chết, hai Kill', () => {
+    const { room, a, b, logs } = setup()
+    a.hp = 1; b.hp = 1
+    a.state.pos = [0, 0, 0]; b.state.pos = [0, 0, -10]
+    enqueueCmds(a, [fireCmd(0)], 0)               // a ngắm -Z, trúng đầu b
+    enqueueCmds(b, [fireCmd(0, { yaw: Math.PI })], 0)   // b quay về +Z, trúng đầu a
+    stepPlayer(a, defaultMovement, room)
+    stepPlayer(b, defaultMovement, room)          // b vẫn còn alive tới cuối tick nên bắn được
+    room.finalizeDeaths()
+    expect(a.alive).toBe(false)
+    expect(b.alive).toBe(false)
+    expect(logs.get(a.id)!.filter(m => m.t === MsgType.Kill).length).toBe(2)
+  })
+
+  it('snapshot: hp và cờ Dead/Invuln', async () => {
+    const { sendSnapshots } = await import('./simulation')
+    const { room, a, b, logs } = duel()
+    room.serverNow = 100
+    b.invulnUntil = 500
+    sendSnapshots(room, 0, 100)
+    const snap = [...logs.get(a.id)!].reverse().find(m => m.t === MsgType.Snapshot)
+    if (!snap || snap.t !== MsgType.Snapshot) throw new Error('thiếu snapshot')
+    const nb = snap.players.find(p => p.id === b.id)!
+    expect(nb.hp).toBe(100)
+    expect(nb.flags & NetFlag.Invuln).toBeTruthy()
+    b.alive = false; b.hp = 0
+    sendSnapshots(room, 3, 150)
+    const s2 = [...logs.get(a.id)!].reverse().find(m => m.t === MsgType.Snapshot)
+    if (!s2 || s2.t !== MsgType.Snapshot) throw new Error('thiếu snapshot')
+    expect(s2.players.find(p => p.id === b.id)!.flags & NetFlag.Dead).toBeTruthy()
+    void a
+  })
+})

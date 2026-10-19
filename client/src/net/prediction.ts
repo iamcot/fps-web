@@ -40,6 +40,13 @@ export class Prediction {
     return next
   }
 
+  // Hồi sinh: đặt state mới, bỏ cmd chưa ack, không làm mượt
+  teleport(state: PlayerState): void {
+    this.predicted = state
+    this.pending.length = 0
+    this.visualOffset[0] = 0; this.visualOffset[1] = 0; this.visualOffset[2] = 0
+  }
+
   onSnapshot(ack: number, serverState: PlayerState): void {
     // So với stateAfter đã lưu cho cmd seq = ack (nếu còn)
     let error = -1

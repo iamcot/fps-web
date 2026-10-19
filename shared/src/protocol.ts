@@ -17,8 +17,11 @@ export const MsgType = {
   PlayerJoined: 104,
   PlayerLeft: 105,
   HitConfirm: 106,
+  Kill: 107,
+  Respawn: 108,
   ShotFx: 109,
   DebugShot: 110,
+  Hurt: 111,
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -53,6 +56,7 @@ export interface WelcomeMsg {
   tick: number
   serverTime: number
   mapName: string
+  players: { id: number; name: string }[]   // những người đã có trong phòng lúc vào (để biết tên cho killfeed)
 }
 
 // Đủ mọi trường của PlayerState để client đặt lại state chính xác (reconcile ở 3.6)
@@ -60,6 +64,8 @@ export const NetFlag = {
   Grounded:  1 << 0,
   Crouching: 1 << 1,
   Sliding:   1 << 2,   // slideTimer > 0; chỉ để hiển thị, không dùng để dựng lại state
+  Dead:      1 << 3,   // đã chết, chờ hồi sinh (không có hitbox, không vẽ)
+  Invuln:    1 << 4,   // bất tử sau hồi sinh (vẽ nhấp nháy)
 } as const
 
 export interface NetPlayer {
@@ -71,6 +77,7 @@ export interface NetPlayer {
   flags: number
   slideTimer: number
   slideCooldown: number
+  hp: number
 }
 
 export interface SnapshotMsg {
@@ -91,6 +98,30 @@ export interface PlayerJoinedMsg {
 export interface PlayerLeftMsg {
   t: typeof MsgType.PlayerLeft
   id: number
+}
+
+// Cả phòng: ai hạ ai
+export interface KillMsg {
+  t: typeof MsgType.Kill
+  killerId: number
+  victimId: number
+  weapon: number
+  headshot: boolean
+}
+
+// Cả phòng: người chơi hồi sinh ở pos/yaw (client của chính người đó teleport, không làm mượt)
+export interface RespawnMsg {
+  t: typeof MsgType.Respawn
+  id: number
+  pos: [number, number, number]
+  yaw: number
+}
+
+// Gửi riêng nạn nhân (ngoài plan): hướng đạn đến để vẽ viền đỏ + tiếng bị trúng
+export interface HurtMsg {
+  t: typeof MsgType.Hurt
+  origin: [number, number, number]   // mắt người bắn
+  damage: number
 }
 
 // Gửi riêng người bắn: phát bắn trúng người (hitmarker chỉ hiện khi nhận gói này)
@@ -127,7 +158,7 @@ export interface PongMsg {
 
 export type AnyMsg =
   | JoinMsg | InputsMsg | PingMsg | SetDebugMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)
@@ -147,14 +178,15 @@ export function isValidCmd(c: unknown): c is InputCmd {
   )
 }
 
-export function stateToNet(id: number, s: PlayerState): NetPlayer {
+export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0): NetPlayer {
   return {
     id,
     pos: [s.pos[0], s.pos[1], s.pos[2]],
     vel: [s.vel[0], s.vel[1], s.vel[2]],
     yaw: s.yaw, pitch: s.pitch,
-    flags: (s.grounded ? NetFlag.Grounded : 0) | (s.crouching ? NetFlag.Crouching : 0) | (s.slideTimer > 0 ? NetFlag.Sliding : 0),
+    flags: (s.grounded ? NetFlag.Grounded : 0) | (s.crouching ? NetFlag.Crouching : 0) | (s.slideTimer > 0 ? NetFlag.Sliding : 0) | extraFlags,
     slideTimer: s.slideTimer, slideCooldown: s.slideCooldown,
+    hp,
   }
 }
 

@@ -1,5 +1,5 @@
 import {
-  Btn, DT, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE,
+  Btn, DT, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE,
   WEAPONS, isValidCmd, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
@@ -32,11 +32,15 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
   while (ran < MAX_INPUTS_PER_TICK && p.inputQueue.length > 0) {
     const cmd = p.inputQueue.shift()!
     if (cmd.seq <= p.lastProcessedSeq) continue   // trùng hoặc cũ
-    p.state = stepMovement(p.state, cmd, p.world, cfg, DT)
+    // Người chết: bỏ mọi nút (không di chuyển/bắn), vẫn bước để rơi xuống đất và ack tiếp
+    let eff = cmd
+    if (!p.alive) { eff = p.deadCmd; eff.seq = cmd.seq; eff.yaw = cmd.yaw; eff.pitch = cmd.pitch; eff.weapon = cmd.weapon; eff.buttons = 0 }
+    p.state = stepMovement(p.state, eff, p.world, cfg, DT)
     p.lastProcessedSeq = cmd.seq
     p.lastCmd = cmd
-    if (stepWeaponCmd(p.weapon, cmd) === 'fired') {
+    if (p.alive && stepWeaponCmd(p.weapon, cmd) === 'fired') {
       p.shotsFired++
+      p.invulnUntil = 0   // bắn phát hợp lệ đầu tiên thì hết bất tử
       if (room) resolveShot(p, room, cmd, cfg)
     }
     recoverRecoil(p.recoil, WEAPONS[p.weapon.current]!, p.weapon, cmd.seq * 1000 / TICK_RATE, DT)
@@ -54,7 +58,7 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
   // Chạy tiếp lastCmd đã bỏ Jump/Fire/Reload, không tăng lastProcessedSeq
   const idle = p.idleCmd
   const last = p.lastCmd
-  idle.buttons = last ? last.buttons & HELD_MASK : 0
+  idle.buttons = last && p.alive ? last.buttons & HELD_MASK : 0
   idle.yaw = last ? last.yaw : p.state.yaw
   idle.pitch = last ? last.pitch : p.state.pitch
   p.state = stepMovement(p.state, idle, p.world, cfg, DT)
@@ -64,6 +68,8 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
 export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serverNow): void {
   room.serverNow = serverTime
   for (const p of room.players.values()) stepPlayer(p, cfg, room)
+  room.finalizeDeaths()
+  room.respawnDue()
   room.history.record(serverTime, room.players.values())
 }
 
@@ -71,7 +77,10 @@ export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serv
 export function sendSnapshots(room: Room, tick: number, serverTime: number): void {
   if (tick % SNAPSHOT_EVERY_TICKS !== 0 || room.players.size === 0) return
   const players: NetPlayer[] = []
-  for (const p of room.players.values()) players.push(stateToNet(p.id, p.state))
+  for (const p of room.players.values()) {
+    const flags = (p.alive ? 0 : NetFlag.Dead) | (p.alive && serverTime < p.invulnUntil ? NetFlag.Invuln : 0)
+    players.push(stateToNet(p.id, p.state, Math.max(0, p.hp), flags))
+  }
   for (const p of room.players.values()) {
     p.transport.send({ t: MsgType.Snapshot, tick, serverTime, ack: p.lastProcessedSeq, players, wpn: p.weapon })
   }

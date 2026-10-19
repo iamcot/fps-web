@@ -14,8 +14,11 @@ let _curr: PlayerState
 let _weapon = 0
 export function setWantedWeapon(id: number): void { _weapon = id }
 
+let _dead = false
+export function setDead(v: boolean): void { _dead = v }
+
 function _buildCmd(): InputCmd {
-  let buttons = sampleButtons()
+  let buttons = _dead ? 0 : sampleButtons()   // người chết không di chuyển/bắn (server cũng bỏ nút)
   if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload)   // chưa khoá chuột thì không bắn/nạp
   return { seq: _seq++, buttons, yaw, pitch, weapon: _weapon }
 }
