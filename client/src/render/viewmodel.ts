@@ -19,7 +19,14 @@ const RELOAD_DROP = 0.15; // hạ 15cm
 const RELOAD_TILT = (35 * Math.PI) / 180; // chúc 35°
 const RELOAD_DOWN_END = 0.4; // hạ xong ở 40% thời gian reload
 const RELOAD_UP_START = 0.8; // bắt đầu đưa lên ở 80%
-const MUZZLE_FALLBACK = new THREE.Vector3(0, 0.03, -0.6); // khi model không có node 'muzzle'
+// Vị trí đầu nòng (hệ gunGroup) khi model không có node 'muzzle' — bước nén glb xoá mất empty
+// của colt/rouleau. Đo từ bbox + đỉnh gần mũi nòng của chính file glb đã nén (theo id súng).
+const MUZZLE_FALLBACK: THREE.Vector3[] = [
+  new THREE.Vector3(0, 0.096, -0.63), // AK47 (trùng node muzzle)
+  new THREE.Vector3(0, 0.111, -0.628), // M16 (trùng node muzzle)
+  new THREE.Vector3(0, 0.093, -0.244), // COLT
+  new THREE.Vector3(0, 0.078, -0.287), // ROULEAU
+];
 const FLASH_SIZE = 0.14;
 
 function makeFlashTexture(): THREE.Texture {
@@ -256,7 +263,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       gunGroup.worldToLocal(_tmp);
       flash.position.copy(_tmp);
     } else {
-      flash.position.copy(MUZZLE_FALLBACK);
+      flash.position.copy(MUZZLE_FALLBACK[currentWeapon] ?? MUZZLE_FALLBACK[0]!);
     }
     flash.material.rotation = Math.random() * Math.PI * 2;
     flash.visible = true;
