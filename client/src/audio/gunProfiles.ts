@@ -83,7 +83,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -8, startHz: 130, endHz: 60, durationMs: 70 },
     eq: { lowShelfHz: 200, lowShelfDb: 3, highShelfHz: 4500, highShelfDb: 2 },
     shell: 'rifle', shellDelayMs: 420,
-    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.3 }, steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.2 }, steps: [
       { file: 'reload_magout', at: 0.15, synth: 'magout' },
       { file: 'reload_magin',  at: 0.55, synth: 'magin' },
       { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
