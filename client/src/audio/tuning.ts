@@ -17,6 +17,7 @@ const LAYER_RANGES: Record<Exclude<keyof LayerDef, 'files'>, Range> = {
   gainRandDb:   [0, 6, 0.5],
   delayMs:      [0, 100, 1],
   synthDecayMs: [50, 1500, 10],
+  synthTailHz:  [500, 6000, 50],
 }
 
 const css = {

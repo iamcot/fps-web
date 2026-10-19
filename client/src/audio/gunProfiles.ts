@@ -9,6 +9,7 @@ export interface LayerDef {
   gainRandDb: number      // ± ngẫu nhiên
   delayMs: number
   synthDecayMs?: number   // độ dài âm tổng hợp dự phòng (chỉ dùng cho tail)
+  synthTailHz?: number    // tail tổng hợp: có giá trị → bandpass quanh tần số này (ít bass); không có → lowpass 1800Hz
 }
 
 export interface ThumpDef {   // lớp bass tổng hợp
@@ -21,7 +22,8 @@ export interface ThumpDef {   // lớp bass tổng hợp
 export type ReloadSynth = 'magout' | 'magin' | 'bolt' | 'shells' | 'insert'
 export interface ReloadStep { file: string; at: number; synth: ReloadSynth; emptyOnly?: boolean }
 export type ReloadSoundDef =
-  | { kind: 'mag'; steps: ReloadStep[] }
+  // whole: một file nạp trọn vẹn (tháo + lắp băng) phát một lần lúc bắt đầu nạp, thay cho các step
+  | { kind: 'mag'; steps: ReloadStep[]; whole?: { file: string; gainDb: number } }
   | {
       kind: 'perRound'
       open: ReloadStep; eject: ReloadStep; close: ReloadStep
@@ -79,7 +81,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -8, startHz: 130, endHz: 60, durationMs: 70 },
     eq: { lowShelfHz: 200, lowShelfDb: 3, highShelfHz: 4500, highShelfDb: 2 },
     shell: 'rifle', shellDelayMs: 420,
-    reload: { kind: 'mag', steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3 }, steps: [
       { file: 'reload_magout', at: 0.15, synth: 'magout' },
       { file: 'reload_magin',  at: 0.55, synth: 'magin' },
       { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
@@ -97,7 +99,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -16, startHz: 180, endHz: 100, durationMs: 35 },
     eq: { lowShelfHz: 150, lowShelfDb: -4, highShelfHz: 2500, highShelfDb: 7 },
     shell: 'rifle', shellDelayMs: 400,
-    reload: { kind: 'mag', steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3 }, steps: [
       { file: 'reload_magout', at: 0.15, synth: 'magout' },
       { file: 'reload_magin',  at: 0.55, synth: 'magin' },
       { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
@@ -115,7 +117,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -12, startHz: 170, endHz: 85, durationMs: 45 },
     eq: { lowShelfHz: 250, lowShelfDb: -1, highShelfHz: 4000, highShelfDb: 3 },
     shell: 'pistol', shellDelayMs: 380,
-    reload: { kind: 'mag', steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3 }, steps: [
       { file: 'reload_magout', at: 0.2,  synth: 'magout' },
       { file: 'reload_magin',  at: 0.6,  synth: 'magin' },
       { file: 'reload_slide',  at: 0.85, synth: 'bolt', emptyOnly: true },
@@ -127,7 +129,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     folder: 'rulo',
     layers: {
       body: { files: ['shot_01','shot_02','shot_03'], gainDb: 1, pitch: 0.86, pitchRand: 0.02, gainRandDb: 1, delayMs: 0 },
-      tail: { files: ['tail_01'],                     gainDb: 0, pitch: 0.90, pitchRand: 0.02, gainRandDb: 1, delayMs: 70 },
+      tail: { files: ['tail_01'],                     gainDb: 0, pitch: 0.90, pitchRand: 0.02, gainRandDb: 1, delayMs: 70, synthTailHz: 2400 },
     },
     thump: { gainDb: -5, startHz: 100, endHz: 45, durationMs: 120 },
     eq: { lowShelfHz: 120, lowShelfDb: 3, highShelfHz: 3500, highShelfDb: 3 },
@@ -160,6 +162,7 @@ export function allGunSoundKeys(gunKey: (f: string, n: string) => string, common
     if (p.cockFile) keys.push(gunKey(p.folder, p.cockFile))
     keys.push(gunKey(p.folder, p.draw))
   }
+  keys.push(commonKey('reload_mag'))
   for (const n of ['dryfire_rifle', 'dryfire_pistol', 'lowammo']) keys.push(commonKey(n))
   for (const kind of ['rifle', 'pistol']) for (let i = 1; i <= 3; i++) keys.push(commonKey(`shell_${kind}_0${i}`))
   return keys

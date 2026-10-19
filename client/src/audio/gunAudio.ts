@@ -88,7 +88,13 @@ function synthLayer(g: AudioGraph, kind: 'body' | 'mech' | 'tail', def: LayerDef
     noise(c, dest, { filter: 'bandpass', freq: 2200 * rate, q: 3, gainDb: -6, decayMs: 25, when: t })
     tone(c, dest, { type: 'square', freq: 900 * rate, gainDb: -18, decayMs: 15, when: t })
   } else {
-    noise(c, dest, { filter: 'lowpass', freq: 1800 * rate, q: 0.5, gainDb: -8, attackMs: 5, decayMs: def.synthDecayMs ?? 350, when: t })
+    // mặc định lowpass (rền, nhiều bass); synthTailHz → bandpass rộng quanh tần số đó, bớt bass (rulô)
+    const band = def.synthTailHz !== undefined
+    noise(c, dest, {
+      filter: band ? 'bandpass' : 'lowpass', freq: (def.synthTailHz ?? 1800) * rate, q: 0.5,
+      gainDb: band ? -11 : -8,   // bandpass nghe to hơn lowpass ~3dB → bù để cùng độ lớn
+      attackMs: 5, decayMs: def.synthDecayMs ?? 350, when: t,
+    })
   }
 }
 
@@ -226,12 +232,22 @@ export function playDry(id: number): void {
     (p.dryfire.file ? getBuffer(gunKey(p.folder, p.dryfire.file)) : undefined) ??
     getBuffer(commonKey(`dryfire_${p.dryfire.kind}`))
   if (buf) { playBuffer(g, buf, g.master, 1, 0, now); return }
-  if (p.dryfire.kind === 'rifle') {
-    noise(g.ctx, g.master, { filter: 'highpass', freq: 2500, gainDb: -6, decayMs: 15, when: now })
-    tone(g.ctx, g.master, { type: 'square', freq: 1100, gainDb: -18, decayMs: 25, when: now })
+  synthDry(g, p.dryfire.kind, g.master, now)
+}
+
+/** Búa đập vào buồng đạn rỗng: "tách" gắt + chuông kim loại ngắn (cho tiếng trong) + cú thụp nhỏ của thân súng. */
+export function synthDry(g: AudioGraph, kind: 'rifle' | 'pistol', dest: AudioNode, when: number): void {
+  const c = g.ctx
+  if (kind === 'rifle') {
+    noise(c, dest, { filter: 'bandpass', freq: 3000, q: 3, gainDb: -10, decayMs: 70, when })
+    tone(c, dest, { type: 'sine', freq: 1800, gainDb: -15, decayMs: 110, when })
+    tone(c, dest, { type: 'sine', freq: 4300, gainDb: -21, decayMs: 70, when })
+    tone(c, dest, { type: 'sine', freq: 160, freqEnd: 100, gainDb: -14, decayMs: 80, when })
   } else {
-    noise(g.ctx, g.master, { filter: 'highpass', freq: 3500, gainDb: -6, decayMs: 10, when: now })
-    tone(g.ctx, g.master, { type: 'square', freq: 1700, gainDb: -18, decayMs: 18, when: now })
+    noise(c, dest, { filter: 'bandpass', freq: 4200, q: 3, gainDb: -10, decayMs: 55, when })
+    tone(c, dest, { type: 'sine', freq: 2600, gainDb: -15, decayMs: 90, when })
+    tone(c, dest, { type: 'sine', freq: 6100, gainDb: -21, decayMs: 55, when })
+    tone(c, dest, { type: 'sine', freq: 240, freqEnd: 150, gainDb: -16, decayMs: 60, when })
   }
 }
 
@@ -346,7 +362,13 @@ export function startReload(id: number, ammoAtStart: number, durationMs: number,
   }
 
   const timers: number[] = []
-  for (const s of reloadSchedule(p, def.magSize, ammoAtStart)) {
+  const whole = p.reload.kind === 'mag' ? p.reload.whole : undefined
+  const wholeBuf = whole ? getBuffer(commonKey(whole.file)) : undefined
+  if (whole && wholeBuf) {
+    // Một file nạp trọn vẹn phát ngay lúc bắt đầu; file dài hơn thời gian nạp thì tăng tốc (tối đa ×1.3) cho kịp
+    const rate = Math.min(1.3, Math.max(1, wholeBuf.duration / (durationMs / 1000)))
+    playBuffer(g, wholeBuf, bus, rate, whole.gainDb, g.ctx.currentTime)
+  } else for (const s of reloadSchedule(p, def.magSize, ammoAtStart)) {
     timers.push(window.setTimeout(() => playReloadStep(g, p, s.file, s.synth, bus, s.rate), s.atFrac * durationMs))
   }
 

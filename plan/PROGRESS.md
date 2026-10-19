@@ -31,6 +31,7 @@
 - [~] A.6 Nạp đạn — phần âm thanh xong (mag + perRound, huỷ khi đổi súng). BỎ QUA A.6.1 (reloadEmptyMs/reloadEmpty trong shared = đặc tính súng): "nạp rỗng" suy ra từ ammo==0 lúc bắt đầu nạp, thời lượng dùng reloadMs hiện có
 - [x] A.7 Hết đạn + cảnh báo sắp hết (setting bật/tắt ở F8 > Chung)
 - [x] Âm bước chân/tiếp đất — audio/footsteps.ts, config FOOTSTEPS + tab F8 "Footsteps"; âm vỏ đạn tổng hợp theo SHELL_SYNTH (gunProfiles.ts)
+- [x] Reload mag dùng file nạp trọn (assets/source/sounds/gunreload1pres → client/public/sounds/common/reload_mag.ogg/.mp3) cho AK47/M16/Colt; dryfire synth làm lại (trong, rõ hơn); tail rulô bớt bass
 - [x] A.8 Trúng/hạ gục/bị trúng — audio/hitAudio.ts (combo, gộp 30ms, ducking, tim đập; tab Hit ở F8). Offline mới nối hit thân/đầu; kill/hurt/heartbeat là API chờ phase 4
 
 ## Phase 3 – Multiplayer di chuyển
