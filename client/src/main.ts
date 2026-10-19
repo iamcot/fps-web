@@ -11,6 +11,7 @@ import { startLoop, initGameState, defaultMovement } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
+import { clock } from './net/clock'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
 import { createTargets, updateTargets, flashTarget } from './targets'
@@ -179,6 +180,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     renderer.clearDepth()
     renderer.render(vm.scene, vm.cam)
 
+    clock.tick()
     updateDebug(state, fps)
   }, (state, cmd, nowMs) => {
     // Mỗi tick mô phỏng: logic súng + bước chân

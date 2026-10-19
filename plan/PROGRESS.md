@@ -38,7 +38,7 @@
 ## Phase 3 – Multiplayer di chuyển
 - [x] 3.1 Transport + netsim — shared/transport.ts (interface Transport + withNetsim: hàng đợi FIFO giữ thứ tự), server/transport.ts + client/net/transport.ts (WebSocket+msgpack), net/ping.ts (Ping 1s, RTT + đếm Pong sai thứ tự trên F3); protocol.ts đổi MsgType theo plan (Ping/Pong); server trả Pong. Netsim: ?lat=&jit= (mỗi chiều). Test e2e: lat=80 → RTT 161ms; jit=30 → 0 gói đảo
 - [x] 3.2 Room + join/leave — server/room.ts (Room, RoomManager: tạo phòng khi join, id tăng dần theo phòng, spawn A/B xen kẽ, xoá phòng trống >60s) + 5 test; protocol thêm Join/Welcome/PlayerJoined/PlayerLeft; Transport.onMessage giờ cộng dồn nhiều listener; client/net/lobby.ts (form tên+phòng, nhớ localStorage, nút Chơi offline, feed "X vào/đã rời" góc phải). Smoke test 3 trình duyệt OK
-- [ ] 3.3 Đồng bộ đồng hồ
+- [x] 3.3 Đồng bộ đồng hồ — client/net/clock.ts (ClockSync: 8 mẫu, chọn RTT nhỏ nhất; offset tăng nhảy ngay, giảm hạ ≤1ms/frame nên serverNow không lùi) + 5 test; ping.ts đẩy mẫu vào clock; F3 hiện serverNow/offset. Mục "so với serverTime snapshot" chờ 3.4 (chưa có snapshot)
 - [ ] 3.4 Server sim + snapshot + "client câm"
 - [ ] 3.5 Interpolation người khác
 - [ ] 3.6 Prediction + reconciliation

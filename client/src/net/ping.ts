@@ -1,11 +1,12 @@
 import { MsgType, type Transport } from '@fps/shared'
+import { clock } from './clock'
 
 export interface PingStats {
   rttMs: number          // RTT của Pong gần nhất (0 = chưa có)
   outOfOrder: number     // số Pong đến sai thứ tự (phải luôn = 0)
 }
 
-// Gửi Ping mỗi giây, đo RTT. Pong echo lại clientTime (tăng dần) nên dùng nó làm seq.
+// Gửi Ping mỗi giây, đo RTT và đồng bộ đồng hồ (clock.ts). Pong echo lại clientTime (tăng dần) nên dùng nó làm seq.
 export function startPing(transport: Transport, stats: PingStats): void {
   let lastEcho = -Infinity
   transport.onMessage(msg => {
@@ -16,6 +17,7 @@ export function startPing(transport: Transport, stats: PingStats): void {
       console.warn(`[net] Pong sai thứ tự: ${msg.clientTime} < ${lastEcho}`)
     }
     lastEcho = msg.clientTime
+    clock.addSample(msg.clientTime, msg.serverTime)
   })
   const send = () => transport.send({ t: MsgType.Ping, clientTime: performance.now() })
   send()

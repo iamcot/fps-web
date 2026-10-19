@@ -1,5 +1,6 @@
 import type { PlayerState } from '@fps/shared'
 import type { PingStats } from './net/ping'
+import { clock } from './net/clock'
 
 export function initDebugOverlay(net?: PingStats): (state: PlayerState, fps: number) => void {
   const el = document.createElement('pre')
@@ -23,7 +24,7 @@ export function initDebugOverlay(net?: PingStats): (state: PlayerState, fps: num
       `slideTimer ${state.slideTimer.toFixed(3)}`,
       `pos  ${state.pos.map(v => v.toFixed(2)).join('  ')}`,
       `yaw  ${state.yaw.toFixed(3)}   pitch ${state.pitch.toFixed(3)}`,
-      ...(net ? [`RTT  ${net.rttMs.toFixed(0)} ms   pong sai thứ tự ${net.outOfOrder}`] : []),
+      ...(net ? [`RTT  ${net.rttMs.toFixed(0)} ms   pong sai thứ tự ${net.outOfOrder}`, `serverNow ${clock.serverNow().toFixed(0)}   offset ${clock.offset.toFixed(1)}${clock.synced ? '' : ' (chưa sync)'}`] : []),
     ].join('\n')
   }
 }
