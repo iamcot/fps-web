@@ -172,6 +172,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       computeShot(shotDir, rec, def, PLAYER_ID, ws.shotSeq - 1, cmd.yaw, cmd.pitch,
         spreadFor(def, state.grounded, speed, state.crouching))
       vm.onFire()
+      hud.kickSpread(def.recoilPitchDeg * 2)   // tâm giãn theo độ giật của súng (hiển thị)
       play(`fire${def.id}` as 'fire0', 0.8, 0.97 + Math.random() * 0.06)
 
       eyeTmp[0] = state.pos[0]; eyeTmp[1] = state.pos[1] + eyeY; eyeTmp[2] = state.pos[2]

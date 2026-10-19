@@ -75,6 +75,10 @@ function buildBulletHoles(scene: THREE.Scene) {
 const CROSS_LEN   = 10   // px
 const CROSS_MIN_GAP = 4  // px
 const CAMERA_FOV_DEG = 75
+const GAP_EXPAND_MS  = 30   // hằng thời gian khi tâm giãn
+const GAP_SHRINK_MS  = 15   // co về nhanh hơn (gần như tức thì như lúc nhảy)
+const BLOOM_DECAY_MS = 100  // độ giãn thêm sau mỗi phát bắn tan dần
+const BLOOM_MAX_DEG  = 6
 
 function buildCrosshair() {
   const root = document.createElement('div')
@@ -92,6 +96,7 @@ function buildCrosshair() {
   document.body.appendChild(root)
 
   let gap = CROSS_MIN_GAP
+  let bloom = 0   // độ (chỉ hiển thị), cộng thêm vào spread mỗi phát bắn
   function place(g: number) {
     // 0 trái, 1 phải, 2 trên, 3 dưới
     bars[0]!.style.transform = `translate(${-g - CROSS_LEN}px,-1px)`
@@ -102,10 +107,14 @@ function buildCrosshair() {
   place(gap)
   return {
     /** spreadDeg: nửa góc nón; đổi sang pixel theo FOV dọc của camera chính */
+    kick(deg: number) { bloom = Math.min(BLOOM_MAX_DEG, bloom + deg) },
     tick(spreadDeg: number, dtMs: number) {
-      const px = Math.tan(spreadDeg * Math.PI / 180) / Math.tan(CAMERA_FOV_DEG * Math.PI / 360) * (window.innerHeight / 2)
+      bloom *= Math.exp(-dtMs / BLOOM_DECAY_MS)
+      if (bloom < 1e-3) bloom = 0
+      const px = Math.tan((spreadDeg + bloom) * Math.PI / 180) / Math.tan(CAMERA_FOV_DEG * Math.PI / 360) * (window.innerHeight / 2)
       const target = Math.max(CROSS_MIN_GAP, px)
-      gap += (target - gap) * Math.min(1, dtMs / 60)   // giãn/co mượt
+      const tau = target > gap ? GAP_EXPAND_MS : GAP_SHRINK_MS
+      gap += (target - gap) * (1 - Math.exp(-dtMs / tau))
       place(gap)
     },
   }
@@ -139,6 +148,7 @@ export interface HUDHandle {
   addBulletHole(hitPos: [number, number, number], normal: [number, number, number]): void
   tick(dtMs: number): void
   setSpread(spreadDeg: number, dtMs: number): void
+  kickSpread(deg: number): void
   setHealth(v: number): void
   setAmmo(name: string, cur: number, mag: number, reloading: boolean): void
 }
@@ -154,6 +164,7 @@ export function initHUD(scene: THREE.Scene): HUDHandle {
     addBulletHole: (p, n) => bh.add(p, n),
     tick:          (ms)  => hm.tick(ms),
     setSpread:     (d, ms) => ch.tick(d, ms),
+    kickSpread:    (d)   => ch.kick(d),
     setHealth:     (v)   => st.setHealth(v),
     setAmmo:       (n, c, m, r) => st.setAmmo(n, c, m, r),
   }
