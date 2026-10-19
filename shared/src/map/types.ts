@@ -15,6 +15,9 @@ export interface MapRamp {
   from: Vec3
   to: Vec3
   width: number
+  texture?: string    // như MapBox (class / tên ảnh); bỏ trống = ô kẻ xanh xám
+  variant?: number
+  color?: string
   noMirror?: boolean
 }
 

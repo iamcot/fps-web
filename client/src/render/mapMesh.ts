@@ -108,7 +108,13 @@ export function buildMapMesh(map: LoadedMap): THREE.Group {
     const len = rampLen(ramp)
     const thick = 0.3
     const geo = new THREE.BoxGeometry(len, thick, ramp.width)
-    const mat = makeMat(baseTex, len / TILE, ramp.width / TILE, RAMP_COLOR)
+    // Dốc có "texture" thì vẽ như box (ảnh lặp theo kích thước dốc), không thì ô kẻ xanh xám cũ
+    const look = ramp.texture
+      ? resolveBoxLook({ pos: ramp.from, size: [len, 0.3, ramp.width], texture: ramp.texture, variant: ramp.variant, color: ramp.color })
+      : null
+    const mat = look?.file
+      ? makeMat(getImage(look.file), len / look.tileM, ramp.width / look.tileM, look.color ?? 0xffffff)
+      : makeMat(baseTex, len / TILE, ramp.width / TILE, look?.color ?? RAMP_COLOR)
     const mesh = new THREE.Mesh(geo, mat)
     mesh.position.set(
       (ramp.from[0] + ramp.to[0]) / 2,

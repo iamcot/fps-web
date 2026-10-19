@@ -80,7 +80,6 @@ function disposeActor(a: Actor): void {
   disposeRig(a.rig)
   a.flash.material.map?.dispose()
   a.flash.material.dispose()
-  a.rig.root.traverse(o => { if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshBasicMaterial && o.material.map?.name === '') o.material.dispose() })
 }
 
 // pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig (chỉ co chân khi ngồi, đỉnh đầu khớp hitbox).
