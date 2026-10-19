@@ -9,7 +9,7 @@ import {
 import { getGraph, listenerPos, settings, type AudioGraph } from './context'
 import { tone, noise } from './synth'
 import { gunKey, commonKey, getBuffer } from './loader'
-import { GUN_SOUNDS, SHELL_SYNTH, type GunSoundProfile, type LayerDef, type ReloadStep, type ReloadSynth } from './gunProfiles'
+import { GUN_SOUNDS, SHELL_SYNTH, DRY_CHARGE_COUNT, type GunSoundProfile, type LayerDef, type ReloadStep, type ReloadSynth } from './gunProfiles'
 
 type Vec3 = [number, number, number]
 
@@ -223,19 +223,34 @@ function playCock(g: AudioGraph, p: GunSoundProfile, dest: AudioNode, when: numb
 }
 
 // ── Hết đạn / sắp hết (A.7) ───────────────────────────────────────────────────
-const DRY_GAP = 0.09   // s giữa hai tiếng "cạch cạch"
+const DRY_GAP = 0.09          // s giữa hai tiếng "cạch cạch" (âm tổng hợp)
+const DRY_CHARGE_GAP = 0.15   // s giữa tiếng cạch và tiếng lên đạn (file)
 
+/**
+ * Hết đạn: "cạch" rồi tiếng lên đạn liên tục. File: dryfire (hoặc dryfire_rifle|pistol) + một dryfire_charge_NN ngẫu nhiên.
+ * Thiếu file lên đạn → cạch hai lần; thiếu hết → âm tổng hợp hai lần.
+ */
 export function playDry(id: number): void {
   const g = getGraph()
   const p = GUN_SOUNDS[id]
   if (!g || !p) return
   const now = g.ctx.currentTime
-  const buf =
+  const click =
     (p.dryfire.file ? getBuffer(gunKey(p.folder, p.dryfire.file)) : undefined) ??
     getBuffer(commonKey(`dryfire_${p.dryfire.kind}`))
+  const charges: string[] = []
+  for (let i = 1; i <= DRY_CHARGE_COUNT; i++) if (getBuffer(commonKey(`dryfire_charge_0${i}`))) charges.push(commonKey(`dryfire_charge_0${i}`))
+  const chargeKey = pickNoRepeat(charges, lastPicked.get('dry_charge'), Math.random)
+
+  if (click && chargeKey) {
+    lastPicked.set('dry_charge', chargeKey)
+    playBuffer(g, click, g.master, 1 + randSpread(0.02), 0, now)
+    playBuffer(g, getBuffer(chargeKey)!, g.master, 1 + randSpread(0.02), 0, now + click.duration + DRY_CHARGE_GAP)
+    return
+  }
   for (let i = 0; i < 2; i++) {
     const t = now + i * DRY_GAP
-    if (buf) playBuffer(g, buf, g.master, 1 + i * 0.04, i * -3, t)
+    if (click) playBuffer(g, click, g.master, 1 + i * 0.04, i * -3, t)
     else synthDry(g, p.dryfire.kind, g.master, t, i)
   }
 }
@@ -375,6 +390,13 @@ export function startReload(id: number, ammoAtStart: number, durationMs: number,
     // Phát sau startFrac (chờ animation hạ súng); file dài hơn phần thời gian còn lại thì tăng tốc (tối đa ×1.3)
     const rate = Math.min(1.3, Math.max(1, wholeBuf.duration / ((durationMs * (1 - whole.startFrac)) / 1000)))
     timers.push(window.setTimeout(() => playBuffer(g, wholeBuf, bus, rate, whole.gainDb, g.ctx.currentTime), whole.startFrac * durationMs))
+    // Kéo khoá nòng: lúc animation đưa súng lên, nhưng không chồng lên tiếng lắp băng (đợi file whole gần hết)
+    const boltBuf = whole.boltFile ? getBuffer(commonKey(whole.boltFile)) : undefined
+    if (boltBuf) {
+      const wholeEndMs = whole.startFrac * durationMs + (wholeBuf.duration / rate) * 1000
+      const boltAt = Math.max((whole.boltAtFrac ?? 0.8) * durationMs, wholeEndMs - 200)
+      timers.push(window.setTimeout(() => playBuffer(g, boltBuf, bus, 1 + randSpread(0.02), 0, g.ctx.currentTime), boltAt))
+    }
   } else for (const s of reloadSchedule(p, def.magSize, ammoAtStart)) {
     timers.push(window.setTimeout(() => playReloadStep(g, p, s.file, s.synth, bus, s.rate), s.atFrac * durationMs))
   }
