@@ -24,7 +24,7 @@ export interface ReloadStep { file: string; at: number; synth: ReloadSynth; empt
 export type ReloadSoundDef =
   // whole: một file nạp trọn vẹn phát một lần thay cho các step; startFrac = tỉ lệ thời gian nạp mới phát
   // (súng dài chờ animation hạ súng xong); boltFile phát tiếp sau tiếng thay băng, lúc animation đưa súng lên
-  // (boltAtFrac = RELOAD_UP_START của viewmodel; luôn đợi file whole phát gần hết)
+  // (boltAtFrac = RELOAD_UP_START của viewmodel; luôn đợi file whole phát xong + một khoảng nghỉ BOLT_GAP_MS để phân biệt)
   | { kind: 'mag'; steps: ReloadStep[]; whole?: { file: string; gainDb: number; startFrac: number; boltFile?: string; boltAtFrac?: number } }
   | {
       kind: 'perRound'
@@ -73,9 +73,6 @@ export const SHELL_SYNTH: Record<'rifle' | 'pistol', ShellSynthDef> = {
   pistol: { firstGapMs: 50, gapMul: 0.55, gainsDb: [-23, -28, -32],      freqMin: 5600, freqMax: 7200, partialRatio: 2.4, partialDb: -12, decayMs: 40, decayMul: 0.65, clickDb: -16 },
 }
 
-/** Số file `common/dryfire_charge_NN` (tiếng lên đạn phát sau tiếng cạch khi hết đạn). */
-export const DRY_CHARGE_COUNT = 5
-
 export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
   0: { // AK47 – dày, rền, thô
     folder: 'ak47',
@@ -87,7 +84,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -8, startHz: 130, endHz: 60, durationMs: 70 },
     eq: { lowShelfHz: 200, lowShelfDb: 3, highShelfHz: 4500, highShelfDb: 2 },
     shell: 'rifle', shellDelayMs: 420,
-    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.2, boltFile: 'reload_bolt', boltAtFrac: 0.8 }, steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.14, boltFile: 'reload_bolt', boltAtFrac: 0.8 }, steps: [
       { file: 'reload_magout', at: 0.15, synth: 'magout' },
       { file: 'reload_magin',  at: 0.55, synth: 'magin' },
       { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
@@ -105,7 +102,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -16, startHz: 180, endHz: 100, durationMs: 35 },
     eq: { lowShelfHz: 150, lowShelfDb: -4, highShelfHz: 2500, highShelfDb: 7 },
     shell: 'rifle', shellDelayMs: 400,
-    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.3, boltFile: 'reload_bolt', boltAtFrac: 0.8 }, steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.14, boltFile: 'reload_bolt', boltAtFrac: 0.8 }, steps: [
       { file: 'reload_magout', at: 0.15, synth: 'magout' },
       { file: 'reload_magin',  at: 0.55, synth: 'magin' },
       { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
@@ -169,7 +166,6 @@ export function allGunSoundKeys(gunKey: (f: string, n: string) => string, common
     keys.push(gunKey(p.folder, p.draw))
   }
   keys.push(commonKey('reload_mag'), commonKey('reload_bolt'))
-  for (let i = 1; i <= DRY_CHARGE_COUNT; i++) keys.push(commonKey(`dryfire_charge_0${i}`))
   for (const n of ['dryfire_rifle', 'dryfire_pistol', 'lowammo']) keys.push(commonKey(n))
   for (const kind of ['rifle', 'pistol']) for (let i = 1; i <= 3; i++) keys.push(commonKey(`shell_${kind}_0${i}`))
   return keys

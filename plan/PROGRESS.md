@@ -32,7 +32,7 @@
 - [x] A.7 Hết đạn + cảnh báo sắp hết (setting bật/tắt ở F8 > Chung)
 - [x] Âm bước chân/tiếp đất — audio/footsteps.ts, config FOOTSTEPS + tab F8 "Footsteps"; âm vỏ đạn tổng hợp theo SHELL_SYNTH (gunProfiles.ts)
 - [x] Reload mag dùng file nạp trọn (assets/source/sounds/gunreload1pres → client/public/sounds/common/reload_mag.ogg/.mp3) cho AK47/M16/Colt; dryfire synth làm lại (trong, rõ hơn); tail rulô bớt bass
-- [x] Dryfire dùng file (dryfire.wav + 5 lát "lên đạn" cắt từ hetdan_and_lendan.wav → common/dryfire_charge_01..05); reload_bolt phát sau tiếng thay băng lúc súng đưa lên (AK47/M16/Colt)
+- [x] Dryfire: file dryfire.wav phát nhanh 2 lần (common/dryfire_rifle|pistol); reload_bolt phát sau tiếng thay băng, cách một khoảng nghỉ, lúc súng đưa lên (AK47/M16/Colt)
 - [x] A.8 Trúng/hạ gục/bị trúng — audio/hitAudio.ts (combo, gộp 30ms, ducking, tim đập; tab Hit ở F8). Offline mới nối hit thân/đầu; kill/hurt/heartbeat là API chờ phase 4
 
 ## Phase 3 – Multiplayer di chuyển
