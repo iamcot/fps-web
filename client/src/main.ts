@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, makeWeaponState, makeRecoilState,
-  stepWeaponCmd, spreadFor, computeShot, recoverRecoil,
+  stepWeaponCmd, shotSpread, spreadFor, computeShot, recoverRecoil,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
@@ -18,6 +18,7 @@ import { Interpolator, InterpDelay, interp } from './net/interpolation'
 import { reconcileWeapon } from './net/weaponSync'
 import { Prediction } from './net/prediction'
 import { createGhosts } from './render/ghosts'
+import { createTracers } from './render/tracers'
 import { MsgType } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
@@ -26,7 +27,7 @@ import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
 import {
   initAudio, updateListener, playShot, playDry, playDraw, startReload, cancelReload,
-  playHit, playFootstep, playLanding, StepTracker, FOOTSTEPS,
+  playHit, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS,
 } from './audio'
 import { initAudioTuning } from './audio/tuning'
 import mapFileRaw from '@assets/maps/deathmatch.json'
@@ -95,7 +96,7 @@ initAudio(() => playDraw(ws.current))   // vào màn chơi: súng mặc định 
 initAudioTuning()
 
 // ── Logic súng (shared) ───────────────────────────────────────────────────────
-const PLAYER_ID = 1   // offline; phase 4 dùng id người chơi thật làm seed spread
+let playerId = 1   // offline = 1; online = id server cấp (seed spread phải trùng server)
 const steps = new StepTracker()
 const ws  = makeWeaponState()
 const rec = makeRecoilState()
@@ -135,11 +136,23 @@ const playersRenderer = createPlayersRenderer(scene)
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
+let hudRef: ReturnType<typeof initHUD> | null = null
 const ghosts = createGhosts(scene)
+const tracers = createTracers(scene)
 const sessionP = showLobby()
 sessionP.then(session => {
   if (!session) return
+  playerId = session.yourId
   startPing(session.transport, netStats)
+  session.transport.onMessage(msg => {
+    if (msg.t === MsgType.HitConfirm) {
+      hudRef?.showHitmarker(msg.headshot)   // chỉ hiện khi server xác nhận
+      playHit(msg.headshot ? 'head' : 'body')
+    } else if (msg.t === MsgType.ShotFx) {
+      tracers.add(msg.origin, msg.dir, msg.dist)
+      playShotOther(msg.weapon, msg.origin)
+    }
+  })
   snapStore = attachSnapshots(session.transport, session.yourId, s => {
     interpolator.push(s.serverTime, s.players, s.yourId)
     if (s.self) prediction?.onSnapshot(s.ack, s.self)
@@ -186,6 +199,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   // Bia + HUD
   const targets = createTargets(scene)
   const hud     = initHUD(scene)
+  hudRef = hud
 
   let eyeY   = cfg.eyeStand
   let lastMs = performance.now()
@@ -227,6 +241,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     // Người khác: vẽ trễ (INTERP_DELAY_MS + trễ một chiều) bằng nội suy; chưa vào phòng thì danh sách rỗng
     if (snapStore) ghosts.update(snapStore.players, snapStore.yourId)
     if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)))
+    tracers.update(dt * 1000)
     clock.tick()
     updateDebug(state, fps)
   }, (state, cmd, nowMs) => {
@@ -238,8 +253,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
 
     const ev = stepWeaponCmd(ws, cmd)
     if (ev === 'fired') {
-      computeShot(shotDir, rec, def, PLAYER_ID, ws.shotSeq - 1, cmd.yaw, cmd.pitch,
-        spreadFor(def, state.grounded, spreadSpeed(speed, state.slideTimer), state.crouching))
+      computeShot(shotDir, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, shotSpread(def, state, cmd.buttons))
       vm.onFire()
       hud.kickSpread(def.recoilPitchDeg * 2)   // tâm giãn theo độ giật của súng (hiển thị)
       playShot(def.id, ws.ammo[def.id]!)

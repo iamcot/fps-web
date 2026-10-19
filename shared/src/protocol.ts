@@ -14,6 +14,8 @@ export const MsgType = {
   Snapshot: 103,
   PlayerJoined: 104,
   PlayerLeft: 105,
+  HitConfirm: 106,
+  ShotFx: 109,
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -82,6 +84,24 @@ export interface PlayerLeftMsg {
   id: number
 }
 
+// Gửi riêng người bắn: phát bắn trúng người (hitmarker chỉ hiện khi nhận gói này)
+export interface HitConfirmMsg {
+  t: typeof MsgType.HitConfirm
+  damage: number
+  headshot: boolean
+  targetId: number
+}
+
+// Gửi cả phòng trừ người bắn: vẽ vệt đạn + tiếng súng có vị trí. `weapon` ngoài plan, cần để chọn tiếng súng.
+export interface ShotFxMsg {
+  t: typeof MsgType.ShotFx
+  shooterId: number
+  weapon: number
+  origin: [number, number, number]
+  dir: [number, number, number]
+  dist: number
+}
+
 export interface PongMsg {
   t: typeof MsgType.Pong
   clientTime: number
@@ -90,7 +110,7 @@ export interface PongMsg {
 
 export type AnyMsg =
   | JoinMsg | InputsMsg | PingMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)

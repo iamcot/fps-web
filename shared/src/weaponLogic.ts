@@ -3,7 +3,7 @@ import type { WeaponDef, WeaponState } from './weapons'
 import { hashSeed, mulberry32 } from './math'
 import { shootDir } from './hitbox'
 import { Btn } from './movement'
-import type { InputCmd } from './movement'
+import type { InputCmd, PlayerState } from './movement'
 import { TICK_RATE } from './constants'
 
 const DEG = Math.PI / 180
@@ -155,4 +155,15 @@ export function weaponStatesEqual(a: WeaponState, b: WeaponState): boolean {
       a.shotSeq !== b.shotSeq || a.triggerHeld !== b.triggerHeld) return false
   for (let i = 0; i < a.ammo.length; i++) if (a.ammo[i] !== b.ammo[i]) return false
   return true
+}
+
+const MOVE_KEYS = Btn.Forward | Btn.Back | Btn.Left | Btn.Right
+
+/**
+ * Spread khi bắn, tính từ state SAU cmd và buttons của cmd đó (client và server dùng chung).
+ * Nhả hết phím di chuyển thì tính là đứng yên dù quán tính còn; đang trượt vẫn tính là di chuyển.
+ */
+export function shotSpread(def: WeaponDef, state: PlayerState, buttons: number): number {
+  const moving = (buttons & MOVE_KEYS) !== 0 || state.slideTimer > 0
+  return spreadFor(def, state.grounded, moving ? Math.hypot(state.vel[0], state.vel[2]) : 0, state.crouching)
 }
