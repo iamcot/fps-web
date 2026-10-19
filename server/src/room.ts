@@ -60,7 +60,11 @@ export class Room {
   }
 
   leave(id: number): void {
-    if (!this.players.delete(id)) return
+    const p = this.players.get(id)
+    if (!p) return
+    this.players.delete(id)
+    p.world?.dispose()
+    p.world = null
     for (const other of this.players.values()) other.transport.send({ t: MsgType.PlayerLeft, id })
     if (this.players.size === 0) this.emptySince = this.now()
   }

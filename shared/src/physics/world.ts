@@ -23,6 +23,7 @@ export interface CollisionWorld {
     maxDist: number,
   ): { dist: number; normal: [number, number, number] } | null
   debugRender(): { vertices: Float32Array; colors: Float32Array }
+  dispose(): void   // giải phóng bộ nhớ WASM; không dùng world sau khi gọi
 }
 
 class PhysicsWorld implements CollisionWorld {
@@ -134,6 +135,11 @@ class PhysicsWorld implements CollisionWorld {
 
   debugRender(): { vertices: Float32Array; colors: Float32Array } {
     return this._w.debugRender()
+  }
+
+  dispose(): void {
+    this._w.removeCharacterController(this._ctrl)
+    this._w.free()
   }
 }
 

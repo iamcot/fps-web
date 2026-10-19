@@ -67,7 +67,11 @@ wss.on('connection', ws => {
       if (!name || !roomId) return
       ;({ room, player } = rooms.join(roomId, name, transport, loop.tick))
       const joined = player
-      createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => { joined.world = w })
+      createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => {
+        // Người chơi có thể đã rời trước khi world nạp xong
+        if (room?.players.has(joined.id)) joined.world = w
+        else w.dispose()
+      })
       console.log(`[room ${roomId}] #${player.id} "${name}" vào (${room.players.size} người)`)
     }
   })
@@ -79,6 +83,11 @@ wss.on('connection', ws => {
   })
 })
 
-server.listen(PORT, () => {
-  console.log(`listening ${PORT}`)
+// Rapier khởi tạo wasm ở lần createWorld đầu; nhiều createWorld đồng thời lúc nguội làm hỏng bộ nhớ
+// ("recursive use of an object"). Khởi tạo xong rồi mới nhận kết nối.
+createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => {
+  w.dispose()
+  server.listen(PORT, () => {
+    console.log(`listening ${PORT}`)
+  })
 })

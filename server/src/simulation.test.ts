@@ -14,6 +14,7 @@ const flatWorld: CollisionWorld = {
   canStand: () => true,
   castRay: () => null,
   debugRender: () => ({ vertices: new Float32Array(0), colors: new Float32Array(0) }),
+  dispose: () => {},
 }
 
 const map = loadMap({ name: 't', mirrorX: true, boxes: [], ramps: [], spawnsA: [{ pos: [-25, 0, 0], yaw: 0 }] } as MapFile)

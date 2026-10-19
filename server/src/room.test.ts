@@ -14,6 +14,18 @@ function fake() {
 }
 
 describe('RoomManager', () => {
+  it('leave giải phóng world của người chơi', () => {
+    const rm = new RoomManager(map, () => 0)
+    const { room, player } = rm.join('r', 'A', fake().t)
+    let disposed = 0
+    player.world = { dispose: () => { disposed++ } } as never
+    room.leave(player.id)
+    expect(disposed).toBe(1)
+    expect(player.world).toBeNull()
+    room.leave(player.id)   // gọi lại không dispose lần 2
+    expect(disposed).toBe(1)
+  })
+
   it('join: id tăng dần, Welcome cho người mới, PlayerJoined cho người cũ', () => {
     const rm = new RoomManager(map, () => 0)
     const a = fake(), b = fake()
