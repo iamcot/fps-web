@@ -272,8 +272,9 @@ export function playDraw(id: number): void {
   const p = GUN_SOUNDS[id]
   if (!g || !p) return
   const now = g.ctx.currentTime
-  const buf = getBuffer(gunKey(p.folder, p.draw))
-  if (buf) { playBuffer(g, buf, g.master, 1 + randSpread(0.03), -6, now); return }
+  // Rút súng dùng tiếng kéo khoá nòng (common/reload_bolt); thiếu thì file draw riêng, rồi tới âm tổng hợp
+  const buf = getBuffer(commonKey('reload_bolt')) ?? getBuffer(gunKey(p.folder, p.draw))
+  if (buf) { playBuffer(g, buf, g.master, 1 + randSpread(0.02), -3, now); return }
   noise(g.ctx, g.master, { filter: 'bandpass', freq: 1500, q: 2, gainDb: -14, decayMs: 50, when: now })
   tone(g.ctx, g.master, { type: 'sine', freq: 260, freqEnd: 180, gainDb: -20, decayMs: 60, when: now })
 }
@@ -376,7 +377,8 @@ export function startReload(id: number, ammoAtStart: number, durationMs: number,
   const wholeBuf = whole ? getBuffer(commonKey(whole.file)) : undefined
   if (whole && wholeBuf) {
     // Phát sau startFrac (chờ animation hạ súng); file dài hơn phần thời gian còn lại thì tăng tốc (tối đa ×1.3)
-    const rate = Math.min(1.3, Math.max(1, wholeBuf.duration / ((durationMs * (1 - whole.startFrac)) / 1000)))
+    const fit = Math.min(1.3, Math.max(1, wholeBuf.duration / ((durationMs * (1 - whole.startFrac)) / 1000)))
+    const rate = Math.max(whole.speed ?? 1, fit)
     timers.push(window.setTimeout(() => playBuffer(g, wholeBuf, bus, rate, whole.gainDb, g.ctx.currentTime), whole.startFrac * durationMs))
     // Kéo khoá nòng: lúc animation đưa súng lên, nhưng sau tiếng thay băng một khoảng nghỉ để nghe tách bạch
     const boltBuf = whole.boltFile ? getBuffer(commonKey(whole.boltFile)) : undefined

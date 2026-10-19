@@ -12,11 +12,11 @@ export { StepTracker } from './audioMath'
 export { playHit, playHurt, setHealthForAudio } from './hitAudio'
 export type { HitKind } from './hitAudio'
 
-/** Gọi một lần lúc khởi động: tạo context ở user gesture đầu tiên, rồi nạp file (thiếu thì bỏ qua). */
-export function initAudio(): void {
+/** Gọi một lần lúc khởi động: tạo context ở user gesture đầu tiên, rồi nạp file (thiếu thì bỏ qua); nạp xong gọi onLoaded. */
+export function initAudio(onLoaded?: () => void): void {
   initAudioContext()
   onAudioReady((g) => {
     const keys = [...allGunSoundKeys(gunKey, commonKey), ...HIT_FILE_NAMES.map(commonKey), ...FOOTSTEP_FILES]
-    void preload(g.ctx, keys)
+    void preload(g.ctx, keys).then(() => onLoaded?.())
   })
 }

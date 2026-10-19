@@ -81,7 +81,7 @@ window.addEventListener('resize', () => {
 // ── Viewmodel ─────────────────────────────────────────────────────────────────
 const vm = createViewmodel(window.innerWidth / window.innerHeight)
 
-initAudio()
+initAudio(() => playDraw(ws.current))   // vào màn chơi: súng mặc định cũng phát tiếng rút súng
 initAudioTuning()
 
 // ── Logic súng (shared) ───────────────────────────────────────────────────────
