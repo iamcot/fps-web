@@ -3,7 +3,7 @@ import { INTERP_DELAY_MS, type NetPlayer } from '@fps/shared'
 import { Interpolator, interp } from './interpolation'
 
 const np = (id: number, x: number, yaw = 0, pitch = 0, flags = 0): NetPlayer =>
-  ({ id, pos: [x, 0, 0], vel: [0, 0, 0], yaw, pitch, flags, slideTimer: 0, slideCooldown: 0, hp: 100 })
+  ({ id, pos: [x, 0, 0], vel: [0, 0, 0], yaw, pitch, flags, slideTimer: 0, slideCooldown: 0, hp: 100, team: 'A' })
 const D = INTERP_DELAY_MS
 
 describe('Interpolator', () => {

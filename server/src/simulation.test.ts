@@ -25,7 +25,7 @@ function setup() {
   const got: AnyMsg[] = []
   const t: Transport = { send: m => { got.push(m) }, onMessage: () => {}, onClose: () => {} }
   const rm = new RoomManager(map, () => 0)
-  const { room, player } = rm.join('r', 'A', t)
+  const { room, player } = rm.join('r', 'A', t, 0, 'A')
   player.world = flatWorld
   return { room, p: player, got }
 }

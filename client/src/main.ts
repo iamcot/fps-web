@@ -7,9 +7,9 @@ import type { MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, applyCameraRotation, isLocked, yaw, pitch, setLook } from './input'
-import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, setDead } from './loop'
+import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, setDead, setMatchPhase } from './loop'
 import { initDebugOverlay } from './debug'
-import { showLobby } from './net/lobby'
+import { showLobby, type Session } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
 import { clock } from './net/clock'
 import { attachSnapshots, type SnapshotStore } from './net/snapshots'
@@ -21,7 +21,8 @@ import { createGhosts } from './render/ghosts'
 import { createTracers } from './render/tracers'
 import { createDebugShots } from './render/debugShots'
 import { createKillfeed, createDeathScreen, createHurtIndicator } from './hudNet'
-import { MsgType } from '@fps/shared'
+import { createMatchHud, createScoreboard } from './hudMatch'
+import { MsgType, MatchPhase } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
 import { createTargets, updateTargets, flashTarget } from './targets'
@@ -134,7 +135,12 @@ const spawn = loadedMap.spawns.A[0] ?? { pos: [0, 2, 0] as [number,number,number
 // Mạng: vào phòng qua màn hình lobby; chơi offline nếu bỏ qua. Ping chạy sau khi vào phòng
 const netStats: PingStats = { rttMs: 0, outOfOrder: 0 }
 let snapStore: SnapshotStore | null = null
-const playersRenderer = createPlayersRenderer(scene)
+let sessionRef: Session | null = null
+const playersRenderer = createPlayersRenderer(scene, {
+  teamOf: id => sessionRef?.teams.get(id),
+  nameOf: id => sessionRef?.names.get(id),
+  myTeam: () => sessionRef?.teams.get(sessionRef.yourId),
+})
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
@@ -145,11 +151,18 @@ const debugShots = createDebugShots(scene)
 const killfeed = createKillfeed()
 const deathScreen = createDeathScreen()
 const hurtIndicator = createHurtIndicator()
+const matchHud = createMatchHud()
+const scoreboard = createScoreboard()
+let tabHeld = false
+document.addEventListener('keydown', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = true } })
+document.addEventListener('keyup', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = false } })
+window.addEventListener('blur', () => { tabHeld = false })
 let lastHp = 100
 const sessionP = showLobby()
 sessionP.then(session => {
   if (!session) return
   playerId = session.yourId
+  sessionRef = session
   startPing(session.transport, netStats)
   session.transport.onMessage(msg => {
     if (msg.t === MsgType.HitConfirm) {
@@ -182,6 +195,11 @@ sessionP.then(session => {
       for (const w of WEAPONS) ws.ammo[w.id] = w.magSize
       ws.reloadEndMs = 0; ws.nextFireMs = 0; ws.triggerHeld = false
       cancelReload()
+    } else if (msg.t === MsgType.MatchState) {
+      matchHud.setMatch(msg.phase, msg.phaseEndsAt, msg.scoreA, msg.scoreB, msg.sideSwapped)
+      setMatchPhase(msg.phase)
+    } else if (msg.t === MsgType.Scoreboard) {
+      scoreboard.setRows(msg.rows, session.yourId)
     } else if (msg.t === MsgType.Hurt) {
       const dx = msg.origin[0] - camera.position.x, dy = msg.origin[1] - camera.position.y, dz = msg.origin[2] - camera.position.z
       hurtIndicator.show(dx, dz, yaw)
@@ -204,7 +222,7 @@ sessionP.then(session => {
   })
   session.transport.onClose(() => {
     setNetHooks(null); snapStore = null; prediction = null
-    setDead(false); deathScreen.hide()
+    setDead(false); deathScreen.hide(); setMatchPhase(MatchPhase.Playing); matchHud.clear(); sessionRef = null
     interpolator.push(0, []); playersRenderer.clear(); ghosts.clear()
   })
 })
@@ -289,6 +307,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     tracers.update(dt * 1000)
     debugShots.update(dt * 1000)
     deathScreen.tick()
+    matchHud.tick(clock.serverNow())
+    scoreboard.show(tabHeld || (snapStore !== null && matchHud.phase === MatchPhase.Ended))
     hurtIndicator.tick(dt * 1000)
     clock.tick()
     updateDebug(state, fps)

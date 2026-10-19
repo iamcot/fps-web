@@ -52,10 +52,10 @@
 - [x] 4.5 Hitmarker, killfeed, debug tia bắn — client/hudNet.ts: killfeed (góc phải, 5 dòng, sống 5s, 🎯 headshot, viền khi liên quan mình), màn hình chết xám + 'Bị X hạ' + đếm ngược, viền đỏ 4 cạnh theo hướng đạn (hurtEdgeWeights có test); hitmarker + tiếng chỉ khi nhận HitConfirm, kill/killHead khi mình hạ gục, playHurt + tim đập theo hp; S2C Hurt(111) ngoài plan. Chưa làm: số damage nổi (tuỳ chọn). Bot thật: bắn M16 → 30,30,120(đầu) → Kill cả 2 bên, hồi sinh đúng 3.00s sau ở spawn xa nhất. Còn thiếu: bài kiểm tra tay 3 tab 5 phút của người dùng
 
 ## Phase 5 – Team Deathmatch
-- [ ] 5.1 Đội + chia đội
-- [ ] 5.2 State machine trận đấu
-- [ ] 5.3 Bảng điểm + HUD điểm đội
-- [ ] 5.4 Đổi bên + người vào giữa trận
+- [x] 5.1 Đội + chia đội — shared/teams.ts (TEAMS, MATCH, MatchPhase, phaseButtonMask, winnerOf); Join.team + ChooseTeam(5, chỉ đổi được ở WAITING); Room.assignTeam: chọn đội đông hơn đội kia → bị chuyển sang đội kia, auto = đội ít người, mỗi đội ≤ maxPerTeam, phòng đầy → server đóng kết nối (lobby báo lỗi); TeamAssigned(113) cho cả phòng + gửi đội người cũ cho người mới; NetPlayer.team; đạn bỏ qua hitbox đồng đội (friendlyFire=false, xuyên qua); spawn/hồi sinh trong căn cứ đội (Room.baseSpawns/pickSpawn). Client: lobby có chọn đội, capsule tô màu đội, tên đồng đội trên đầu (sprite), địch không có tên
+- [x] 5.2 State machine trận — server/match.ts updateMatch (WAITING→COUNTDOWN→PLAYING→ENDED→COUNTDOWN); MatchState(112, plan ghi 111 nhưng 111 là Hurt) gửi khi đổi pha + mỗi 1s; COUNTDOWN/chết/ENDED chặn nút bằng phaseButtonMask chung client-server (xoay chuột vẫn được; ENDED vẫn đi nhưng không bắn/nạp); WAITING hồi sinh ngay và không tính điểm; kill chỉ tính ở PLAYING, chốt cuối tick; hết giờ/killLimit → ENDED (HOÀ nếu bằng); hết ENDED: reset điểm/KD/máu/đạn, sideSwapped đảo, mọi người về căn cứ (mỗi người một điểm spawn). Còn < minPlayers giữa COUNTDOWN/PLAYING → WAITING (điểm về 0). Test nhanh: biến môi trường FPS_MATCH_MS, FPS_KILL_LIMIT, FPS_END_MS cho server. Bot thật: 10 người xin cùng đội A → ABABABABAB, người thứ 11 bị từ chối, COUNTDOWN đứng yên, chu trình pha 0→1→2→3→1 với swapped=true
+- [x] 5.3 Bảng điểm + HUD — client/hudMatch.ts: 'Cớm a — b Cướp' + đồng hồ từ phaseEndsAt và clock.serverNow(), số đếm ngược to, banner thắng/hoà, bảng điểm giữ Tab (2 cột theo đội, K giảm dần, dòng của mình tô sáng) tự mở khi ENDED; Scoreboard(114) mỗi 1s; ping do client báo trong Ping.rtt (server kẹp 0–999)
+- [x] 5.4 Đổi bên + vào giữa trận — Room.sideSwapped đảo mỗi trận; người vào giữa trận auto vào đội ít người, spawn ở căn cứ đội, bất tử SPAWN_INVULN_MS; người rời: điểm đội giữ nguyên (điểm là của đội). Còn thiếu: bài kiểm tra tay 4–6 người 2 trận liên tiếp của người dùng
 
 ## Phase 6 – Làm đẹp
 - [ ] (làm sau, task chọn lẻ)

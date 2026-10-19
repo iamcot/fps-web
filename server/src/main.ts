@@ -1,7 +1,7 @@
 import { createServer } from 'http'
 import { readFileSync } from 'fs'
 import { WebSocketServer } from 'ws'
-import { TICK_RATE, MsgType, loadMap, defaultMovement, type MapFile } from '@fps/shared'
+import { TICK_RATE, MsgType, MatchPhase, MATCH, loadMap, defaultMovement, type MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { wrapWebSocket } from './transport'
 import { startHeartbeat } from './heartbeat'
@@ -18,7 +18,12 @@ const mapFile = JSON.parse(
 ) as MapFile
 const map = loadMap(mapFile)
 const cfg = defaultMovement
-const rooms = new RoomManager(map)
+// Biến môi trường để thử nhanh: FPS_MATCH_MS (thời lượng trận), FPS_KILL_LIMIT
+const rules = { ...MATCH }
+if (Number(process.env.FPS_MATCH_MS) > 0) rules.durationMs = Number(process.env.FPS_MATCH_MS)
+if (Number(process.env.FPS_KILL_LIMIT) > 0) rules.killLimit = Number(process.env.FPS_KILL_LIMIT)
+if (Number(process.env.FPS_END_MS) > 0) rules.endScreenMs = Number(process.env.FPS_END_MS)
+const rooms = new RoomManager(map, undefined, rules)
 setInterval(() => rooms.sweep(), 5000)
 
 // Vòng lặp 60Hz: mô phỏng rồi gửi snapshot (mỗi SNAPSHOT_EVERY_TICKS tick)
@@ -62,16 +67,27 @@ wss.on('connection', ws => {
     if (msg.t === MsgType.Ping) {
       // serverTime = ms kể từ lúc server khởi động
       transport.send({ t: MsgType.Pong, clientTime: msg.clientTime, serverTime: performance.now() })
+      if (player && typeof msg.rtt === 'number' && Number.isFinite(msg.rtt)) player.pingMs = Math.min(999, Math.max(0, msg.rtt))
     } else if (msg.t === MsgType.Inputs) {
       if (player) enqueueCmds(player, msg.cmds)
     } else if (msg.t === MsgType.SetDebug) {
       if (player) player.debugShots = msg.shots === true
+    } else if (msg.t === MsgType.ChooseTeam) {
+      // Chỉ đổi đội khi chưa vào trận (WAITING); còn lại giữ đội hiện tại
+      if (!room || !player) return
+      const pref = msg.team === 'A' || msg.team === 'B' ? msg.team : 'auto'
+      const team = room.phase === MatchPhase.Waiting ? room.assignTeam(pref, player) : null
+      if (team && team !== player.team) { room.setTeam(player, team); room.respawn(player) }
+      else transport.send({ t: MsgType.TeamAssigned, id: player.id, team: player.team })
     } else if (msg.t === MsgType.Join) {
       if (player) return   // mỗi kết nối chỉ join một lần
       const name = sanitizeName(msg.name)
       const roomId = sanitizeRoom(msg.room)
       if (!name || !roomId) return
-      ;({ room, player } = rooms.join(roomId, name, transport, loop.tick))
+      const pref = msg.team === 'A' || msg.team === 'B' ? msg.team : 'auto'
+      const res = rooms.tryJoin(roomId, name, transport, loop.tick, pref)
+      if (!res) { console.log(`${stamp()} [room ${roomId}] "${name}" bị từ chối: phòng đầy`); ws.close(1008, 'room full'); return }
+      ;({ room, player } = res)
       const joined = player
       createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => {
         // Người chơi có thể đã rời trước khi world nạp xong

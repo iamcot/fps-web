@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { Btn, MsgType, NetFlag, defaultMovement, loadMap, type AnyMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
+import { Btn, MatchPhase, MsgType, NetFlag, defaultMovement, loadMap, type AnyMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { RoomManager, type Player } from './room'
 import { enqueueCmds, stepPlayer } from './simulation'
@@ -23,13 +23,15 @@ function setup(wallDist: number | null = null) {
   const mk = (name: string): Player => {
     const msgs: AnyMsg[] = []
     const t: Transport = { send: m => { msgs.push(m) }, onMessage: () => {}, onClose: () => {} }
-    const { player } = rm.join('r', name, t)
+    const { player } = rm.join('r', name, t, 0, name === 'A' ? 'A' : 'B')
     player.world = worldWithWall(wallDist)
     logs.set(player.id, msgs)
     return player
   }
   const a = mk('A'), b = mk('B')
-  return { room: rm.rooms.get('r')!, a, b, logs }
+  const room = rm.rooms.get('r')!
+  room.phase = MatchPhase.Playing   // chấm điểm / hồi sinh theo luật trận, không phải WAITING
+  return { room, a, b, logs }
 }
 
 const fireCmd = (seq: number, extra: Partial<InputCmd> = {}): InputCmd =>

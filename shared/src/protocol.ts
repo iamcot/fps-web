@@ -2,6 +2,7 @@ import { encode as mpEncode, decode as mpDecode } from '@msgpack/msgpack'
 import { Btn, type InputCmd, type PlayerState } from './movement'
 import type { HitBox } from './hitbox'
 import { WEAPONS, type WeaponState } from './weapons'
+import type { MatchPhase, TeamId } from './teams'
 
 // Phân loại message theo plan/04-phase3-netcode-move.md (C2S 1-3, S2C 101-105)
 export const MsgType = {
@@ -10,6 +11,7 @@ export const MsgType = {
   Inputs: 2,
   Ping: 3,
   SetDebug: 4,
+  ChooseTeam: 5,
   // Server → Client
   Welcome: 101,
   Pong: 102,
@@ -22,6 +24,9 @@ export const MsgType = {
   ShotFx: 109,
   DebugShot: 110,
   Hurt: 111,
+  MatchState: 112,   // plan ghi 111 nhưng 111 đã là Hurt
+  TeamAssigned: 113,
+  Scoreboard: 114,
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -35,12 +40,20 @@ export interface InputsMsg {
 export interface PingMsg {
   t: typeof MsgType.Ping
   clientTime: number
+  rtt?: number   // RTT client đo được gần nhất (ms), server dùng cho cột ping ở bảng điểm
 }
 
 export interface JoinMsg {
   t: typeof MsgType.Join
   name: string
   room: string
+  team?: TeamId | 'auto'   // đội muốn vào; mặc định auto
+}
+
+// Đổi đội (server áp luật cân bằng, trả lời bằng TeamAssigned)
+export interface ChooseTeamMsg {
+  t: typeof MsgType.ChooseTeam
+  team: TeamId | 'auto'
 }
 
 // Bật/tắt DebugShot (F7); ngoài plan, cần để server biết khi nào gửi
@@ -78,6 +91,7 @@ export interface NetPlayer {
   slideTimer: number
   slideCooldown: number
   hp: number
+  team: TeamId
 }
 
 export interface SnapshotMsg {
@@ -150,6 +164,28 @@ export interface DebugShotMsg {
   boxes: HitBox[]
 }
 
+// Cả phòng: gửi khi đổi pha và mỗi 1s. phaseEndsAt theo serverTime (0 = không có hạn)
+export interface MatchStateMsg {
+  t: typeof MsgType.MatchState
+  phase: MatchPhase
+  phaseEndsAt: number
+  scoreA: number
+  scoreB: number
+  sideSwapped: boolean
+}
+
+export interface TeamAssignedMsg {
+  t: typeof MsgType.TeamAssigned
+  id: number
+  team: TeamId
+}
+
+export interface ScoreboardRow { id: number; name: string; team: TeamId; kills: number; deaths: number; ping: number }
+export interface ScoreboardMsg {
+  t: typeof MsgType.Scoreboard
+  rows: ScoreboardRow[]
+}
+
 export interface PongMsg {
   t: typeof MsgType.Pong
   clientTime: number
@@ -157,8 +193,8 @@ export interface PongMsg {
 }
 
 export type AnyMsg =
-  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg
+  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)
@@ -178,7 +214,7 @@ export function isValidCmd(c: unknown): c is InputCmd {
   )
 }
 
-export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0): NetPlayer {
+export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0, team: TeamId = 'A'): NetPlayer {
   return {
     id,
     pos: [s.pos[0], s.pos[1], s.pos[2]],
@@ -186,7 +222,7 @@ export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0)
     yaw: s.yaw, pitch: s.pitch,
     flags: (s.grounded ? NetFlag.Grounded : 0) | (s.crouching ? NetFlag.Crouching : 0) | (s.slideTimer > 0 ? NetFlag.Sliding : 0) | extraFlags,
     slideTimer: s.slideTimer, slideCooldown: s.slideCooldown,
-    hp,
+    hp, team,
   }
 }
 

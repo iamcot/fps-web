@@ -29,19 +29,19 @@ describe('RoomManager', () => {
   it('join: id tăng dần, Welcome cho người mới, PlayerJoined cho người cũ', () => {
     const rm = new RoomManager(map, () => 0)
     const a = fake(), b = fake()
-    const pa = rm.join('r1', 'A', a.t).player
-    const pb = rm.join('r1', 'B', b.t).player
+    const pa = rm.join('r1', 'A', a.t, 0, 'A').player
+    const pb = rm.join('r1', 'B', b.t, 0, 'B').player
     expect([pa.id, pb.id]).toEqual([1, 2])
     expect(a.got[0]).toMatchObject({ t: MsgType.Welcome, yourId: 1, mapName: 'test' })
     expect(b.got[0]).toMatchObject({ t: MsgType.Welcome, yourId: 2 })
-    expect(a.got[1]).toEqual({ t: MsgType.PlayerJoined, id: 2, name: 'B' })
-    expect(b.got.length).toBe(1)
+    expect(a.got.find(m => m.t === MsgType.PlayerJoined)).toEqual({ t: MsgType.PlayerJoined, id: 2, name: 'B' })
+    expect(b.got[0]!.t).toBe(MsgType.Welcome)
   })
 
   it('spawn xen kẽ đội A (x âm) / B (x dương)', () => {
     const rm = new RoomManager(map, () => 0)
-    const a = rm.join('r', 'A', fake().t).player
-    const b = rm.join('r', 'B', fake().t).player
+    const a = rm.join('r', 'A', fake().t, 0, 'A').player
+    const b = rm.join('r', 'B', fake().t, 0, 'B').player
     expect(a.state.pos[0]).toBeLessThan(0)
     expect(b.state.pos[0]).toBeGreaterThan(0)
   })
@@ -60,7 +60,7 @@ describe('RoomManager', () => {
     const a = fake(), b = fake()
     rm.join('r1', 'A', a.t)
     rm.join('r2', 'B', b.t)
-    expect(a.got.length).toBe(1)   // chỉ Welcome
+    expect(a.got.some(m => m.t === MsgType.PlayerJoined)).toBe(false)   // không thấy người phòng khác
     expect(rm.rooms.size).toBe(2)
   })
 

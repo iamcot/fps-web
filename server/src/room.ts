@@ -1,4 +1,4 @@
-import { MsgType, PLAYER_MAX_HP, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport } from '@fps/shared'
+import { MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 
@@ -30,6 +30,10 @@ export interface Player {
   debugShots: boolean            // F7: gửi DebugShot cho người này
   rewindClamped: number          // số phát bị kẹp vì fireRenderTime cũ hơn MAX_REWIND_MS
   shotsFired: number             // số phát bắn hợp lệ từ lúc vào phòng (log/test)
+  team: TeamId
+  kills: number                  // trong trận hiện tại (chỉ tính ở PLAYING)
+  deaths: number
+  pingMs: number                 // RTT do client báo trong Ping, cho bảng điểm
   seqOffset: number | null       // now − seq*1000/TICK_RATE của cmd đầu tiên; chặn seq chạy nhanh hơn thời gian thực
 }
 
@@ -39,20 +43,58 @@ export class Room {
   readonly history = new LagHistory()
   serverNow = 0   // serverTime của tick đang chạy (stepRoom đặt)
   private nextId = 1
-  private spawnTurn = 0   // phase 5 mới có đội: tạm xen kẽ spawn A/B
+
+  // Trận đấu (5.2): máy trạng thái chạy trong match.ts
+  phase: MatchPhase = MatchPhase.Waiting
+  phaseEndsAt = 0
+  scoreA = 0
+  scoreB = 0
+  sideSwapped = false
+  lastBroadcast = -Infinity   // serverTime lần gửi MatchState/Scoreboard gần nhất (mỗi 1s)
 
   constructor(
     readonly id: string,
     private map: LoadedMap,
     private now: () => number,
     private random: () => number = Math.random,
+    readonly rules: MatchRules = MATCH,
   ) {
     this.emptySince = now()
   }
 
-  join(name: string, transport: Transport, tick: number, serverTime: number): Player {
-    const spawns = (this.spawnTurn++ % 2 === 0 ? this.map.spawns.A : this.map.spawns.B)
-    const sp = spawns[Math.floor(this.random() * spawns.length)] ?? { pos: [0, 2, 0] as [number, number, number], yaw: 0 }
+  teamCount(team: TeamId): number {
+    let n = 0
+    for (const p of this.players.values()) if (p.team === team) n++
+    return n
+  }
+
+  // Luật chọn đội: tự động → đội ít người hơn (bằng nhau thì ngẫu nhiên); chọn đội đông hơn đội kia thì bị chuyển sang đội kia.
+  // Đội đầy (maxPerTeam) cũng chuyển; cả hai đầy → null (phòng đầy). `except` = người đang đổi đội (không tính vào đội cũ).
+  assignTeam(pref: TeamId | 'auto', except: Player | null = null): TeamId | null {
+    let a = this.teamCount('A'), b = this.teamCount('B')
+    if (except) { if (except.team === 'A') a--; else b-- }
+    const count = (t: TeamId) => (t === 'A' ? a : b)
+    let team: TeamId = pref === 'auto' ? (a === b ? (this.random() < 0.5 ? 'A' : 'B') : a < b ? 'A' : 'B') : pref
+    if (count(team) > count(otherTeam(team))) team = otherTeam(team)
+    if (count(team) >= this.rules.maxPerTeam) team = otherTeam(team)
+    return count(team) >= this.rules.maxPerTeam ? null : team
+  }
+
+  // Căn cứ của đội: đổi bên thì đội A ở căn cứ B và ngược lại (5.4)
+  baseSpawns(team: TeamId): LoadedMap['spawns']['A'] {
+    return (team === 'A') !== this.sideSwapped ? this.map.spawns.A : this.map.spawns.B
+  }
+
+  setTeam(p: Player, team: TeamId): void {
+    p.team = team
+    for (const o of this.players.values()) o.transport.send({ t: MsgType.TeamAssigned, id: p.id, team })
+  }
+
+  // null = phòng đầy
+  join(name: string, transport: Transport, tick: number, serverTime: number, pref: TeamId | 'auto' = 'auto'): Player | null {
+    const team = this.assignTeam(pref)
+    if (!team) return null
+    const sp = this.pickSpawn(team, null, true)
     const player: Player = {
       id: this.nextId++,
       name,
@@ -81,6 +123,10 @@ export class Room {
       debugShots: false,
       rewindClamped: 0,
       shotsFired: 0,
+      team,
+      kills: 0,
+      deaths: 0,
+      pingMs: 0,
       seqOffset: null,
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name,
@@ -90,6 +136,11 @@ export class Room {
     }
     this.players.set(player.id, player)
     this.emptySince = null
+    // Đội của mọi người cho người mới; đội của người mới cho cả phòng
+    for (const o of this.players.values()) if (o !== player) transport.send({ t: MsgType.TeamAssigned, id: o.id, team: o.team })
+    for (const o of this.players.values()) o.transport.send({ t: MsgType.TeamAssigned, id: player.id, team })
+    // Vào giữa trận: bất tử như vừa hồi sinh (5.4)
+    if (this.phase !== MatchPhase.Waiting) player.invulnUntil = this.serverNow + SPAWN_INVULN_MS
     return player
   }
 
@@ -109,8 +160,17 @@ export class Room {
       if (!p.alive || p.hp > 0) continue
       p.alive = false
       p.hp = 0
-      p.respawnAt = this.serverNow + RESPAWN_DELAY_MS
+      // WAITING hồi sinh ngay; còn lại theo RESPAWN_DELAY_MS
+      p.respawnAt = this.serverNow + (this.phase === MatchPhase.Waiting ? 0 : RESPAWN_DELAY_MS)
       p.weapon.triggerHeld = false
+      if (this.phase === MatchPhase.Playing) {
+        p.deaths++
+        const killer = this.players.get(p.killerId)
+        if (killer && killer.team !== p.team) {
+          killer.kills++
+          if (killer.team === 'A') this.scoreA++; else this.scoreB++
+        }
+      }
       for (const o of this.players.values()) {
         o.transport.send({ t: MsgType.Kill, killerId: p.killerId, victimId: p.id, weapon: p.killWeapon, headshot: p.killHeadshot })
       }
@@ -125,19 +185,27 @@ export class Room {
     }
   }
 
-  // Spawn xa kẻ địch còn sống nhất: chọn điểm có khoảng cách tới kẻ địch gần nhất lớn nhất
-  respawn(p: Player): void {
-    const all = [...this.map.spawns.A, ...this.map.spawns.B]
+  // Spawn trong căn cứ của đội, xa kẻ địch còn sống nhất (điểm có khoảng cách tới kẻ địch gần nhất lớn nhất).
+  // `p` = null: người đang vào phòng (chưa có trong danh sách).
+  pickSpawn(team: TeamId, p: Player | null, spreadTeammates = false): LoadedMap['spawns']['A'][number] {
+    const all = this.baseSpawns(team)
     let best = all[0] ?? { pos: [0, 2, 0] as [number, number, number], yaw: 0 }
     let bestScore = -1
     for (const sp of all) {
       let nearest = Infinity
       for (const o of this.players.values()) {
         if (o === p || !o.alive) continue
+        // Đồng đội cũng tránh để không chồng lên nhau, nhưng kẻ địch mới là tiêu chí chính
+        if (o.team === team && !spreadTeammates) continue
         nearest = Math.min(nearest, Math.hypot(o.state.pos[0] - sp.pos[0], o.state.pos[2] - sp.pos[2]))
       }
       if (nearest > bestScore) { bestScore = nearest; best = sp }
     }
+    return best
+  }
+
+  respawn(p: Player, spawn?: { pos: [number, number, number]; yaw: number }): void {
+    const best = spawn ?? this.pickSpawn(p.team, p)
     p.state = {
       pos: [best.pos[0], best.pos[1], best.pos[2]], vel: [0, 0, 0], yaw: best.yaw, pitch: 0,
       grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0,
@@ -165,17 +233,23 @@ export class Room {
 export class RoomManager {
   readonly rooms = new Map<string, Room>()
 
-  constructor(private map: LoadedMap, private now: () => number = () => performance.now()) {}
+  constructor(private map: LoadedMap, private now: () => number = () => performance.now(), private rules: MatchRules = MATCH) {}
 
-  // Vào phòng chưa có thì tạo mới
-  join(roomId: string, name: string, transport: Transport, tick = 0): { room: Room; player: Player } {
+  // Vào phòng chưa có thì tạo mới. tryJoin trả null khi phòng đầy
+  join(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto'): { room: Room; player: Player } {
+    const res = this.tryJoin(roomId, name, transport, tick, team)
+    if (!res) throw new Error('phòng đầy')
+    return res
+  }
+
+  tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto'): { room: Room; player: Player } | null {
     let room = this.rooms.get(roomId)
     if (!room) {
-      room = new Room(roomId, this.map, this.now)
+      room = new Room(roomId, this.map, this.now, Math.random, this.rules)
       this.rooms.set(roomId, room)
     }
-    const player = room.join(name, transport, tick, this.now())
-    return { room, player }
+    const player = room.join(name, transport, tick, this.now(), team)
+    return player ? { room, player } : null
   }
 
   // Xoá phòng trống quá 60 giây; gọi định kỳ

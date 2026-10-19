@@ -19,7 +19,7 @@ export function startPing(transport: Transport, stats: PingStats): void {
     lastEcho = msg.clientTime
     clock.addSample(msg.clientTime, msg.serverTime)
   })
-  const send = () => transport.send({ t: MsgType.Ping, clientTime: performance.now() })
+  const send = () => transport.send({ t: MsgType.Ping, clientTime: performance.now(), rtt: stats.rttMs })
   send()
   setInterval(send, 1000)
 }

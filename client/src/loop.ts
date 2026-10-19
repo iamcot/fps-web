@@ -1,4 +1,4 @@
-import { DT, TICK_RATE } from '@fps/shared'
+import { DT, TICK_RATE, MatchPhase, phaseButtonMask } from '@fps/shared'
 import { stepMovement, lerpState, defaultMovement } from '@fps/shared'
 import type { PlayerState, MovementConfig, InputCmd } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
@@ -15,10 +15,12 @@ let _weapon = 0
 export function setWantedWeapon(id: number): void { _weapon = id }
 
 let _dead = false
+let _phase: MatchPhase = MatchPhase.Playing   // offline = đang chơi
 export function setDead(v: boolean): void { _dead = v }
+export function setMatchPhase(v: MatchPhase): void { _phase = v }
 
 function _buildCmd(): InputCmd {
-  let buttons = _dead ? 0 : sampleButtons()   // người chết không di chuyển/bắn (server cũng bỏ nút)
+  let buttons = sampleButtons() & phaseButtonMask(_phase, !_dead)   // chết / đếm ngược / hết trận: server cũng bỏ nút này
   if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload)   // chưa khoá chuột thì không bắn/nạp
   return { seq: _seq++, buttons, yaw, pitch, weapon: _weapon }
 }

@@ -41,6 +41,7 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, cfg: Mov
 
   for (const other of room.players.values()) {
     if (other === shooter) continue
+    if (other.team === shooter.team && !room.rules.friendlyFire) continue   // đồng đội: đạn xuyên qua
     let state: PlayerState = other.state
     let alive = other.alive
     if (rewound && room.history.get(other.id, past)) {

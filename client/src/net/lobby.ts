@@ -1,20 +1,21 @@
-import { MsgType, type Transport } from '@fps/shared'
+import { MsgType, TEAMS, type TeamId, type Transport } from '@fps/shared'
 import { connectWebSocket, maybeNetsim } from './transport'
 
 export interface Session {
   transport: Transport
   yourId: number
   names: Map<number, string>   // id → tên (killfeed); giữ cả người đã rời
+  teams: Map<number, TeamId>   // id → đội (TeamAssigned)
 }
 
 const STORE_KEY = 'fps.lobby'
 const WS_URL = `ws://${location.hostname}:8081`
 
-function loadSaved(): { name: string; room: string } {
+function loadSaved(): { name: string; room: string; team: string } {
   try {
     const o = JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}')
-    return { name: String(o.name ?? ''), room: String(o.room ?? 'lobby') }
-  } catch { return { name: '', room: 'lobby' } }
+    return { name: String(o.name ?? ''), room: String(o.room ?? 'lobby'), team: String(o.team ?? 'auto') }
+  } catch { return { name: '', room: 'lobby', team: 'auto' } }
 }
 
 // Dòng sự kiện mạng góc phải trên: "X vào", "X đã rời"
@@ -34,10 +35,11 @@ function createEventFeed() {
   }
 }
 
-function connectAndJoin(name: string, room: string): Promise<Session> {
+function connectAndJoin(name: string, room: string, team: TeamId | 'auto'): Promise<Session> {
   return connectWebSocket(WS_URL).then(raw => new Promise<Session>((resolve, reject) => {
     const transport = maybeNetsim(raw)
     const names = new Map<number, string>()
+    const teams = new Map<number, TeamId>()
     const log = createEventFeed()
     let welcomed = false
     transport.onMessage(msg => {
@@ -45,7 +47,9 @@ function connectAndJoin(name: string, room: string): Promise<Session> {
         welcomed = true
         for (const p of msg.players) names.set(p.id, p.name)
         log(`Vào phòng "${room}" với id ${msg.yourId}`)
-        resolve({ transport, yourId: msg.yourId, names })
+        resolve({ transport, yourId: msg.yourId, names, teams })
+      } else if (msg.t === MsgType.TeamAssigned) {
+        teams.set(msg.id, msg.team)
       } else if (msg.t === MsgType.PlayerJoined) {
         names.set(msg.id, msg.name)
         log(`${msg.name} (#${msg.id}) vào`)
@@ -57,7 +61,7 @@ function connectAndJoin(name: string, room: string): Promise<Session> {
       if (!welcomed) reject(new Error('Server đóng kết nối'))
       else log('Mất kết nối server')
     })
-    transport.send({ t: MsgType.Join, name, room })
+    transport.send({ t: MsgType.Join, name, room, team })
   }))
 }
 
@@ -73,6 +77,11 @@ export function showLobby(): Promise<Session | null> {
       <div style="font-size:24px;text-align:center">FPS Web</div>
       <input name="name" placeholder="Tên" maxlength="16" value="" autocomplete="off">
       <input name="room" placeholder="Mã phòng" maxlength="32" value="" autocomplete="off">
+      <select name="team">
+        <option value="auto">Đội: tự động</option>
+        <option value="A">Đội: ${TEAMS.A.name}</option>
+        <option value="B">Đội: ${TEAMS.B.name}</option>
+      </select>
       <button type="submit">Vào phòng</button>
       <button type="button" data-offline>Chơi offline</button>
       <div data-err style="color:#f66;min-height:1.2em"></div>
@@ -82,6 +91,8 @@ export function showLobby(): Promise<Session | null> {
   const nameIn = form.elements.namedItem('name') as HTMLInputElement
   const roomIn = form.elements.namedItem('room') as HTMLInputElement
   const err = el.querySelector('[data-err]') as HTMLElement
+  const teamIn = form.elements.namedItem('team') as HTMLSelectElement
+  teamIn.value = saved.team === 'A' || saved.team === 'B' ? saved.team : 'auto'
   nameIn.value = saved.name
   roomIn.value = new URLSearchParams(location.search).get('room') ?? saved.room
   // Gõ chữ không được kích hoạt phím tắt của game
@@ -94,11 +105,11 @@ export function showLobby(): Promise<Session | null> {
       const name = nameIn.value.trim()
       const room = roomIn.value.trim()
       if (!name || !room) { err.textContent = 'Nhập tên và mã phòng'; return }
-      try { localStorage.setItem(STORE_KEY, JSON.stringify({ name, room })) } catch { /* bỏ qua */ }
+      try { localStorage.setItem(STORE_KEY, JSON.stringify({ name, room, team: teamIn.value })) } catch { /* bỏ qua */ }
       err.textContent = 'Đang kết nối…'
-      connectAndJoin(name, room).then(
+      connectAndJoin(name, room, teamIn.value as TeamId | 'auto').then(
         s => { el.remove(); resolve(s) },
-        () => { err.textContent = 'Không kết nối được server' },
+        () => { err.textContent = 'Không vào được: server tắt hoặc phòng đã đầy' },
       )
     })
   })
