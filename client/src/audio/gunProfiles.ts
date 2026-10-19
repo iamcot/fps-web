@@ -52,67 +52,70 @@ const rifleReload = (boltFile: string): ReloadSoundDef => ({
 })
 
 export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
-  0: { // AK47: nặng, đục, rền
+  0: { // AK47 – dày, rền, thô
     folder: 'ak47',
     layers: {
-      body: { files: ['shot_01', 'shot_02', 'shot_03', 'shot_04'], gainDb: 0,  pitch: 0.96, pitchRand: 0.04, gainRandDb: 1.5, delayMs: 0 },
-      mech: { files: ['mech_01'],                                  gainDb: -8, pitch: 1.0,  pitchRand: 0.05, gainRandDb: 1,   delayMs: 0 },
-      tail: { files: ['tail_01'],                                  gainDb: -6, pitch: 0.97, pitchRand: 0.03, gainRandDb: 1,   delayMs: 20, synthDecayMs: 350 },
+      body: { files: ['shot_01','shot_02','shot_03','shot_04'], gainDb: 0,  pitch: 0.95, pitchRand: 0.03, gainRandDb: 1, delayMs: 0 },
+      mech: { files: ['mech_01'],                                gainDb: -4, pitch: 0.95, pitchRand: 0.04, gainRandDb: 1, delayMs: 0 },
+      tail: { files: ['tail_01'],                                gainDb: -2, pitch: 0.94, pitchRand: 0.02, gainRandDb: 1, delayMs: 40 },
     },
-    thump: { gainDb: -3, startHz: 110, endHz: 45, durationMs: 140 },
-    eq: { lowShelfHz: 150, lowShelfDb: 4, highShelfHz: 5000, highShelfDb: -2 },
-    shell: 'rifle', shellDelayMs: 320,
-    reload: rifleReload('reload_bolt'),
+    thump: { gainDb: -8, startHz: 130, endHz: 60, durationMs: 70 },
+    eq: { lowShelfHz: 200, lowShelfDb: 3, highShelfHz: 4500, highShelfDb: 2 },
+    shell: 'rifle', shellDelayMs: 420,
+    reload: { kind: 'mag', steps: [
+      { file: 'reload_magout', at: 0.15, synth: 'magout' },
+      { file: 'reload_magin',  at: 0.55, synth: 'magin' },
+      { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
+    ] },
     dryfire: { kind: 'rifle' },
     draw: 'draw', maxVoices: 8,
   },
-  1: { // M16: gọn, sắc, chát
+  1: { // M16 – mỏng, sắc, gọn
     folder: 'm16',
     layers: {
-      body: { files: ['shot_01', 'shot_02', 'shot_03', 'shot_04'], gainDb: 0,  pitch: 1.05, pitchRand: 0.04, gainRandDb: 1.5, delayMs: 0 },
-      mech: { files: ['mech_01'],                                  gainDb: -6, pitch: 1.1,  pitchRand: 0.05, gainRandDb: 1,   delayMs: 0 },
-      tail: { files: ['tail_01'],                                  gainDb: -9, pitch: 1.0,  pitchRand: 0.03, gainRandDb: 1,   delayMs: 15, synthDecayMs: 220 },
+      body: { files: ['shot_01','shot_02','shot_03','shot_04'], gainDb: 0,  pitch: 1.10, pitchRand: 0.03, gainRandDb: 1, delayMs: 0 },
+      mech: { files: ['mech_01'],                                gainDb: -2, pitch: 1.15, pitchRand: 0.04, gainRandDb: 1, delayMs: 0 },
+      tail: { files: ['tail_01'],                                gainDb: -8, pitch: 1.08, pitchRand: 0.02, gainRandDb: 1, delayMs: 25 },
     },
-    thump: { gainDb: -8, startHz: 130, endHz: 60, durationMs: 90 },
-    eq: { lowShelfHz: 150, lowShelfDb: 0, highShelfHz: 4000, highShelfDb: 3 },
-    shell: 'rifle', shellDelayMs: 300,
-    reload: rifleReload('reload_bolt'),
+    thump: { gainDb: -16, startHz: 180, endHz: 100, durationMs: 35 },
+    eq: { lowShelfHz: 150, lowShelfDb: -4, highShelfHz: 2500, highShelfDb: 7 },
+    shell: 'rifle', shellDelayMs: 400,
+    reload: { kind: 'mag', steps: [
+      { file: 'reload_magout', at: 0.15, synth: 'magout' },
+      { file: 'reload_magin',  at: 0.55, synth: 'magin' },
+      { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
+    ] },
     dryfire: { kind: 'rifle' },
     draw: 'draw', maxVoices: 8,
   },
-  2: { // Colt: chắc, bốp
+  2: { // Colt – bốp ngắn, khô
     folder: 'colt',
     layers: {
-      body: { files: ['shot_01', 'shot_02', 'shot_03'], gainDb: -1, pitch: 1.0, pitchRand: 0.04, gainRandDb: 1.5, delayMs: 0 },
-      mech: { files: ['mech_01'],                       gainDb: -7, pitch: 1.0, pitchRand: 0.05, gainRandDb: 1,   delayMs: 0 },
-      tail: { files: ['tail_01'],                       gainDb: -7, pitch: 1.0, pitchRand: 0.03, gainRandDb: 1,   delayMs: 20, synthDecayMs: 300 },
+      body: { files: ['shot_01','shot_02','shot_03'], gainDb: -1, pitch: 1.06, pitchRand: 0.03, gainRandDb: 1, delayMs: 0 },
+      mech: { files: ['mech_01'],                     gainDb: -6, pitch: 1.10, pitchRand: 0.04, gainRandDb: 1, delayMs: 0 },
+      tail: { files: ['tail_01'],                     gainDb: -6, pitch: 1.05, pitchRand: 0.02, gainRandDb: 1, delayMs: 25 },
     },
-    thump: { gainDb: -5, startHz: 120, endHz: 55, durationMs: 110 },
-    eq: { lowShelfHz: 200, lowShelfDb: 2, highShelfHz: 5000, highShelfDb: 0 },
-    shell: 'pistol', shellDelayMs: 280,
-    reload: {
-      kind: 'mag',
-      steps: [
-        { file: 'reload_magout', at: 0.2,  synth: 'magout' },
-        { file: 'reload_magin',  at: 0.6,  synth: 'magin' },
-        { file: 'reload_slide',  at: 0.85, synth: 'bolt', emptyOnly: true },
-      ],
-    },
+    thump: { gainDb: -12, startHz: 170, endHz: 85, durationMs: 45 },
+    eq: { lowShelfHz: 250, lowShelfDb: -1, highShelfHz: 4000, highShelfDb: 3 },
+    shell: 'pistol', shellDelayMs: 380,
+    reload: { kind: 'mag', steps: [
+      { file: 'reload_magout', at: 0.2,  synth: 'magout' },
+      { file: 'reload_magin',  at: 0.6,  synth: 'magin' },
+      { file: 'reload_slide',  at: 0.85, synth: 'bolt', emptyOnly: true },
+    ] },
     dryfire: { kind: 'pistol' },
     draw: 'draw', maxVoices: 4,
   },
-  3: { // Rulô: nổ to, đoàng, vang dài
+  3: { // Rulô – đoàng trầm, vang dài
     folder: 'rulo',
     layers: {
-      body: { files: ['shot_01', 'shot_02', 'shot_03'], gainDb: 1,  pitch: 0.92, pitchRand: 0.03, gainRandDb: 1, delayMs: 0 },
-      tail: { files: ['tail_01'],                       gainDb: -3, pitch: 0.95, pitchRand: 0.03, gainRandDb: 1, delayMs: 25, synthDecayMs: 700 },
+      body: { files: ['shot_01','shot_02','shot_03'], gainDb: 1, pitch: 0.86, pitchRand: 0.02, gainRandDb: 1, delayMs: 0 },
+      tail: { files: ['tail_01'],                     gainDb: 0, pitch: 0.90, pitchRand: 0.02, gainRandDb: 1, delayMs: 70 },
     },
-    thump: { gainDb: 0, startHz: 95, endHz: 38, durationMs: 200 },
-    eq: { lowShelfHz: 140, lowShelfDb: 5, highShelfHz: 5000, highShelfDb: -1 },
+    thump: { gainDb: -5, startHz: 100, endHz: 45, durationMs: 120 },
+    eq: { lowShelfHz: 120, lowShelfDb: 3, highShelfHz: 3500, highShelfDb: 3 },
     shell: null, shellDelayMs: 0,
-    cockFile: 'cock',
-    reload: {
-      kind: 'perRound',
+    reload: { kind: 'perRound',
       open:   { file: 'reload_open',   at: 0.08, synth: 'magout' },
       eject:  { file: 'reload_eject',  at: 0.22, synth: 'shells' },
       insert: { file: 'reload_insert', from: 0.35, to: 0.8, synth: 'insert' },
@@ -121,7 +124,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     dryfire: { kind: 'pistol' },
     draw: 'draw', maxVoices: 4,
   },
-}
+};
 
 /** Mọi file (khoá, không đuôi) mà các profile + âm chung có thể dùng — để preload. */
 export function allGunSoundKeys(gunKey: (f: string, n: string) => string, commonKey: (n: string) => string): string[] {
