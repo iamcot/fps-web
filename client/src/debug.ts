@@ -1,8 +1,12 @@
 import type { PlayerState } from '@fps/shared'
 import type { PingStats } from './net/ping'
 import { clock } from './net/clock'
+import type { SnapshotStore } from './net/snapshots'
 
-export function initDebugOverlay(net?: PingStats): (state: PlayerState, fps: number) => void {
+export function initDebugOverlay(
+  net?: PingStats,
+  snap?: () => SnapshotStore | null,
+): (state: PlayerState, fps: number) => void {
   const el = document.createElement('pre')
   el.style.cssText =
     'position:fixed;top:8px;left:8px;color:#0f0;font:11px/1.5 monospace;' +
@@ -24,6 +28,7 @@ export function initDebugOverlay(net?: PingStats): (state: PlayerState, fps: num
       `slideTimer ${state.slideTimer.toFixed(3)}`,
       `pos  ${state.pos.map(v => v.toFixed(2)).join('  ')}`,
       `yaw  ${state.yaw.toFixed(3)}   pitch ${state.pitch.toFixed(3)}`,
+      ...(snap?.()?.serverTime ? [`snapshot: serverNow − serverTime = ${(clock.serverNow() - snap()!.serverTime).toFixed(0)} ms   #${snap()!.count}`] : []),
       ...(net ? [`RTT  ${net.rttMs.toFixed(0)} ms   pong sai thứ tự ${net.outOfOrder}`, `serverNow ${clock.serverNow().toFixed(0)}   offset ${clock.offset.toFixed(1)}${clock.synced ? '' : ' (chưa sync)'}`] : []),
     ].join('\n')
   }

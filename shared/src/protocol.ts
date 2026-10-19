@@ -1,4 +1,5 @@
 import { encode as mpEncode, decode as mpDecode } from '@msgpack/msgpack'
+import { Btn, type InputCmd, type PlayerState } from './movement'
 
 // Phân loại message theo plan/04-phase3-netcode-move.md (C2S 1-3, S2C 101-105)
 export const MsgType = {
@@ -17,6 +18,11 @@ export const MsgType = {
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
 
 // Client → Server
+export interface InputsMsg {
+  t: typeof MsgType.Inputs
+  cmds: InputCmd[]
+}
+
 export interface PingMsg {
   t: typeof MsgType.Ping
   clientTime: number
@@ -37,6 +43,32 @@ export interface WelcomeMsg {
   mapName: string
 }
 
+// Đủ mọi trường của PlayerState để client đặt lại state chính xác (reconcile ở 3.6)
+export const NetFlag = {
+  Grounded:  1 << 0,
+  Crouching: 1 << 1,
+  Sliding:   1 << 2,   // slideTimer > 0; chỉ để hiển thị, không dùng để dựng lại state
+} as const
+
+export interface NetPlayer {
+  id: number
+  pos: [number, number, number]
+  vel: [number, number, number]
+  yaw: number
+  pitch: number
+  flags: number
+  slideTimer: number
+  slideCooldown: number
+}
+
+export interface SnapshotMsg {
+  t: typeof MsgType.Snapshot
+  tick: number
+  serverTime: number
+  ack: number          // lastProcessedSeq của chính client nhận gói này
+  players: NetPlayer[]
+}
+
 export interface PlayerJoinedMsg {
   t: typeof MsgType.PlayerJoined
   id: number
@@ -54,8 +86,48 @@ export interface PongMsg {
   serverTime: number
 }
 
-// Inputs, Snapshot thêm ở task 3.4
-export type AnyMsg = JoinMsg | PingMsg | WelcomeMsg | PongMsg | PlayerJoinedMsg | PlayerLeftMsg
+export type AnyMsg =
+  | JoinMsg | InputsMsg | PingMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg
+
+export const MAX_PITCH = 1.56
+const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)
+
+// Cmd từ client không đáng tin: kiểm tra trước khi cho vào hàng đợi
+export function isValidCmd(c: unknown): c is InputCmd {
+  if (typeof c !== 'object' || c === null) return false
+  const m = c as Record<string, unknown>
+  return (
+    typeof m.seq === 'number' && Number.isInteger(m.seq) &&
+    typeof m.buttons === 'number' && Number.isInteger(m.buttons) && m.buttons >= 0 &&
+    (m.buttons & ~ALL_BUTTONS) === 0 &&
+    typeof m.yaw === 'number' && Number.isFinite(m.yaw) &&
+    typeof m.pitch === 'number' && Math.abs(m.pitch) <= MAX_PITCH &&
+    typeof m.weapon === 'number' && Number.isInteger(m.weapon)
+  )
+}
+
+export function stateToNet(id: number, s: PlayerState): NetPlayer {
+  return {
+    id,
+    pos: [s.pos[0], s.pos[1], s.pos[2]],
+    vel: [s.vel[0], s.vel[1], s.vel[2]],
+    yaw: s.yaw, pitch: s.pitch,
+    flags: (s.grounded ? NetFlag.Grounded : 0) | (s.crouching ? NetFlag.Crouching : 0) | (s.slideTimer > 0 ? NetFlag.Sliding : 0),
+    slideTimer: s.slideTimer, slideCooldown: s.slideCooldown,
+  }
+}
+
+export function netToState(n: NetPlayer): PlayerState {
+  return {
+    pos: [n.pos[0], n.pos[1], n.pos[2]],
+    vel: [n.vel[0], n.vel[1], n.vel[2]],
+    yaw: n.yaw, pitch: n.pitch,
+    grounded: (n.flags & NetFlag.Grounded) !== 0,
+    crouching: (n.flags & NetFlag.Crouching) !== 0,
+    slideTimer: n.slideTimer, slideCooldown: n.slideCooldown,
+  }
+}
 
 export function encode(msg: AnyMsg): Uint8Array {
   return mpEncode(msg)

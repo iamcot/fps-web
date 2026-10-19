@@ -7,11 +7,14 @@ import type { MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, applyCameraRotation, isLocked, yaw, pitch } from './input'
-import { startLoop, initGameState, defaultMovement } from './loop'
+import { startLoop, initGameState, defaultMovement, setNetHooks } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
 import { clock } from './net/clock'
+import { attachSnapshots, type SnapshotStore } from './net/snapshots'
+import { createPlayersRenderer } from './render/players'
+import { MsgType } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
 import { createTargets, updateTargets, flashTarget } from './targets'
@@ -121,8 +124,19 @@ const spawn = loadedMap.spawns.A[0] ?? { pos: [0, 2, 0] as [number,number,number
 
 // Mạng: vào phòng qua màn hình lobby; chơi offline nếu bỏ qua. Ping chạy sau khi vào phòng
 const netStats: PingStats = { rttMs: 0, outOfOrder: 0 }
-showLobby().then(session => { if (session) startPing(session.transport, netStats) })
-const updateDebug = initDebugOverlay(netStats)
+let snapStore: SnapshotStore | null = null
+const playersRenderer = createPlayersRenderer(scene)
+showLobby().then(session => {
+  if (!session) return
+  startPing(session.transport, netStats)
+  snapStore = attachSnapshots(session.transport, session.yourId, s => playersRenderer.update(s.players))
+  setNetHooks({
+    onCmd: cmd => session.transport.send({ t: MsgType.Inputs, cmds: [cmd] }),
+    authoritative: () => snapStore?.self ?? null,
+  })
+  session.transport.onClose(() => { setNetHooks(null); playersRenderer.clear() })
+})
+const updateDebug = initDebugOverlay(netStats, () => snapStore)
 initTuningPanel(cfg)
 
 let debugLines: THREE.LineSegments | null = null

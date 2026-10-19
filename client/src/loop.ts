@@ -13,6 +13,15 @@ function _buildCmd(): InputCmd {
   return { seq: _seq++, buttons: sampleButtons(), yaw, pitch, weapon: 0 }
 }
 
+// Chế độ online "client câm" (3.4): không tự mô phỏng, gửi cmd và lấy state từ server.
+// 3.6 sẽ thay bằng prediction.
+export interface NetHooks {
+  onCmd(cmd: InputCmd): void
+  authoritative(): PlayerState | null
+}
+let _net: NetHooks | null = null
+export function setNetHooks(h: NetHooks | null): void { _net = h }
+
 export function startLoop(
   world: CollisionWorld,
   cfg: MovementConfig,
@@ -29,7 +38,13 @@ export function startLoop(
     while (acc >= DT) {
       const cmd = _buildCmd()
       _prev  = _curr
-      _curr  = stepMovement(_curr, cmd, world, cfg, DT)
+      if (_net) {
+        _net.onCmd(cmd)
+        const auth = _net.authoritative()
+        if (auth) _curr = auth
+      } else {
+        _curr = stepMovement(_curr, cmd, world, cfg, DT)
+      }
       // Thời gian mô phỏng (ms) — client và server tính giống nhau, không dùng performance.now()
       onTick?.(_curr, cmd, (_tick++) * 1000 / TICK_RATE)
       acc   -= DT
