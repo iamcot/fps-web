@@ -3,7 +3,7 @@ import type { AnyMsg } from './protocol'
 // Giao diện chung; client và server mỗi bên một bản cài đặt (WebSocket)
 export interface Transport {
   send(msg: AnyMsg): void
-  onMessage(cb: (msg: AnyMsg) => void): void
+  onMessage(cb: (msg: AnyMsg) => void): void   // cộng dồn, gọi mọi listener theo thứ tự đăng ký
   onClose(cb: () => void): void
 }
 
@@ -39,14 +39,14 @@ export function withNetsim(inner: Transport, opts: NetsimOptions): Transport {
     }
   }
 
-  let listener: ((msg: AnyMsg) => void) | null = null
-  const delayIn = makeDelayer(msg => listener?.(msg))
+  const listeners: ((msg: AnyMsg) => void)[] = []
+  const delayIn = makeDelayer(msg => { for (const l of listeners) l(msg) })
   const delayOut = makeDelayer(msg => inner.send(msg))
   inner.onMessage(delayIn)
 
   return {
     send: delayOut,
-    onMessage(cb) { listener = cb },
+    onMessage(cb) { listeners.push(cb) },
     onClose(cb) { inner.onClose(cb) },
   }
 }

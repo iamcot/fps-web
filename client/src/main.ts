@@ -9,7 +9,7 @@ import { buildMapMesh } from './render/mapMesh'
 import { initInput, applyCameraRotation, isLocked, yaw, pitch } from './input'
 import { startLoop, initGameState, defaultMovement } from './loop'
 import { initDebugOverlay } from './debug'
-import { connectWebSocket, maybeNetsim } from './net/transport'
+import { showLobby } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
@@ -118,11 +118,9 @@ document.addEventListener('keydown', (e) => {
 const cfg = { ...defaultMovement }
 const spawn = loadedMap.spawns.A[0] ?? { pos: [0, 2, 0] as [number,number,number], yaw: 0 }
 
-// Kết nối server (task 3.1): chỉ để đo RTT; chơi offline nếu server không chạy
+// Mạng: vào phòng qua màn hình lobby; chơi offline nếu bỏ qua. Ping chạy sau khi vào phòng
 const netStats: PingStats = { rttMs: 0, outOfOrder: 0 }
-connectWebSocket(`ws://${location.hostname}:8081`)
-  .then(t => startPing(maybeNetsim(t), netStats))
-  .catch(err => console.warn('[net]', err.message))
+showLobby().then(session => { if (session) startPing(session.transport, netStats) })
 const updateDebug = initDebugOverlay(netStats)
 initTuningPanel(cfg)
 

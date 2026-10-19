@@ -22,15 +22,40 @@ export interface PingMsg {
   clientTime: number
 }
 
+export interface JoinMsg {
+  t: typeof MsgType.Join
+  name: string
+  room: string
+}
+
 // Server → Client
+export interface WelcomeMsg {
+  t: typeof MsgType.Welcome
+  yourId: number
+  tick: number
+  serverTime: number
+  mapName: string
+}
+
+export interface PlayerJoinedMsg {
+  t: typeof MsgType.PlayerJoined
+  id: number
+  name: string
+}
+
+export interface PlayerLeftMsg {
+  t: typeof MsgType.PlayerLeft
+  id: number
+}
+
 export interface PongMsg {
   t: typeof MsgType.Pong
   clientTime: number
   serverTime: number
 }
 
-// Các message còn lại (Join, Inputs, Welcome, Snapshot...) thêm ở task 3.2–3.4
-export type AnyMsg = PingMsg | PongMsg
+// Inputs, Snapshot thêm ở task 3.4
+export type AnyMsg = JoinMsg | PingMsg | WelcomeMsg | PongMsg | PlayerJoinedMsg | PlayerLeftMsg
 
 export function encode(msg: AnyMsg): Uint8Array {
   return mpEncode(msg)

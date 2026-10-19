@@ -4,17 +4,17 @@ export function connectWebSocket(url: string): Promise<Transport> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url)
     ws.binaryType = 'arraybuffer'
-    let msgCb: Parameters<Transport['onMessage']>[0] = () => {}
-    let closeCb: () => void = () => {}
+    const msgCbs: Parameters<Transport['onMessage']>[0][] = []
+    const closeCbs: (() => void)[] = []
     ws.onmessage = e => {
-      try { msgCb(decode(e.data as ArrayBuffer)) } catch { /* gói hỏng: bỏ qua */ }
+      try { const m = decode(e.data as ArrayBuffer); for (const cb of msgCbs) cb(m) } catch { /* gói hỏng: bỏ qua */ }
     }
-    ws.onclose = () => closeCb()
+    ws.onclose = () => { for (const cb of closeCbs) cb() }
     ws.onerror = () => reject(new Error(`WebSocket lỗi: ${url}`))
     ws.onopen = () => resolve({
       send: msg => { if (ws.readyState === WebSocket.OPEN) ws.send(encode(msg)) },
-      onMessage: cb => { msgCb = cb },
-      onClose: cb => { closeCb = cb },
+      onMessage: cb => { msgCbs.push(cb) },
+      onClose: cb => { closeCbs.push(cb) },
     })
   })
 }
