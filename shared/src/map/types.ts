@@ -26,12 +26,18 @@ export interface MapSpawn {
   yaw: number
 }
 
+export interface MapZone {
+  min: Vec3
+  max: Vec3
+}
+
 export interface MapFile {
   name: string
   mirrorX: boolean
   boxes: MapBox[]
   ramps: MapRamp[]
   spawnsA: MapSpawn[]
+  buyZoneA?: MapZone   // khu mua của căn cứ phía x âm; loadMap mirror ra B
 }
 
 export interface LoadedMap {
@@ -39,4 +45,5 @@ export interface LoadedMap {
   boxes: MapBox[]
   ramps: MapRamp[]
   spawns: { A: MapSpawn[]; B: MapSpawn[] }
+  buyZones: { A?: MapZone; B?: MapZone }
 }

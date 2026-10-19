@@ -37,6 +37,23 @@ export function switchWeapon(ws: WeaponState, id: number, nowMs: number): boolea
   return true
 }
 
+/** Chuyển sang ô `slot` nếu có súng. Ô trống / đang cầm rồi → false. */
+export function selectSlot(ws: WeaponState, slot: number, nowMs: number): boolean {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= ws.slots.length) return false
+  const id = ws.slots[slot]!
+  if (id < 0) return false
+  ws.slot = slot
+  return switchWeapon(ws, id, nowMs)
+}
+
+/** Hệ số tốc độ chạy theo súng đang cầm (+ ngắm scope: chậm thêm một nửa). `buttons` = nút của cmd sắp chạy. */
+export function moveSpeedMul(ws: WeaponState, buttons: number): number {
+  const def = WEAPONS[ws.current]
+  if (!def) return 1
+  return def.moveSpeedMul * (def.ads?.scope && (buttons & Btn.Aim) ? SCOPE_MOVE_MUL : 1)
+}
+export const SCOPE_MOVE_MUL = 0.5
+
 /**
  * Bắn nếu được. Không bắn khi: đang reload, chưa tới nextFireMs, hết đạn,
  * hoặc súng bán tự động mà cò đã giữ từ tick trước.
@@ -48,10 +65,10 @@ export function tryFire(ws: WeaponState, def: WeaponDef, nowMs: number, triggerD
   if (!triggerDown) return false
   if (ws.reloadEndMs > 0) return false
   if (nowMs < ws.nextFireMs) return false
-  if (ws.ammo[def.id]! <= 0) return false
+  if (!def.melee && ws.ammo[def.id]! <= 0) return false
   if (!def.auto && wasHeld) return false
 
-  ws.ammo[def.id]!--
+  if (!def.melee) ws.ammo[def.id]!--
   ws.nextFireMs = nowMs + def.fireIntervalMs
   ws.shotSeq++
   return true
@@ -80,7 +97,7 @@ export function stepWeapon(
 
   if (tryFire(ws, def, nowMs, triggerDown)) return 'fired'
 
-  if (triggerDown && ws.reloadEndMs === 0 && ws.ammo[def.id]! <= 0 && nowMs >= ws.nextFireMs) {
+  if (!def.melee && triggerDown && ws.reloadEndMs === 0 && ws.ammo[def.id]! <= 0 && nowMs >= ws.nextFireMs) {
     startReload(ws, def, nowMs)
     return 'dry'
   }
@@ -171,12 +188,20 @@ export function recoverRecoil(rec: RecoilState, def: WeaponDef, ws: WeaponState,
  */
 export function stepWeaponCmd(ws: WeaponState, cmd: InputCmd): WeaponEvent {
   const nowMs = cmd.seq * 1000 / TICK_RATE
-  switchWeapon(ws, cmd.weapon, nowMs)
+  // cmd.weapon = ô 0–3. Chỉ đổi khi giá trị ĐỔI so với cmd trước: mua súng làm server đổi ô trước, cmd cũ còn bay trên đường
+  // vẫn mang ô cũ nhưng không được kéo ngược lại.
+  if (cmd.weapon !== ws.wantSlot) {
+    ws.wantSlot = cmd.weapon
+    selectSlot(ws, cmd.weapon, nowMs)
+  }
   return stepWeapon(ws, nowMs, !!(cmd.buttons & Btn.Fire), !!(cmd.buttons & Btn.Reload))
 }
 
 export function copyWeaponState(dst: WeaponState, src: WeaponState): void {
   dst.current = src.current
+  dst.slot = src.slot
+  dst.wantSlot = src.wantSlot
+  for (let i = 0; i < src.slots.length; i++) dst.slots[i] = src.slots[i]!
   for (let i = 0; i < src.ammo.length; i++) dst.ammo[i] = src.ammo[i]!
   dst.reloadEndMs = src.reloadEndMs
   dst.nextFireMs = src.nextFireMs
@@ -185,7 +210,8 @@ export function copyWeaponState(dst: WeaponState, src: WeaponState): void {
 }
 
 export function weaponStatesEqual(a: WeaponState, b: WeaponState): boolean {
-  if (a.current !== b.current || a.reloadEndMs !== b.reloadEndMs || a.nextFireMs !== b.nextFireMs ||
+  for (let i = 0; i < a.slots.length; i++) if (a.slots[i] !== b.slots[i]) return false
+  if (a.current !== b.current || a.slot !== b.slot || a.wantSlot !== b.wantSlot || a.reloadEndMs !== b.reloadEndMs || a.nextFireMs !== b.nextFireMs ||
       a.shotSeq !== b.shotSeq || a.triggerHeld !== b.triggerHeld) return false
   for (let i = 0; i < a.ammo.length; i++) if (a.ammo[i] !== b.ammo[i]) return false
   return true

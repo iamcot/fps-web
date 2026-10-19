@@ -1,6 +1,22 @@
+export type WeaponCategory = 'knife' | 'pistol' | 'mid' | 'long'
+/** Ô vũ khí (phím 1–4) của từng dòng */
+export const CATEGORY_SLOT: Record<WeaponCategory, 0 | 1 | 2 | 3> = { knife: 0, pistol: 1, mid: 2, long: 3 }
+export const CATEGORY_LABEL: Record<WeaponCategory, string> = {
+  knife: 'Dao', pistol: 'Súng ngắn', mid: 'Súng vừa', long: 'Súng dài',
+}
+export const SLOT_COUNT = 4
+/** Ô mặc định khi hồi sinh / vào trận: súng dài */
+export const DEFAULT_SLOT = 3
+
 export interface WeaponDef {
   id: number
+  key: string             // tên file icon/model: 'knife' | 'colt' | 'rulo' | 'shotgun' | 'smg' | 'ak47' | 'm16' | 'sniper'
   name: string
+  category: WeaponCategory
+  price: number           // USD; dao = 0
+  buyable: boolean        // dao = false
+  moveSpeedMul: number    // hệ số tốc độ chạy khi cầm súng này
+  melee?: boolean         // dao: không đạn, không reload, tầm ngắn
   auto: boolean
   damage: number
   headMult: number
@@ -34,8 +50,11 @@ export interface AdsDef {
 }
 
 export interface WeaponState {
-  current: number
-  ammo: number[]
+  current: number         // id súng đang cầm (WEAPONS[current])
+  slots: number[]         // id súng ở 4 ô (theo CATEGORY_SLOT), -1 = trống. Server giữ, snapshot gửi cho chính người đó
+  slot: number            // ô đang cầm
+  wantSlot: number        // cmd.weapon của cmd gần nhất: chỉ đổi súng khi cmd.weapon ĐỔI (cmd cũ còn bay trên đường không kéo ngược lại ô vừa mua)
+  ammo: number[]          // theo id súng
   reloadEndMs: number
   nextFireMs: number
   shotSeq: number
@@ -54,34 +73,34 @@ export const MOVE_SPREAD_SPEED = 1
 // - ROULEAU (súng lục ổ xoay): bán tự động, 6 viên, sát thương lớn, nạp đạn lâu.
 export const WEAPONS: WeaponDef[] = [
   {
-    id: 0, name: 'AK47', auto: true, damage: 36, headMult: 3.5, legMult: 0.75,
+    id: 0, key: 'ak47', name: 'AK47', category: 'long', price: 2700, buyable: true, moveSpeedMul: 0.92, auto: true, damage: 36, headMult: 3.5, legMult: 0.75,
     fireIntervalMs: 100, magSize: 30, reloadMs: 2500, range: 180,
     spreadDeg: { stand: 0.5, move: 2.5, air: 6, crouch: 0.3 },
     recoilPitchDeg: 0.9, recoilYawDeg: 0.45, recoilRecoverDegPerSec: 8,
     ads: { fovs: [65], scope: false }, aimSpreadDeg: 0.15,   // súng trường: ngắm qua đầu ruồi, zoom nhẹ, không che màn hình; ngắm đứng yên thì chụm
   },
   {
-    id: 1, name: 'M16', auto: true, damage: 30, headMult: 4, legMult: 0.75,
+    id: 1, key: 'm16', name: 'M16', category: 'long', price: 3100, buyable: true, moveSpeedMul: 0.93, auto: true, damage: 30, headMult: 4, legMult: 0.75,
     fireIntervalMs: 80, magSize: 30, reloadMs: 2200, range: 220,
     spreadDeg: { stand: 0.45, move: 2.3, air: 5, crouch: 0.25 },
     recoilPitchDeg: 0.55, recoilYawDeg: 0.25, recoilRecoverDegPerSec: 10,
     ads: { fovs: [65], scope: false }, aimSpreadDeg: 0.14,
   },
   {
-    id: 2, name: 'COLT', auto: false, damage: 32, headMult: 3, legMult: 0.75,
+    id: 2, key: 'colt', name: 'COLT', category: 'pistol', price: 300, buyable: true, moveSpeedMul: 1.0, auto: false, damage: 32, headMult: 3, legMult: 0.75,
     fireIntervalMs: 160, magSize: 7, reloadMs: 1600, range: 90,
     spreadDeg: { stand: 0.4, move: 1.5, air: 4, crouch: 0.25 },
     recoilPitchDeg: 1.5, recoilYawDeg: 0.3, recoilRecoverDegPerSec: 12,
   },
   {
-    id: 3, name: 'ROULEAU', auto: false, damage: 55, headMult: 3, legMult: 0.75,
+    id: 3, key: 'rulo', name: 'ROULEAU', category: 'pistol', price: 700, buyable: true, moveSpeedMul: 1.0, auto: false, damage: 55, headMult: 3, legMult: 0.75,
     fireIntervalMs: 400, magSize: 6, reloadMs: 3000, range: 110,
     spreadDeg: { stand: 0.3, move: 1.8, air: 5, crouch: 0.2 },
     recoilPitchDeg: 2.5, recoilYawDeg: 0.4, recoilRecoverDegPerSec: 10,
   },
   {
     // Sniper: 1 phát/1,2s, 90 sát thương (đầu ×2 = 180), tản đạn rất lớn khi không ngắm; scope 2 mức zoom
-    id: 4, name: 'SNIPER', auto: false, damage: 90, headMult: 2, legMult: 0.75,
+    id: 4, key: 'sniper', name: 'SNIPER', category: 'long', price: 4750, buyable: true, moveSpeedMul: 0.85, auto: false, damage: 90, headMult: 2, legMult: 0.75,
     fireIntervalMs: 1200, magSize: 5, reloadMs: 3200, range: 400,
     spreadDeg: { stand: 5, move: 9, air: 14, crouch: 4 },
     recoilPitchDeg: 3, recoilYawDeg: 0.5, recoilRecoverDegPerSec: 15, recoilRecoverDelayMs: 120,
@@ -89,21 +108,48 @@ export const WEAPONS: WeaponDef[] = [
   },
   {
     // Shotgun: 8 tia/phát, mỗi tia 16 sát thương (gần: 8 tia thân = 128, đủ hạ 1 phát), giảm dần theo khoảng cách
-    id: 5, name: 'SHOTGUN', auto: false, damage: 16, headMult: 2, legMult: 0.75,
+    id: 5, key: 'shotgun', name: 'SHOTGUN', category: 'mid', price: 1100, buyable: true, moveSpeedMul: 0.95, auto: false, damage: 16, headMult: 2, legMult: 0.75,
     fireIntervalMs: 900, magSize: 6, reloadMs: 3000, range: 60,
     spreadDeg: { stand: 4, move: 5, air: 7, crouch: 3.5 },
     recoilPitchDeg: 4, recoilYawDeg: 0.6, recoilRecoverDegPerSec: 12, recoilRecoverDelayMs: 120,
     pellets: 8, falloff: { fullM: 6, endM: 30, minMult: 0.2 },
   },
+  {
+    // Dao: chém hitscan 2,2m từ mắt, không spread/recoil, không đạn. 2 nhát hạ (55 × 2 ≥ 100 vào thân)
+    id: 6, key: 'knife', name: 'DAO', category: 'knife', price: 0, buyable: false, moveSpeedMul: 1.1, melee: true,
+    auto: true, damage: 55, headMult: 2, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 2.2,
+    spreadDeg: { stand: 0, move: 0, air: 0, crouch: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
+  {
+    // SMG: nhanh, đạn yếu, tầm trung
+    id: 7, key: 'smg', name: 'SMG', category: 'mid', price: 1250, buyable: true, moveSpeedMul: 1.0,
+    auto: true, damage: 20, headMult: 3, legMult: 0.75,
+    fireIntervalMs: 70, magSize: 30, reloadMs: 1800, range: 100,
+    spreadDeg: { stand: 0.7, move: 1.2, air: 3.5, crouch: 0.5 },
+    recoilPitchDeg: 0.4, recoilYawDeg: 0.35, recoilRecoverDegPerSec: 10,
+    falloff: { fullM: 15, endM: 40, minMult: 0.6 },
+  },
 ]
+
+export const WEAPON_BY_KEY: ReadonlyMap<string, WeaponDef> = new Map(WEAPONS.map(w => [w.key, w]))
+export function weaponByKey(key: string): WeaponDef | undefined { return WEAPON_BY_KEY.get(key) }
 
 /** Số tia tối đa mỗi phát (mảng hướng bắn cấp phát sẵn theo số này; seed dành 6 bit cho chỉ số tia) */
 export const MAX_PELLETS = 16
 
 
-export function makeWeaponState(): WeaponState {
+/** Bộ mặc định lúc chưa biết đội (Cớm): Dao, Colt, —, M16 */
+export const FALLBACK_SLOTS: readonly number[] = [6, 2, -1, 1]
+
+export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS): WeaponState {
+  const slot = slots[DEFAULT_SLOT]! >= 0 ? DEFAULT_SLOT : Math.max(0, slots.findIndex(id => id >= 0))
   return {
-    current:     0,
+    current:     slots[slot]!,
+    slots:       [...slots],
+    slot,
+    wantSlot:    DEFAULT_SLOT,
     ammo:        WEAPONS.map(w => w.magSize),
     reloadEndMs: 0,
     nextFireMs:  0,

@@ -1,4 +1,4 @@
-import { MsgType, netToState, type NetPlayer, type PlayerState, type Transport, type WeaponState } from '@fps/shared'
+import { MsgType, netToState, type NetPlayer, type OwnedWeapon, type PlayerState, type Transport, type WeaponState } from '@fps/shared'
 
 // Snapshot mới nhất từ server (task 3.4: "client câm" chỉ vẽ đúng cái này)
 export interface SnapshotStore {
@@ -9,6 +9,8 @@ export interface SnapshotStore {
   players: NetPlayer[]
   self: PlayerState | null    // state của chính mình trong snapshot mới nhất
   wpn: WeaponState | null     // súng của mình (sau cmd ack)
+  money: number               // tiền của mình (server quyết định)
+  loadout: (OwnedWeapon | null)[] | null   // súng đã mua ở 4 ô
   hp: number                  // máu của mình
   flags: number               // cờ NetFlag của mình (Dead/Invuln)
   count: number
@@ -20,7 +22,7 @@ export function attachSnapshots(
   yourId: number,
   onSnapshot?: (store: SnapshotStore) => void,
 ): SnapshotStore {
-  const store: SnapshotStore = { yourId, tick: 0, serverTime: 0, ack: -1, players: [], self: null, wpn: null, hp: 100, flags: 0, count: 0, perSec: 0 }
+  const store: SnapshotStore = { yourId, tick: 0, serverTime: 0, ack: -1, players: [], self: null, wpn: null, money: 0, loadout: null, hp: 100, flags: 0, count: 0, perSec: 0 }
   let windowStart = performance.now()
   let windowCount = 0
   transport.onMessage(msg => {
@@ -40,6 +42,8 @@ export function attachSnapshots(
     const me = msg.players.find(p => p.id === yourId)
     store.self = me ? netToState(me) : null
     store.wpn = msg.wpn ?? null
+    store.money = msg.money ?? store.money
+    store.loadout = msg.loadout ?? store.loadout
     store.hp = me?.hp ?? store.hp
     store.flags = me?.flags ?? 0
     onSnapshot?.(store)

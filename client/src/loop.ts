@@ -1,4 +1,4 @@
-import { DT, TICK_RATE, MatchPhase, phaseButtonMask } from '@fps/shared'
+import { DEFAULT_SLOT, DT, TICK_RATE, MatchPhase, phaseButtonMask } from '@fps/shared'
 import { stepMovement, lerpState, defaultMovement } from '@fps/shared'
 import type { PlayerState, MovementConfig, InputCmd } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
@@ -11,8 +11,13 @@ let _prev: PlayerState
 let _curr: PlayerState
 
 // Súng đang chọn: gửi theo mỗi cmd, logic súng đổi súng khi xử lý cmd (client và server như nhau)
-let _weapon = 0
-export function setWantedWeapon(id: number): void { _weapon = id }
+let _weapon = DEFAULT_SLOT   // ô 0–3 (cmd.weapon)
+export function setWantedWeapon(slot: number): void { _weapon = slot }
+export function wantedWeapon(): number { return _weapon }
+
+// Hệ số tốc độ theo súng đang cầm (offline); online do hook step của main truyền vào Prediction
+let _speedMul: (buttons: number) => number = () => 1
+export function setSpeedMul(fn: (buttons: number) => number): void { _speedMul = fn }
 
 let _dead = false
 let _phase: MatchPhase = MatchPhase.Playing   // offline = đang chơi
@@ -55,7 +60,7 @@ export function startLoop(
         _curr = _net.step(cmd)
       } else {
         _prev = _curr
-        _curr = stepMovement(_curr, cmd, world, cfg, DT)
+        _curr = stepMovement(_curr, cmd, world, cfg, DT, _speedMul(cmd.buttons))
       }
       // Thời gian mô phỏng (ms) — client và server tính giống nhau, không dùng performance.now()
       onTick?.(_curr, cmd, (_tick++) * 1000 / TICK_RATE)

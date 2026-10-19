@@ -28,6 +28,8 @@ export const MUZZLE_FALLBACK: THREE.Vector3[] = [
   new THREE.Vector3(0, 0.078, -0.287), // ROULEAU
   new THREE.Vector3(0, 0.0495, -0.927), // SNIPER (trùng node muzzle)
   new THREE.Vector3(0, 0.06, -0.705), // SHOTGUN (glb không có node muzzle: mũi nòng đo từ geometry)
+  new THREE.Vector3(0, 0, -0.3), // DAO (không có lửa nòng, chỉ để đủ phần tử)
+  new THREE.Vector3(0, 0.07, -0.35), // SMG (đầu nòng theo bbox glb)
 ];
 const FLASH_SIZE = 0.14;
 
@@ -40,6 +42,20 @@ const ADS_BOB = 0.15; // lắc súng còn lại khi ngắm (so với bình thư�
 const ADS_DROP: Record<number, number> = { 0: 0.03 ,1: 0.1 };
 const SIGHT_SLAB = 0.1; // vùng đầu ruồi: 10% chiều dài súng tính từ đầu nòng
 const SIGHT_HALF_W = 0.008; // chỉ xét đỉnh gần trục giữa (x≈0) để bỏ qua các chi tiết bên hông
+
+// Chỉnh model glb chưa chuẩn hoá theo tay cầm (knife_1.glb gốc nhỏ ~19cm). scale/pos/rot áp lên root của model.
+export const MODEL_ADJUST: Record<number, { scale?: number; pos?: [number, number, number]; rotX?: number; rotY?: number; rotZ?: number }> = {
+  6: { scale: 2.2, pos: [-0.02, 0.12, 0.05], rotX: 0.45 },   // dao
+};
+export function adjustModel(id: number, model: THREE.Object3D): void {
+  const a = MODEL_ADJUST[id];
+  if (!a) return;
+  if (a.scale) model.scale.multiplyScalar(a.scale);
+  if (a.pos) model.position.add(new THREE.Vector3(...a.pos));
+  if (a.rotX) model.rotation.x += a.rotX;
+  if (a.rotY) model.rotation.y += a.rotY;
+  if (a.rotZ) model.rotation.z += a.rotZ;
+}
 
 export function makeFlashTexture(): THREE.Texture {
   const c = document.createElement("canvas");
@@ -78,6 +94,8 @@ const WEAPON_FILES = [
   "/models/rouleau.glb",
   "/models/sniper.glb",
   "/models/shotgun.glb",
+  "/models/knife_1.glb",
+  "/models/submachine.glb",
 ] as const;
 
 // ── Placeholder box (dùng khi model chưa load xong) ───────────────────────────
@@ -185,11 +203,15 @@ export interface ViewmodelHandle {
   scene: THREE.Scene;
   cam: THREE.PerspectiveCamera;
   readonly currentWeapon: number;
+  /** Súng đang hiện hoặc sắp hiện (khác currentWeapon lúc đang animation đổi súng) */
+  readonly targetWeapon: number;
   updateAspect(aspect: number): void;
   switchWeapon(id: number): boolean;
+  /** Đặt súng ngay, không animation (lúc khởi động) */
+  snapTo(id: number): void;
   update(dt: number): void;
-  /** Gọi mỗi phát bắn: giật súng + lửa nòng */
-  onFire(): void;
+  /** Gọi mỗi phát bắn: giật súng + lửa nòng (melee: chém, không có lửa nòng) */
+  onFire(melee?: boolean): void;
   /** Tốc độ ngang (m/s) + đang chạm đất, để lắc súng */
   setMotion(speed: number, grounded: boolean): void;
   /** Tiến độ reload 0..1, hoặc -1 nếu không reload */
@@ -248,6 +270,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       .loadAsync(file)
       .then((gltf) => {
         const model = prepareModel(gltf.scene);
+        adjustModel(wid, model);
         loaded.set(wid, model);
         const sight = measureSight(model);
         if (sight) sights.set(wid, sight);
@@ -306,8 +329,19 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     return true;
   }
 
-  function onFire() {
-    kick = 1;
+  function snapTo(id: number) {
+    currentWeapon = id;
+    pendingId = id;
+    phase = "idle";
+    switchOffY = 0;
+    gunGroup.remove(currentMesh);
+    currentMesh = getMesh(id);
+    gunGroup.add(currentMesh);
+  }
+
+  function onFire(melee = false) {
+    kick = melee ? 3 : 1;   // dao: vung mạnh hơn
+    if (melee) return;
     // Vị trí muzzle theo hệ toạ độ gunGroup
     const m = currentMesh.getObjectByName("muzzle");
     if (m) {
@@ -414,8 +448,12 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     get currentWeapon() {
       return currentWeapon;
     },
+    get targetWeapon() {
+      return phase === "idle" ? currentWeapon : pendingId;
+    },
     updateAspect,
     switchWeapon,
+    snapTo,
     update,
     onFire,
     setMotion,

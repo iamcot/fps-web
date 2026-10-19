@@ -66,12 +66,23 @@
 - [ ] 6.6–6.7 (làm sau, task chọn lẻ)
 
 ## 09 – HUD, cửa hàng, kinh tế
-- [ ] H.0 Dọn map (bỏ hình nhân, dấu spawn)
-- [ ] H.1 Mở rộng bộ vũ khí (dao, shotgun, SMG, sniper, dòng, giá, tốc độ chạy)
-- [ ] H.2 Logic kinh tế + loadout (shared, có test)
-- [ ] H.3 Server: tiền, loadout, khu mua, thưởng, chuỗi hạ
-- [ ] H.4 Đổi vũ khí theo ô (1–4, con lăn, Q)
-- [ ] H.5 Icon vũ khí (Blender render + SVG tạm)
-- [ ] H.6 HUD dưới màn hình (tiền, tim, 4 ô, đạn)
-- [ ] H.7 Giỏ hàng + menu cửa hàng
-- [ ] H.8 Phản hồi tiền thưởng, truy nã
+Làm một mạch H.0 → H.8 theo yêu cầu (lệch quy tắc "mỗi phiên một task" của plan). Lệch plan / quyết định cần người dùng biết:
+- Thông số súng: giữ nguyên Shotgun/Sniper đã chỉnh ở 6.4 (Shotgun 16 dmg/tia, falloff `fullM`, Sniper 90 dmg, scope qua `ads`/`aimSpreadDeg`) thay vì bảng H.1.2 (14 dmg, 95 dmg, `scope`/`unscopedSpreadDeg`). Chỉ thêm trường mới (`key`, `category`, `price`, `buyable`, `moveSpeedMul`, `melee`) + 2 súng mới Dao (id 6) và SMG (id 7). Ngắm Sniper chậm ×0.5 như plan (`SCOPE_MOVE_MUL`). Test "sniper 1 phát thân còn 5 máu" của plan không khớp (còn 10 máu) vì giữ 90 dmg.
+- `WeaponState` thêm `slots` (id súng 4 ô, -1 = trống), `slot`, `wantSlot`; `current` vẫn là id súng. `cmd.weapon` giờ là Ô 0–3. Chỉ ĐỔI súng khi `cmd.weapon` khác cmd trước (`wantSlot`): mua súng/hồi sinh làm server đổi ô trước, cmd cũ còn bay trên đường không kéo ngược lại.
+- `stepMovement(..., speedMul)` + `moveSpeedMul(ws, buttons)`: tốc độ theo súng cầm TRƯỚC cmd (đổi súng ở cuối tick). `Prediction.onSnapshot(ack, state, wpn)` replay súng song song để biết tốc độ đúng từng cmd chưa ack. Server chạy `stepWeaponCmd` cả khi người chơi chết (nút đã bị mask) cho khớp dự đoán client.
+- Protocol: số message khác plan vì trùng: `Buy`=6 (C2S), `BuyResult`=115, `MoneyEvent`=116 (plan ghi 5/114/115 nhưng 5 và 114 đã dùng). `Kill` thêm `reward`, `victimStreak`; `NetPlayer.killStreak`; `Snapshot` thêm `money`, `loadout` (riêng người nhận); `ScoreboardRow.money` chỉ gửi cho đồng đội (server dựng bảng riêng mỗi đội).
+- Khu mua: `buyZoneA` trong `deathmatch.json` (x −30…−19.75, y −1…2.5, z ±20), `loadMap` mirror ra `buyZones.B`; `inBuyZone(map, team, sideSwapped, pos)` ở `shared/map/buyZone.ts`.
+- Kinh tế ở `shared/economy.ts` (`ECONOMY`, `DEFAULT_LOADOUT`, `quoteBuy/applyBuy/killReward/addMoney`); server: `server/shop.ts` (`handleBuy`, ≤5 lệnh/giây), thưởng/chuỗi hạ trong `Room.finalizeDeaths` (chỉ tính ở PLAYING và kẻ địch), mất súng khi chết ở `Room.respawn`, reset ở `Room.resetEconomy` (trận mới / đổi đội / vào phòng).
+- Icon: 8 file SVG tạm trong `client/public/icons/weapons/` (HUD ưu tiên `<key>.png`, thiếu thì dùng SVG). `tools/blender/render_icon.py` đã viết nhưng CHƯA CHẠY (container không có Blender) → chưa có PNG render từ model.
+- Model: dao dùng `knife_1.glb`, SMG dùng `submachine.glb` (có sẵn). Âm: dao = tiếng vụt tổng hợp, SMG = profile tổng hợp (chưa có file), ka-ching/bíp ở `audio/uiAudio.ts`. Hiệu chỉnh vị trí dao ở `MODEL_ADJUST` trong `viewmodel.ts`.
+- Offline: không có tiền/cửa hàng; thử súng khác bằng `?loadout=knife,colt,smg,sniper`. Hình nhân chỉ khi `?dummies=1`; mũi tên spawn chỉ khi F4.
+- Đo bằng trình duyệt thật + server thật (Chromium headless): mua SMG→Shotgun đúng số tiền ($750 → $650), ô/HUD/giỏ hàng đúng; chạy + đổi súng liên tục lat=60±15: sai số reconcile 0.000 m, lệch súng 0/462 (khi mua có 1–2 lần lệch ngay lúc server đổi súng, tự sửa).
+- [x] H.0 Dọn map (bỏ hình nhân, dấu spawn)
+- [x] H.1 Mở rộng bộ vũ khí (dao, shotgun, SMG, sniper, dòng, giá, tốc độ chạy)
+- [x] H.2 Logic kinh tế + loadout (shared, có test)
+- [x] H.3 Server: tiền, loadout, khu mua, thưởng, chuỗi hạ
+- [x] H.4 Đổi vũ khí theo ô (1–4, con lăn, Q)
+- [~] H.5 Icon vũ khí — SVG tạm cho cả 8 súng + script Blender chưa chạy
+- [x] H.6 HUD dưới màn hình (tiền, tim, 4 ô, đạn)
+- [x] H.7 Giỏ hàng + menu cửa hàng
+- [x] H.8 Phản hồi tiền thưởng, truy nã

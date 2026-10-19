@@ -1,15 +1,15 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
-import { defaultMovement, NetFlag, TEAMS, type TeamId } from '@fps/shared'
+import { defaultMovement, ECONOMY, NetFlag, TEAMS, type TeamId } from '@fps/shared'
 import { makeBlobShadow } from './blobShadow'
-import { MUZZLE_FALLBACK, makeFlashTexture } from './viewmodel'
+import { MUZZLE_FALLBACK, makeFlashTexture, adjustModel } from './viewmodel'
 import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
 import { makeAnimState, updateAnim, type AnimState } from './characters/animate'
 import { createDeathFx } from './characters/deathFx'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
-interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number }
+interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number }
 
 export interface TeamInfo {
   teamOf(id: number): TeamId | undefined
@@ -19,7 +19,8 @@ export interface TeamInfo {
 }
 
 const FLASH_MS = 60
-const WEAPON_FILES = ['/models/ak47.glb', '/models/m16.glb', '/models/colt.glb', '/models/rouleau.glb', '/models/sniper.glb', '/models/shotgun.glb']
+const WANTED_STREAK = ECONOMY.bountyStreak   // killStreak từ ngần này: dấu truy nã trên đầu
+const WEAPON_FILES = ['/models/ak47.glb', '/models/m16.glb', '/models/colt.glb', '/models/rouleau.glb', '/models/sniper.glb', '/models/shotgun.glb', '/models/knife_1.glb', '/models/submachine.glb']
 
 // Súng cầm trên tay người khác: load một lần mỗi loại, mỗi người clone (dùng chung geometry/material)
 const gunModels = new Map<number, THREE.Object3D>()
@@ -32,6 +33,7 @@ function requestGuns(): void {
   WEAPON_FILES.forEach((file, id) => {
     loader.loadAsync(file).then(gltf => {
       gltf.scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = false; o.receiveShadow = false } })
+      adjustModel(id, gltf.scene)
       gunModels.set(id, gltf.scene)
     }).catch(err => console.warn(`players: cannot load ${file}`, err))
   })
@@ -50,6 +52,29 @@ function makeNameSprite(text: string, color: string): THREE.Sprite {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }))
   sp.scale.set(1.6, 0.4, 1)
   sp.renderOrder = 10
+  return sp
+}
+
+// Dấu truy nã: ngôi sao vàng viền đỏ, một texture dùng chung
+let wantedTex: THREE.CanvasTexture | null = null
+function makeWantedSprite(): THREE.Sprite {
+  if (!wantedTex) {
+    const c = document.createElement('canvas')
+    c.width = c.height = 64
+    const g = c.getContext('2d')!
+    g.beginPath()
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? 29 : 12, a = -Math.PI / 2 + i * Math.PI / 5
+      g.lineTo(32 + Math.cos(a) * r, 33 + Math.sin(a) * r)
+    }
+    g.closePath()
+    g.fillStyle = '#ffd23c'; g.fill()
+    g.lineWidth = 4; g.strokeStyle = '#d02020'; g.stroke()
+    wantedTex = new THREE.CanvasTexture(c)
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: wantedTex, depthTest: false, transparent: true }))
+  sp.scale.set(0.5, 0.5, 1)
+  sp.renderOrder = 11
   return sp
 }
 
@@ -88,6 +113,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   const actors = new Map<number, Actor>()
   const lastSeen = new Map<number, number>()   // id → số frame cuối được thấy (tránh cấp phát Set mỗi frame)
   const labels = new Map<number, THREE.Sprite>()
+  const wanted = new Map<number, THREE.Sprite>()   // dấu truy nã trên đầu người có chuỗi hạ ≥ WANTED_STREAK (thấy cả với kẻ địch)
   const deathFx = createDeathFx(scene)
   let frame = 0
   let lastNow = performance.now()
@@ -95,6 +121,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   requestGuns()
 
   function dropActor(id: number, a: Actor): void {
+    dropWanted(id)
     scene.remove(a.rig.root)
     disposeActor(a)
     actors.delete(id)
@@ -133,6 +160,21 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     }
   }
 
+  function dropWanted(id: number): void {
+    const w = wanted.get(id)
+    if (!w) return
+    scene.remove(w); w.material.dispose(); wanted.delete(id)
+  }
+
+  function dressWanted(p: RenderPlayer, a: Actor, h: number): void {
+    const on = (p.killStreak ?? 0) >= WANTED_STREAK && a.rig.root.visible
+    let w = wanted.get(p.id)
+    if (!on) { if (w) dropWanted(p.id); return }
+    if (!w) { w = makeWantedSprite(); scene.add(w); wanted.set(p.id, w) }
+    // Cao hơn nhãn tên đồng đội một chút để không chồng lên
+    w.position.set(a.rig.root.position.x, a.rig.root.position.y + h + 0.95, a.rig.root.position.z)
+  }
+
   function dressGun(a: Actor, weapon: number): void {
     if (a.gunId === weapon && a.gun) return
     const src = gunModels.get(weapon)
@@ -166,6 +208,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     const op = (p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1
     if (rig.mats[0]!.opacity !== op || op !== 1) for (const m of rig.mats) m.opacity = op
     dressGun(a, p.weapon ?? 0)
+    dressWanted(p, a, h)
     a.flash.visible = nowMs < a.flashUntil
     dressLabel(p.id, a, h)
   }

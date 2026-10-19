@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { createBottomHud, type BottomHud } from './hudBottom'
 
 // ── Hitmarker ─────────────────────────────────────────────────────────────────
 function buildHitmarker() {
@@ -122,28 +123,6 @@ function buildCrosshair() {
   }
 }
 
-function buildStatus() {
-  const mk = (css: string) => {
-    const el = document.createElement('div')
-    el.style.cssText = 'position:fixed;pointer-events:none;z-index:12;color:#fff;font:bold 48px monospace;text-shadow:0 0 4px #000;' + css
-    document.body.appendChild(el)
-    return el
-  }
-  const hp   = mk('left:24px;bottom:20px')
-  const ammo = mk('right:24px;bottom:20px;text-align:right')
-  let lastAmmo = ''
-  return {
-    setHealth(v: number) { hp.textContent = `+ ${v}` },
-    setAmmo(name: string, cur: number, mag: number, reloading: boolean) {
-      const key = `${name}|${cur}|${mag}|${reloading}`
-      if (key === lastAmmo) return   // tránh ghi DOM mỗi frame
-      lastAmmo = key
-      ammo.innerHTML = `<div style="font-size:16px;opacity:.8">${name}</div>` +
-        (reloading ? 'RELOAD' : `${cur} / ${mag}`)
-    },
-  }
-}
-
 // ── Export ────────────────────────────────────────────────────────────────────
 export interface HUDHandle {
   showHitmarker(headshot: boolean): void
@@ -154,24 +133,26 @@ export interface HUDHandle {
   setCrosshairVisible(v: boolean): void
   setCrosshairFov(deg: number): void
   setHealth(v: number): void
-  setAmmo(name: string, cur: number, mag: number, reloading: boolean): void
+  setAmmo(name: string, cur: number, mag: number, reloading: boolean, melee?: boolean): void
+  readonly bottom: BottomHud   // tiền, 4 ô vũ khí, nổi +$
 }
 
 export function initHUD(scene: THREE.Scene): HUDHandle {
   const hm = buildHitmarker()
   const bh = buildBulletHoles(scene)
   const ch = buildCrosshair()
-  const st = buildStatus()
+  const st = createBottomHud()
 
   return {
     showHitmarker: (hs) => hm.show(hs),
     addBulletHole: (p, n) => bh.add(p, n),
-    tick:          (ms)  => hm.tick(ms),
+    tick:          (ms)  => { hm.tick(ms); st.tick(ms) },
     setSpread:     (d, ms) => ch.tick(d, ms),
     kickSpread:    (d)   => ch.kick(d),
     setCrosshairVisible: (v) => ch.setVisible(v),
     setCrosshairFov: (d) => ch.setFov(d),
     setHealth:     (v)   => st.setHealth(v),
-    setAmmo:       (n, c, m, r) => st.setAmmo(n, c, m, r),
+    setAmmo:       (n, c, m, r, melee) => st.setAmmo(n, c, m, r, melee),
+    bottom:        st,
   }
 }

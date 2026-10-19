@@ -158,12 +158,27 @@ function playShotLayers(g: AudioGraph, p: GunSoundProfile, dest: AudioNode, when
   playThump(g, dest, p, when)
 }
 
+// ── Dao: tiếng "vụt" tổng hợp (noise bandpass quét 800→3000Hz trong 120ms, −10dB) ──
+export function playSwing(origin?: Vec3): void {
+  const g = getGraph()
+  if (!g) return
+  let dest: AudioNode = g.master
+  if (origin) {
+    if (distTo(origin) > 20) return
+    const pn = makePanner(g, origin)
+    pn.connect(g.master)
+    dest = pn
+  }
+  noise(g.ctx, dest, { filter: 'bandpass', freq: 800, freqEnd: 3000, q: 1.2, gainDb: -10, attackMs: 15, decayMs: 105, when: g.ctx.currentTime })
+}
+
 // ── Bắn của mình ──────────────────────────────────────────────────────────────
 /** `ammoLeft` = số đạn còn lại SAU phát vừa bắn. */
 export function playShot(id: number, ammoLeft: number): void {
   const g = getGraph()
   const p = GUN_SOUNDS[id]
   const def = WEAPONS[id]
+  if (def?.melee) { playSwing(); return }
   if (!g || !p || !def) return
   const bus = ensureBus(g, id)
   if (!bus) return
@@ -193,6 +208,7 @@ function makePanner(g: AudioGraph, origin: Vec3): PannerNode {
 const distTo = (o: Vec3): number => Math.hypot(o[0] - listenerPos[0], o[1] - listenerPos[1], o[2] - listenerPos[2])
 
 export function playShotOther(id: number, origin: Vec3): void {
+  if (WEAPONS[id]?.melee) { playSwing(origin); return }
   const g = getGraph()
   const p = GUN_SOUNDS[id]
   if (!g || !p) return

@@ -1,4 +1,4 @@
-import { DEFAULT_CHARACTER_SET, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId } from '@fps/shared'
+import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, ECONOMY, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, addMoney, defaultLoadout, killReward, loadoutWeaponIds, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 
@@ -35,6 +35,10 @@ export interface Player {
   deaths: number
   pingMs: number                 // RTT do client báo trong Ping, cho bảng điểm
   seqOffset: number | null       // now − seq*1000/TICK_RATE của cmd đầu tiên; chặn seq chạy nhanh hơn thời gian thực
+  money: number                  // chỉ server quyết định (shared/economy)
+  loadout: Loadout               // súng đang mang theo ô; weapon.slots là bản id của nó
+  killStreak: number             // chuỗi hạ hiện tại; về 0 khi chết
+  buyTimes: number[]             // serverTime các lệnh Buy trong 1 giây gần nhất (giới hạn spam)
 }
 
 export class Room {
@@ -54,7 +58,7 @@ export class Room {
 
   constructor(
     readonly id: string,
-    private map: LoadedMap,
+    readonly map: LoadedMap,
     private now: () => number,
     private random: () => number = Math.random,
     readonly rules: MatchRules = MATCH,
@@ -96,6 +100,7 @@ export class Room {
     const team = this.assignTeam(pref)
     if (!team) return null
     const sp = this.pickSpawn(team, null, true)
+    const loadout = defaultLoadout(team)
     const player: Player = {
       id: this.nextId++,
       name,
@@ -111,7 +116,7 @@ export class Room {
       world: null,
       idleCmd: { seq: 0, buttons: 0, yaw: sp.yaw, pitch: 0, weapon: 0 },
       starvedTicks: 0,
-      weapon: makeWeaponState(),
+      weapon: makeWeaponState(loadoutWeaponIds(loadout)),
       recoil: makeRecoilState(),
       alive: true,
       hp: PLAYER_MAX_HP,
@@ -129,6 +134,10 @@ export class Room {
       deaths: 0,
       pingMs: 0,
       seqOffset: null,
+      money: ECONOMY.startMoney,
+      loadout,
+      killStreak: 0,
+      buyTimes: [],
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name, characterSet: this.characterSet,
       players: [...this.players.values()].map(o => ({ id: o.id, name: o.name })) })
@@ -142,6 +151,7 @@ export class Room {
     for (const o of this.players.values()) o.transport.send({ t: MsgType.TeamAssigned, id: player.id, team })
     // Vào giữa trận: bất tử như vừa hồi sinh (5.4)
     if (this.phase !== MatchPhase.Waiting) player.invulnUntil = this.serverNow + SPAWN_INVULN_MS
+    transport.send({ t: MsgType.MoneyEvent, delta: player.money, reason: 'reset' })
     return player
   }
 
@@ -155,6 +165,28 @@ export class Room {
     if (this.players.size === 0) this.emptySince = this.now()
   }
 
+  // Đặt súng theo p.loadout: cầm ô `slot` (không có thì ô có súng đầu tiên), đạn đầy, huỷ nạp
+  equip(p: Player, slot = DEFAULT_SLOT): void {
+    const ws = p.weapon
+    ws.slots = loadoutWeaponIds(p.loadout)
+    ws.slot = ws.slots[slot]! >= 0 ? slot : Math.max(0, ws.slots.findIndex(id => id >= 0))
+    ws.current = ws.slots[ws.slot]!
+    ws.ammo = WEAPONS.map(w => w.magSize)
+    ws.reloadEndMs = 0
+    ws.nextFireMs = 0
+    ws.triggerHeld = false
+    p.recoil.pitch = 0; p.recoil.yaw = 0
+  }
+
+  // Trận mới / đổi đội: tiền ban đầu, bộ mặc định của đội, chuỗi hạ 0
+  resetEconomy(p: Player): void {
+    p.money = ECONOMY.startMoney
+    p.killStreak = 0
+    p.loadout = defaultLoadout(p.team)
+    this.equip(p)
+    p.transport.send({ t: MsgType.MoneyEvent, delta: p.money, reason: 'reset' })
+  }
+
   // Chốt người chết cuối tick: hp ≤ 0 → chết, báo cả phòng. Gọi sau khi mọi người đã bước.
   finalizeDeaths(): void {
     for (const p of this.players.values()) {
@@ -164,16 +196,23 @@ export class Room {
       // WAITING hồi sinh ngay; còn lại theo RESPAWN_DELAY_MS
       p.respawnAt = this.serverNow + (this.phase === MatchPhase.Waiting ? 0 : RESPAWN_DELAY_MS)
       p.weapon.triggerHeld = false
+      const victimStreak = p.killStreak
+      let reward = 0
       if (this.phase === MatchPhase.Playing) {
         p.deaths++
         const killer = this.players.get(p.killerId)
         if (killer && killer.team !== p.team) {
           killer.kills++
           if (killer.team === 'A') this.scoreA++; else this.scoreB++
+          reward = killReward(victimStreak)
+          killer.money = addMoney(killer.money, reward)
+          killer.killStreak++
+          killer.transport.send({ t: MsgType.MoneyEvent, delta: reward, reason: victimStreak >= ECONOMY.bountyStreak ? 'bounty' : 'kill' })
         }
       }
+      p.killStreak = 0
       for (const o of this.players.values()) {
-        o.transport.send({ t: MsgType.Kill, killerId: p.killerId, victimId: p.id, weapon: p.killWeapon, headshot: p.killHeadshot })
+        o.transport.send({ t: MsgType.Kill, killerId: p.killerId, victimId: p.id, weapon: p.killWeapon, headshot: p.killHeadshot, reward, victimStreak })
       }
     }
   }
@@ -215,12 +254,9 @@ export class Room {
     p.hp = PLAYER_MAX_HP
     p.killerId = -1
     p.invulnUntil = this.serverNow + SPAWN_INVULN_MS
-    const fresh = makeWeaponState()
-    p.weapon.ammo = fresh.ammo
-    p.weapon.reloadEndMs = 0
-    p.weapon.nextFireMs = 0
-    p.weapon.triggerHeld = false
-    p.recoil.pitch = 0; p.recoil.yaw = 0
+    // Chết thì mất súng đã mua (tiền giữ nguyên): hồi sinh với bộ mặc định của đội, cầm súng dài
+    if (!ECONOMY.keepLoadoutOnDeath) p.loadout = defaultLoadout(p.team)
+    this.equip(p, ECONOMY.keepLoadoutOnDeath ? p.weapon.slot : DEFAULT_SLOT)
     for (const o of this.players.values()) {
       o.transport.send({ t: MsgType.Respawn, id: p.id, pos: [best.pos[0], best.pos[1], best.pos[2]], yaw: best.yaw })
     }

@@ -17,6 +17,9 @@ function worldWithWall(wallDist: number | null): CollisionWorld {
   }
 }
 
+
+// Bộ thử: Dao, Colt, M16 (ô 2 — không đúng dòng, chỉ để thử), AK47 (ô 3)
+const useAk = (p: Player) => { p.weapon.slots = [6, 2, 1, 0]; p.weapon.slot = 3; p.weapon.current = 0 }
 function setup(wallDist: number | null = null) {
   const logs = new Map<number, AnyMsg[]>()
   const rm = new RoomManager(map, () => 0)
@@ -25,6 +28,7 @@ function setup(wallDist: number | null = null) {
     const t: Transport = { send: m => { msgs.push(m) }, onMessage: () => {}, onClose: () => {} }
     const { player } = rm.join('r', name, t, 0, name === 'A' ? 'A' : 'B')
     player.world = worldWithWall(wallDist)
+    useAk(player)
     logs.set(player.id, msgs)
     return player
   }
@@ -35,7 +39,7 @@ function setup(wallDist: number | null = null) {
 }
 
 const fireCmd = (seq: number, extra: Partial<InputCmd> = {}): InputCmd =>
-  ({ seq, buttons: Btn.Fire, yaw: 0, pitch: 0, weapon: 0, ...extra })
+  ({ seq, buttons: Btn.Fire, yaw: 0, pitch: 0, weapon: 3, ...extra })
 
 // Người bắn đứng gốc, nhìn -Z; mục tiêu cách 10m phía trước
 function place(a: Player, b: Player, targetZ = -10) {
@@ -171,14 +175,14 @@ describe('máu, chết, hồi sinh (4.4)', () => {
     const r = setup()
     place(r.a, r.b)
     r.b.invulnUntil = 0
-    enqueueCmds(r.a, [{ seq: 0, buttons: 0, yaw: 0, pitch: 0, weapon: 1 }], 0)   // đổi sang M16 (khoá bắn 300ms)
+    enqueueCmds(r.a, [{ seq: 0, buttons: 0, yaw: 0, pitch: 0, weapon: 2 }], 0)   // đổi sang M16 (khoá bắn 300ms)
     stepPlayer(r.a, defaultMovement, r.room)
     return r
   }
   let seq = 0
   const nextShot = (room: ReturnType<typeof setup>['room'], a: Player, extra: Partial<InputCmd> = {}) => {
     seq += 12   // đủ cách nhau vượt fireIntervalMs của M16 (80ms = 5 tick)
-    enqueueCmds(a, [fireCmd(seq, { weapon: 1, ...extra })], seq * 1000 / 60)   // M16: 30 sát thương, đổi súng khoá 300ms
+    enqueueCmds(a, [fireCmd(seq, { weapon: 2, ...extra })], seq * 1000 / 60)   // M16: 30 sát thương, đổi súng khoá 300ms
     stepPlayer(a, defaultMovement, room)
     room.finalizeDeaths()
   }

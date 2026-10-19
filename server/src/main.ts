@@ -8,6 +8,7 @@ import { startHeartbeat } from './heartbeat'
 import { TickLoop } from './tickLoop'
 import { enqueueCmds, stepRoom, sendSnapshots } from './simulation'
 import { lanAddresses } from './lan'
+import { handleBuy } from './shop'
 import { RoomManager, sanitizeName, sanitizeRoom, type Player, type Room } from './room'
 
 const PORT = 8081
@@ -72,12 +73,14 @@ wss.on('connection', ws => {
       if (player) enqueueCmds(player, msg.cmds)
     } else if (msg.t === MsgType.SetDebug) {
       if (player) player.debugShots = msg.shots === true
+    } else if (msg.t === MsgType.Buy) {
+      if (room && player && typeof msg.key === 'string') handleBuy(room, player, msg.key)
     } else if (msg.t === MsgType.ChooseTeam) {
       // Chỉ đổi đội khi chưa vào trận (WAITING); còn lại giữ đội hiện tại
       if (!room || !player) return
       const pref = msg.team === 'A' || msg.team === 'B' ? msg.team : 'auto'
       const team = room.phase === MatchPhase.Waiting ? room.assignTeam(pref, player) : null
-      if (team && team !== player.team) { room.setTeam(player, team); room.respawn(player) }
+      if (team && team !== player.team) { room.setTeam(player, team); room.resetEconomy(player); room.respawn(player) }
       else transport.send({ t: MsgType.TeamAssigned, id: player.id, team: player.team })
     } else if (msg.t === MsgType.Join) {
       if (player) return   // mỗi kết nối chỉ join một lần

@@ -2,13 +2,14 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { Btn, makeWeaponState, stepWeaponCmd, type InputCmd } from '@fps/shared'
 import { reconcileWeapon, weaponSyncStats } from './weaponSync'
 
-const cmd = (seq: number, buttons: number, weapon = 0): InputCmd => ({ seq, buttons, yaw: 0, pitch: 0, weapon })
+const AK = [6, 2, -1, 0]   // AK47 ở ô 3
+const cmd = (seq: number, buttons: number, weapon = 3): InputCmd => ({ seq, buttons, yaw: 0, pitch: 0, weapon })
 
 describe('reconcileWeapon', () => {
   beforeEach(() => { weaponSyncStats.checks = 0; weaponSyncStats.mismatches = 0 })
 
   it('client và server cùng chạy một dãy cmd: không lệch', () => {
-    const client = makeWeaponState(), server = makeWeaponState()
+    const client = makeWeaponState(AK), server = makeWeaponState(AK)
     const cmds = Array.from({ length: 90 }, (_, i) => cmd(i, Btn.Fire))
     for (const c of cmds) stepWeaponCmd(client, c)
     for (const c of cmds.slice(0, 40)) stepWeaponCmd(server, c)   // server mới tới cmd 39
@@ -18,7 +19,7 @@ describe('reconcileWeapon', () => {
   })
 
   it('server từ chối một phát: client sửa ammo về theo server', () => {
-    const client = makeWeaponState(), server = makeWeaponState()
+    const client = makeWeaponState(AK), server = makeWeaponState(AK)
     const cmds = Array.from({ length: 30 }, (_, i) => cmd(i, Btn.Fire))
     for (const c of cmds) stepWeaponCmd(client, c)
     // server chưa bắn phát nào ở cmd 0 vì giả sử đang reload

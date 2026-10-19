@@ -138,6 +138,7 @@ export function initAudioTuning(): void {
     const sel = document.createElement('select')
     sel.style.cssText = 'width:100%;margin:4px 0;font:12px monospace'
     for (const w of WEAPONS) {
+      if (!GUN_SOUNDS[w.id]) continue   // dao: không có profile súng
       const o = document.createElement('option'); o.value = String(w.id); o.textContent = w.name
       if (w.id === gunId) o.selected = true
       sel.appendChild(o)

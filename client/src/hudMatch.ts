@@ -86,14 +86,14 @@ export function createScoreboard() {
     head.style.cssText = `font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:${TEAMS[team].uiColor === '#2f6fd6' ? '#6fa0ff' : TEAMS[team].uiColor}`
     t.appendChild(head)
     const hr = t.insertRow()
-    for (const h of ['Tên', 'K', 'D', 'Ping']) {
+    for (const h of ['Tên', '$', 'K', 'D', 'Ping']) {
       const c = hr.insertCell(); c.textContent = h
       c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Tên' ? 'left' : 'right')
     }
     for (const r of sortRows(rows, team)) {
       const tr = t.insertRow()
       if (r.id === myId) tr.style.background = 'rgba(255,255,255,0.22)'
-      const cells: [string, string][] = [[r.name, 'left'], [String(r.kills), 'right'], [String(r.deaths), 'right'], [String(r.ping), 'right']]
+      const cells: [string, string][] = [[r.name, 'left'], [r.money === undefined ? '—' : `$${r.money}`, 'right'], [String(r.kills), 'right'], [String(r.deaths), 'right'], [String(r.ping), 'right']]
       for (const [txt, al] of cells) { const c = tr.insertCell(); c.textContent = txt; c.style.cssText = `padding:2px 8px;text-align:${al}` }
     }
     return t

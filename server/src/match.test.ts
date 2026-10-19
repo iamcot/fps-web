@@ -31,7 +31,7 @@ function mk(rm: RoomManager, name: string, team: TeamId | 'auto' = 'auto') {
 }
 
 const cmd = (seq: number, buttons = 0, extra: Partial<InputCmd> = {}): InputCmd =>
-  ({ seq, buttons, yaw: 0, pitch: 0, weapon: 0, ...extra })
+  ({ seq, buttons, yaw: 0, pitch: 0, weapon: 3, ...extra })
 
 // Chạy room tới serverTime `to` (ms), mỗi 16ms một tick
 function run(room: Room, to: number) {
@@ -96,8 +96,8 @@ describe('trận đấu (5.2)', () => {
   function kill(room: Room, a: Player, b: Player, seq: number) {
     a.state.pos = [0, 0, 0]; b.state.pos = [0, 0, -10]
     b.hp = 1; b.invulnUntil = 0; a.invulnUntil = 0
-    a.weapon.current = 1; a.weapon.nextFireMs = 0
-    enqueueCmds(a, [cmd(seq, Btn.Fire, { weapon: 1 })], seq * 1000 / 60)
+    a.weapon.nextFireMs = 0   // Cớm: M16 ở ô 3
+    enqueueCmds(a, [cmd(seq, Btn.Fire, { weapon: 3 })], seq * 1000 / 60)
     stepPlayer(a, defaultMovement, room)
     room.finalizeDeaths()
   }
@@ -148,7 +148,7 @@ describe('trận đấu (5.2)', () => {
     // ENDED: không bắn được
     const shots = a.shotsFired
     room.respawn(b); a.weapon.nextFireMs = 0
-    enqueueCmds(a, [cmd(400, Btn.Fire, { weapon: 1 })], 400 * 1000 / 60)
+    enqueueCmds(a, [cmd(400, Btn.Fire, { weapon: 3 })], 400 * 1000 / 60)
     stepPlayer(a, defaultMovement, room)
     expect(a.shotsFired).toBe(shots)
   })

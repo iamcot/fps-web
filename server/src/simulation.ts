@@ -1,6 +1,6 @@
 import {
   Btn, DT, MatchPhase, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE,
-  WEAPONS, isValidCmd, phaseButtonMask, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
+  WEAPONS, isValidCmd, phaseButtonMask, moveSpeedMul, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
 import type { Player, Room } from './room'
@@ -42,10 +42,12 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
       eff.seq = cmd.seq; eff.yaw = cmd.yaw; eff.pitch = cmd.pitch; eff.weapon = cmd.weapon
       eff.buttons = cmd.buttons & mask; eff.fireRenderTime = cmd.fireRenderTime
     }
-    p.state = stepMovement(p.state, eff, p.world, cfg, DT)
+    // Tốc độ theo súng đang cầm TRƯỚC cmd này (đổi súng ở cuối tick); client dự đoán và replay cùng thứ tự
+    p.state = stepMovement(p.state, eff, p.world, cfg, DT, moveSpeedMul(p.weapon, eff.buttons))
     p.lastProcessedSeq = cmd.seq
     p.lastCmd = cmd
-    if (p.alive && stepWeaponCmd(p.weapon, eff) === 'fired') {
+    // Chạy cả khi chết (nút đã bị mask nên không bắn được): wantSlot/hoàn tất nạp khớp với dự đoán của client
+    if (stepWeaponCmd(p.weapon, eff) === 'fired' && p.alive) {
       p.shotsFired++
       p.invulnUntil = 0   // bắn phát hợp lệ đầu tiên thì hết bất tử
       if (room) resolveShot(p, room, eff, cfg)
@@ -68,7 +70,7 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
   idle.buttons = last ? last.buttons & HELD_MASK & phaseButtonMask(room?.phase ?? MatchPhase.Playing, p.alive) : 0
   idle.yaw = last ? last.yaw : p.state.yaw
   idle.pitch = last ? last.pitch : p.state.pitch
-  p.state = stepMovement(p.state, idle, p.world, cfg, DT)
+  p.state = stepMovement(p.state, idle, p.world, cfg, DT, moveSpeedMul(p.weapon, idle.buttons))
 }
 
 // serverTime = thời điểm của tick này; lịch sử hitbox ghi theo mốc này sau khi mọi người đã bước
@@ -87,9 +89,9 @@ export function sendSnapshots(room: Room, tick: number, serverTime: number): voi
   const players: NetPlayer[] = []
   for (const p of room.players.values()) {
     const flags = (p.alive ? 0 : NetFlag.Dead) | (p.alive && serverTime < p.invulnUntil ? NetFlag.Invuln : 0)
-    players.push(stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current))
+    players.push(stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current, p.killStreak))
   }
   for (const p of room.players.values()) {
-    p.transport.send({ t: MsgType.Snapshot, tick, serverTime, ack: p.lastProcessedSeq, players, wpn: p.weapon })
+    p.transport.send({ t: MsgType.Snapshot, tick, serverTime, ack: p.lastProcessedSeq, players, wpn: p.weapon, money: p.money, loadout: p.loadout.slots })
   }
 }

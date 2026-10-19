@@ -104,6 +104,7 @@ export function stepMovement(
   world: CollisionWorld,
   cfg: MovementConfig,
   dt: number,
+  speedMul = 1,   // hệ số tốc độ chạy theo súng đang cầm (weaponLogic.moveSpeedMul); client và server phải truyền như nhau
 ): PlayerState {
   const pos: [number, number, number] = [state.pos[0], state.pos[1], state.pos[2]]
   const vel: [number, number, number] = [state.vel[0], state.vel[1], state.vel[2]]
@@ -144,7 +145,7 @@ export function stepMovement(
   _wd[1] = 0
   _wd[2] = wlen > 1e-6 ? wz / wlen : 0
 
-  const wishSpeed = crouching ? cfg.crouchSpeed : cfg.runSpeed
+  const wishSpeed = (crouching ? cfg.crouchSpeed : cfg.runSpeed) * speedMul
 
   // Nhả Crouch (và đứng dậy được) thì kết thúc trượt
   if (!crouching) slideTimer = 0

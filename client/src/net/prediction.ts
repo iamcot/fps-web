@@ -1,4 +1,4 @@
-import { DT, stepMovement, type InputCmd, type MovementConfig, type PlayerState } from '@fps/shared'
+import { DT, copyWeaponState, makeWeaponState, moveSpeedMul, stepMovement, stepWeaponCmd, type InputCmd, type MovementConfig, type PlayerState, type WeaponState } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 
 const MAX_PENDING = 240          // 4 giây cmd chưa được ack; quá thì bỏ cái cũ nhất
@@ -19,6 +19,7 @@ export class Prediction {
   lastError = 0                   // sai số vị trí (m) ở lần reconcile gần nhất
   reconciles = 0
   private errors: { t: number; e: number }[] = []
+  private wsScratch = makeWeaponState()   // replay súng song song với replay vị trí (tốc độ chạy phụ thuộc súng đang cầm)
   // Làm mượt hiển thị: vị trí vẽ = predicted.pos + visualOffset
   readonly visualOffset: [number, number, number] = [0, 0, 0]
 
@@ -32,8 +33,9 @@ export class Prediction {
   }
 
   // Chạy một tick dự đoán. Gọi sau khi cmd được tạo; trả về state mới.
-  step(cmd: InputCmd): PlayerState {
-    const next = stepMovement(this.predicted, cmd, this.world, this.cfg, DT)
+  // speedMul = hệ số tốc độ theo súng đang cầm TRƯỚC cmd này (moveSpeedMul của WeaponState hiện tại)
+  step(cmd: InputCmd, speedMul = 1): PlayerState {
+    const next = stepMovement(this.predicted, cmd, this.world, this.cfg, DT, speedMul)
     this.predicted = next
     this.pending.push({ cmd, stateAfter: next })
     if (this.pending.length > MAX_PENDING) this.pending.shift()
@@ -47,7 +49,8 @@ export class Prediction {
     this.visualOffset[0] = 0; this.visualOffset[1] = 0; this.visualOffset[2] = 0
   }
 
-  onSnapshot(ack: number, serverState: PlayerState): void {
+  // wpn = WeaponState của server sau cmd `ack`: replay súng cùng lúc để biết tốc độ chạy đúng ở từng cmd chưa ack
+  onSnapshot(ack: number, serverState: PlayerState, wpn?: WeaponState | null): void {
     // So với stateAfter đã lưu cho cmd seq = ack (nếu còn)
     let error = -1
     for (const p of this.pending) {
@@ -65,8 +68,11 @@ export class Prediction {
     // Luôn đặt lại = state server rồi chạy lại cmd chưa ack. stepMovement truyền vị trí vào
     // world mỗi lần nên collider của mình tự được đặt lại theo state.
     let s = serverState
+    const ws = this.wsScratch
+    if (wpn) copyWeaponState(ws, wpn)
     for (const p of this.pending) {
-      s = stepMovement(s, p.cmd, this.world, this.cfg, DT)
+      s = stepMovement(s, p.cmd, this.world, this.cfg, DT, wpn ? moveSpeedMul(ws, p.cmd.buttons) : 1)
+      if (wpn) stepWeaponCmd(ws, p.cmd)
       p.stateAfter = s
     }
     this.predicted = s

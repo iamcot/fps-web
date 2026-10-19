@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
   stepWeaponCmd, shotSpread, computeShotDirs, MAX_PELLETS, recoverRecoil,
+  CATEGORY_SLOT, DEFAULT_SLOT, ECONOMY, SLOT_COUNT, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, weaponByKey,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
@@ -9,7 +10,7 @@ import { buildMapMesh } from './render/mapMesh'
 import { initInput, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
-import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, setDead, setMatchPhase } from './loop'
+import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setSpeedMul, setDead, setMatchPhase } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby, type Session } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
@@ -22,7 +23,8 @@ import { Prediction } from './net/prediction'
 import { createGhosts } from './render/ghosts'
 import { createTracers } from './render/tracers'
 import { createDebugShots } from './render/debugShots'
-import { createKillfeed, createDeathScreen, createHurtIndicator } from './hudNet'
+import { createKillfeed, createDeathScreen, createHurtIndicator, createBountyBanner } from './hudNet'
+import { createShop } from './shop'
 import { createMatchHud, createScoreboard } from './hudMatch'
 import { MsgType, MatchPhase } from '@fps/shared'
 import { initTuningPanel } from './tuning'
@@ -32,7 +34,7 @@ import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
 import {
   initAudio, updateListener, playShot, playDry, playDraw, startReload, cancelReload,
-  playHit, playHurt, setHealthForAudio, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS,
+  playHit, playHurt, setHealthForAudio, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS, playBuyOk, playBuyFail,
 } from './audio'
 import { initAudioTuning } from './audio/tuning'
 import mapFileRaw from '@assets/maps/deathmatch.json'
@@ -82,14 +84,17 @@ initInput(renderer.domElement)
 // ── Map mesh ──────────────────────────────────────────────────────────────────
 scene.add(buildMapMesh(loadedMap))
 
-// ── Spawn arrows ──────────────────────────────────────────────────────────────
+// ── Spawn arrows: chỉ hiện khi bật debug F4 (cùng chế độ vẽ collider) ──────────
+const spawnMarkers = new THREE.Group()
+spawnMarkers.visible = false
+scene.add(spawnMarkers)
 for (const sp of loadedMap.spawns.A) {
   const dir = new THREE.Vector3(-Math.sin(sp.yaw), 0, -Math.cos(sp.yaw))
-  scene.add(new THREE.ArrowHelper(dir, new THREE.Vector3(sp.pos[0], sp.pos[1], sp.pos[2]), 2, 0x2266ff, 0.6, 0.4))
+  spawnMarkers.add(new THREE.ArrowHelper(dir, new THREE.Vector3(sp.pos[0], sp.pos[1], sp.pos[2]), 2, 0x2266ff, 0.6, 0.4))
 }
 for (const sp of loadedMap.spawns.B) {
   const dir = new THREE.Vector3(-Math.sin(sp.yaw), 0, -Math.cos(sp.yaw))
-  scene.add(new THREE.ArrowHelper(dir, new THREE.Vector3(sp.pos[0], sp.pos[1], sp.pos[2]), 2, 0xff4422, 0.6, 0.4))
+  spawnMarkers.add(new THREE.ArrowHelper(dir, new THREE.Vector3(sp.pos[0], sp.pos[1], sp.pos[2]), 2, 0xff4422, 0.6, 0.4))
 }
 
 window.addEventListener('resize', () => {
@@ -108,27 +113,54 @@ initAudioTuning()
 // ── Logic súng (shared) ───────────────────────────────────────────────────────
 let playerId = 1   // offline = 1; online = id server cấp (seed spread phải trùng server)
 const steps = new StepTracker()
-const ws  = makeWeaponState()
+// Offline: bộ mặc định của Cớm; thử súng khác bằng ?loadout=knife,colt,smg,sniper (mỗi súng vào đúng ô theo dòng của nó)
+function offlineSlots(): number[] {
+  const slots = loadoutWeaponIds(defaultLoadout('A'))
+  for (const key of (new URLSearchParams(location.search).get('loadout') ?? '').split(',')) {
+    const def = weaponByKey(key.trim())
+    if (def) slots[CATEGORY_SLOT[def.category]] = def.id
+  }
+  return slots
+}
+const ws  = makeWeaponState(offlineSlots())
+vm.snapTo(ws.current)
 const rec = makeRecoilState()
 const shotDirs: [number, number, number][] = Array.from({ length: MAX_PELLETS }, () => [0, 0, 0] as [number, number, number])
 const eyeTmp:  [number, number, number] = [0, 0, 0]
 let simMs = 0
-let wantedWeapon = 0
 let lastBtns = 0
 const MOVE_KEYS = Btn.Forward | Btn.Back | Btn.Left | Btn.Right
+setSpeedMul(buttons => moveSpeedMul(ws, buttons))   // offline; online truyền qua hook step của Prediction
+
+// Đổi súng theo ô (H.4): cmd.weapon = ô; logic súng đổi ở tick kế tiếp (client và server như nhau), viewmodel đi theo ws.current
+let dead = false
+let prevSlot = -1      // ô cầm trước đó, cho phím Q
+let seenSlot = ws.slot
+function requestSlot(slot: number): void {
+  if (dead || slot === wantedWeapon()) return
+  if ((ws.slots[slot] ?? -1) < 0) return   // ô trống: bỏ qua
+  setWantedWeapon(slot)
+}
+function cycleSlot(dir: number): void {
+  let s = wantedWeapon()
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    s = (s + dir + SLOT_COUNT) % SLOT_COUNT
+    if ((ws.slots[s] ?? -1) >= 0) { requestSlot(s); return }
+  }
+}
+const slotKeysBuf: (string | null)[] = [null, null, null, null]
 
 document.addEventListener('keydown', (e) => {
-  const m = new RegExp(`^Digit([1-${WEAPONS.length}])$`).exec(e.code)
+  if (e.repeat) return
+  const m = /^Digit([1-9])$/.exec(e.code)
   if (m) {
-    const id = Number(m[1]) - 1
-    if (id !== wantedWeapon && vm.switchWeapon(id)) {
-      wantedWeapon = id   // logic súng đổi ở tick kế tiếp qua cmd.weapon
-      setWantedWeapon(id)
-      cancelReload()   // đổi súng giữa lúc nạp: im ngay
-      playDraw(id)
-    }
+    const n = Number(m[1])
+    if (shop.digit(n)) return   // menu đang mở: phím số dùng để mua
+    if (n <= SLOT_COUNT) requestSlot(n - 1)
   }
-  if (e.code === 'F4' && debugLines) { debugLines.visible = !debugLines.visible; e.preventDefault() }
+  if (e.code === 'KeyQ' && prevSlot >= 0) requestSlot(prevSlot)
+  if (e.code === 'KeyB') shop.toggle()
+  if (e.code === 'F4' && debugLines) { debugLines.visible = !debugLines.visible; spawnMarkers.visible = debugLines.visible; e.preventDefault() }
 })
 
 // ── Physics world + game loop ─────────────────────────────────────────────────
@@ -157,6 +189,22 @@ const debugShots = createDebugShots(scene)
 const killfeed = createKillfeed()
 const deathScreen = createDeathScreen()
 const hurtIndicator = createHurtIndicator()
+const bountyBanner = createBountyBanner()
+let sideSwapped = false
+let matchPhaseNow: MatchPhase = MatchPhase.Playing
+// Cửa hàng (H.7): chỉ hiển thị/gửi lệnh; server quyết định tiền, loadout, khu mua
+const shop = createShop({
+  money: () => snapStore?.money ?? 0,
+  loadout: () => snapStore?.loadout ?? [],
+  canShop: () => {
+    const s = sessionRef, pos = prediction?.predicted.pos
+    if (!s || !pos || dead || matchPhaseNow === MatchPhase.Ended) return false
+    const team = s.teams.get(s.yourId)
+    return team !== undefined && inBuyZone(loadedMap, team, sideSwapped, pos)
+  },
+  send: key => sessionRef?.transport.send({ t: MsgType.Buy, key }),
+  sounds: { ok: playBuyOk, fail: playBuyFail },
+})
 const matchHud = createMatchHud()
 const scoreboard = createScoreboard()
 let tabHeld = false
@@ -183,9 +231,11 @@ sessionP.then(session => {
           hudRef?.addBulletHole([msg.origin[0] + dir[0] * wh.dist, msg.origin[1] + dir[1] * wh.dist, msg.origin[2] + dir[2] * wh.dist], wh.normal)
         }
       }
-      ray(msg.dir, msg.dist)
-      if (msg.extra) for (const e of msg.extra) ray(e.dir, e.dist)
-      playersRenderer.muzzleFlash(msg.shooterId)
+      if (!WEAPONS[msg.weapon]?.melee) {   // dao: không vệt đạn/lửa nòng, chỉ có tiếng vụt
+        ray(msg.dir, msg.dist)
+        if (msg.extra) for (const e of msg.extra) ray(e.dir, e.dist)
+        playersRenderer.muzzleFlash(msg.shooterId)
+      }
       playShotOther(msg.weapon, msg.origin)
     } else if (msg.t === MsgType.DebugShot) {
       debugShots.add(msg.origin, msg.dir, msg.boxes)
@@ -193,14 +243,22 @@ sessionP.then(session => {
       const name = (id: number) => session.names.get(id) ?? `#${id}`
       const me = session.yourId
       killfeed.add(name(msg.killerId), WEAPONS[msg.weapon]?.name ?? '?', name(msg.victimId), msg.headshot,
-        msg.killerId === me, msg.victimId === me)
-      if (msg.killerId === me && msg.victimId !== me) playHit(msg.headshot ? 'killHead' : 'kill')
+        msg.killerId === me, msg.victimId === me, msg.reward)
+      if (msg.killerId === me && msg.victimId !== me) {
+        playHit(msg.headshot ? 'killHead' : 'kill')
+        if (msg.victimStreak >= ECONOMY.bountyStreak) {   // hạ người bị truy nã
+          bountyBanner.show(name(msg.victimId), msg.victimStreak)
+          playBuyOk()
+        }
+      }
       if (msg.victimId === me) {
+        dead = true
         setDead(true)
         deathScreen.show(name(msg.killerId), RESPAWN_DELAY_MS - clock.oneWayMs)
       }
     } else if (msg.t === MsgType.Respawn && msg.id === session.yourId) {
       // Hồi sinh: teleport (không làm mượt), đạn đầy, nhìn theo hướng spawn
+      dead = false
       setDead(false)
       deathScreen.hide()
       prediction?.teleport({
@@ -208,14 +266,27 @@ sessionP.then(session => {
         grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0,
       })
       setLook(msg.yaw, 0)
+      // Chết thì mất súng đã mua: về bộ mặc định của đội, cầm súng dài (server cũng vậy, snapshot kế tiếp sẽ khớp lại)
+      const ids = loadoutWeaponIds(defaultLoadout(session.teams.get(session.yourId) ?? 'A'))
+      for (let i = 0; i < ids.length; i++) ws.slots[i] = ids[i]!
+      ws.slot = DEFAULT_SLOT; ws.current = ids[DEFAULT_SLOT]!
+      setWantedWeapon(DEFAULT_SLOT)
       for (const w of WEAPONS) ws.ammo[w.id] = w.magSize
       ws.reloadEndMs = 0; ws.nextFireMs = 0; ws.triggerHeld = false
       cancelReload()
     } else if (msg.t === MsgType.MatchState) {
       matchHud.setMatch(msg.phase, msg.phaseEndsAt, msg.scoreA, msg.scoreB, msg.sideSwapped)
       setMatchPhase(msg.phase)
+      matchPhaseNow = msg.phase
+      sideSwapped = msg.sideSwapped
     } else if (msg.t === MsgType.Scoreboard) {
       scoreboard.setRows(msg.rows, session.yourId)
+    } else if (msg.t === MsgType.BuyResult) {
+      shop.onBuyResult(msg.ok, msg.key)
+      const def = weaponByKey(msg.key)
+      if (msg.ok && def) setWantedWeapon(CATEGORY_SLOT[def.category])   // server đã cho cầm súng vừa mua: cmd tiếp theo mang đúng ô
+    } else if (msg.t === MsgType.MoneyEvent) {
+      if (msg.reason === 'kill' || msg.reason === 'bounty') hudRef?.bottom.floatMoney(msg.delta, msg.reason === 'bounty')
     } else if (msg.t === MsgType.Hurt) {
       const dx = msg.origin[0] - camera.position.x, dy = msg.origin[1] - camera.position.y, dz = msg.origin[2] - camera.position.z
       hurtIndicator.show(dx, dz, yaw)
@@ -233,11 +304,13 @@ sessionP.then(session => {
   snapStore = attachSnapshots(session.transport, session.yourId, s => {
     interpolator.push(s.serverTime, s.players, s.yourId)
     if (s.hp !== lastHp) { lastHp = s.hp; hudRef?.setHealth(s.hp); setHealthForAudio(s.hp) }
-    if (s.self) prediction?.onSnapshot(s.ack, s.self)
+    hudRef?.bottom.setMoney(s.money)
+    if (s.self) prediction?.onSnapshot(s.ack, s.self, s.wpn)
     if (s.wpn && prediction) reconcileWeapon(ws, s.wpn, prediction.pending)
   })
   session.transport.onClose(() => {
     setNetHooks(null); snapStore = null; prediction = null
+    dead = false; matchPhaseNow = MatchPhase.Playing; shop.close()
     setDead(false); deathScreen.hide(); setMatchPhase(MatchPhase.Playing); matchHud.clear(); sessionRef = null
     interpolator.push(0, []); playersRenderer.clear(); ghosts.clear()
   })
@@ -270,14 +343,14 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       step: cmd => {
         if (cmd.buttons & Btn.Fire) cmd.fireRenderTime = interp.currentRenderTime   // 4.3: server tua hitbox về đây
         session.transport.send({ t: MsgType.Inputs, cmds: [cmd] })
-        return pred.step(cmd)
+        return pred.step(cmd, moveSpeedMul(ws, cmd.buttons))   // tốc độ theo súng đang cầm trước cmd này, như server
       },
       visualOffset: () => pred.decayOffset(),
     })
   })
 
   // Bia + HUD
-  const targets = createTargets(scene)
+  const targets = new URLSearchParams(location.search).has('dummies') ? createTargets(scene) : []   // hình nhân luyện bắn: chỉ khi mở ?dummies=1
   const hud     = initHUD(scene)
   hudRef = hud
 
@@ -287,6 +360,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   let lastMs = performance.now()
 
   hud.setHealth(100)
+  hud.bottom.setMoneyVisible(false)   // offline không có tiền; online hiện khi vào phòng (bên dưới)
+  sessionP.then(session => { hud.bottom.setMoneyVisible(!!session) })
 
   startLoop(world, cfg, state => {
     const now  = performance.now()
@@ -317,7 +392,11 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       (sampleButtons() & Btn.Aim) !== 0
     const wheel = consumeWheel()
     if (!aiming) zoomLevel = 0
-    else if (ads!.fovs.length > 1 && wheel !== 0) zoomLevel = Math.max(0, Math.min(ads!.fovs.length - 1, zoomLevel - Math.sign(wheel)))
+    if (wheel !== 0) {
+      // Con lăn: đang ngắm súng nhiều mức zoom thì đổi zoom, còn lại đổi sang ô kế tiếp/trước có súng
+      if (aiming && ads!.fovs.length > 1) zoomLevel = Math.max(0, Math.min(ads!.fovs.length - 1, zoomLevel - Math.sign(wheel)))
+      else cycleSlot(Math.sign(wheel))
+    }
     const fovTarget = aiming ? ads!.fovs[Math.min(zoomLevel, ads!.fovs.length - 1)]! : BASE_FOV
     if (Math.abs(camera.fov - fovTarget) > 0.01) {
       camera.fov += (fovTarget - camera.fov) * Math.min(1, dt * FOV_EASE)
@@ -331,10 +410,17 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     hud.setCrosshairVisible(!scoped)   // súng trường ngắm vẫn giữ tâm; chỉ scope mới ẩn
     hud.setCrosshairFov(camera.fov)
 
+    // Viewmodel đi theo súng đang cầm của logic (ws.current), dù đổi do phím, con lăn, mua hay hồi sinh
+    if (vm.targetWeapon !== ws.current && vm.switchWeapon(ws.current)) { cancelReload(); playDraw(ws.current) }
+    if (ws.slot !== seenSlot) { prevSlot = seenSlot; seenSlot = ws.slot }
+    for (let i = 0; i < SLOT_COUNT; i++) { const id = ws.slots[i]!; slotKeysBuf[i] = id >= 0 ? WEAPONS[id]!.key : null }
+    hud.bottom.setSlots(slotKeysBuf, ws.slot)
+    shop.tick()
+
     vm.setMotion(speed, state.grounded)
     vm.setReload(ws.reloadEndMs > 0 ? 1 - (ws.reloadEndMs - simMs) / def.reloadMs : -1)
     hud.setSpread(shotSpread(def, state, (lastBtns & MOVE_KEYS) | (aiming ? Btn.Aim : 0)), dt * 1000)   // cùng công thức với lúc bắn
-    hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0)
+    hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee)
 
     updateTargets(targets, dt)
     vm.update(dt)
@@ -367,7 +453,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     const ev = stepWeaponCmd(ws, cmd)
     if (ev === 'fired') {
       const pellets = computeShotDirs(shotDirs, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, shotSpread(def, state, cmd.buttons))
-      vm.onFire()
+      vm.onFire(def.melee)
       hud.kickSpread(def.recoilPitchDeg * 2)   // tâm giãn theo độ giật của súng (hiển thị)
       playShot(def.id, ws.ammo[def.id]!)
 
@@ -378,7 +464,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
         if (result?.kind === 'target') {
           flashTarget(targets[result.idx]!)
           if (result.part === 'head') hitHead = true; else hitBody = true
-        } else if (result?.kind === 'wall') {
+        } else if (result?.kind === 'wall' && !def.melee) {
           hud.addBulletHole(result.hitPos, result.normal)
         }
       }

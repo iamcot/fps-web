@@ -164,6 +164,19 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     dryfire: { kind: 'rifle' },
     draw: 'draw', maxVoices: 4, lowAmmoWarning: false,
   },
+  7: { // SMG – gọn, dồn, tiếng khô (chưa có file riêng: dùng âm tổng hợp)
+    folder: 'smg',
+    layers: {
+      body: { files: ['shot_01','shot_02','shot_03'], gainDb: -2, pitch: 1.2, pitchRand: 0.04, gainRandDb: 1, delayMs: 0 },
+      tail: { files: ['tail_01'],                     gainDb: -10, pitch: 1.2, pitchRand: 0.02, gainRandDb: 1, delayMs: 20 },
+    },
+    thump: { gainDb: -16, startHz: 190, endHz: 110, durationMs: 30 },
+    eq: { lowShelfHz: 180, lowShelfDb: -3, highShelfHz: 3000, highShelfDb: 5 },
+    shell: 'pistol', shellDelayMs: 380,
+    reload: rifleReload('reload_bolt'),
+    dryfire: { kind: 'pistol' },
+    draw: 'draw', maxVoices: 8, lowAmmoWarning: false,
+  },
   5: { // Shotgun – nổ to, thô, vang ngắn; kéo ống đẩy giữa hai phát (chưa có file riêng: dùng âm tổng hợp)
     folder: 'shotgun',
     layers: {

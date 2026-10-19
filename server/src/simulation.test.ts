@@ -19,7 +19,7 @@ const flatWorld: CollisionWorld = {
 
 const map = loadMap({ name: 't', mirrorX: true, boxes: [], ramps: [], spawnsA: [{ pos: [-25, 0, 0], yaw: 0 }] } as MapFile)
 const cmd = (seq: number, buttons = 0, extra: Partial<InputCmd> = {}): InputCmd =>
-  ({ seq, buttons, yaw: 0, pitch: 0, weapon: 0, ...extra })
+  ({ seq, buttons, yaw: 0, pitch: 0, weapon: 3, ...extra })
 
 function setup() {
   const got: AnyMsg[] = []
@@ -27,6 +27,7 @@ function setup() {
   const rm = new RoomManager(map, () => 0)
   const { room, player } = rm.join('r', 'A', t, 0, 'A')
   player.world = flatWorld
+  player.weapon.slots = [6, 2, -1, 0]; player.weapon.slot = 3; player.weapon.current = 0   // AK47 ở ô 3
   return { room, p: player, got }
 }
 
@@ -167,7 +168,7 @@ describe('súng trên server (4.1)', () => {
   }
 
   it('AK47 giữ cò: đúng 10 phát/giây theo fireIntervalMs, bất kể tick server', () => {
-    const p = holdFire(0, 60)
+    const p = holdFire(3, 60)
     expect(p.shotsFired).toBe(10)
     expect(p.weapon.ammo[0]).toBe(30 - 10)
   })
@@ -183,9 +184,9 @@ describe('súng trên server (4.1)', () => {
 
   it('COLT bán tự động: phải nhả cò mới bắn tiếp', () => {
     // đổi sang COLT khoá bắn 300ms; giữ cò qua lúc khoá thì cú bấm đó mất, không tự bắn khi hết khoá
-    expect(holdFire(2, 60).shotsFired).toBe(0)
+    expect(holdFire(1, 60).shotsFired).toBe(0)
     // bấm mỗi 2 tick: sau 300ms khoá còn ~0.7s, mỗi phát cách ≥160ms (10 tick) → tick 18,28,38,48,58 = 5 phát
-    expect(holdFire(2, 60, true).shotsFired).toBe(5)
+    expect(holdFire(1, 60, true).shotsFired).toBe(5)
   })
 
   it('xả hết băng rồi tự nạp: ammo về đầy sau reloadMs', () => {
@@ -203,9 +204,10 @@ describe('súng trên server (4.1)', () => {
 
   it('đổi súng qua cmd.weapon', () => {
     const { p } = setup()
-    enqueueCmds(p, [cmd(0, 0, { weapon: 3 })], 0)
+    enqueueCmds(p, [cmd(0, 0, { weapon: 1 })], 0)
     stepPlayer(p, defaultMovement)
-    expect(p.weapon.current).toBe(3)
+    expect(p.weapon.current).toBe(2)   // ô 1 = Colt
+    expect(p.weapon.slot).toBe(1)
   })
 
   it('seq nhảy cóc bị bỏ: không bắn nhanh hơn thời gian thực', () => {

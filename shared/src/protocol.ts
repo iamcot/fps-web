@@ -1,7 +1,8 @@
 import { encode as mpEncode, decode as mpDecode } from '@msgpack/msgpack'
 import { Btn, type InputCmd, type PlayerState } from './movement'
 import type { HitBox } from './hitbox'
-import { WEAPONS, type WeaponState } from './weapons'
+import { SLOT_COUNT, type WeaponState } from './weapons'
+import type { OwnedWeapon } from './economy'
 import type { MatchPhase, TeamId } from './teams'
 import type { CharacterSetId } from './characters'
 
@@ -13,6 +14,7 @@ export const MsgType = {
   Ping: 3,
   SetDebug: 4,
   ChooseTeam: 5,
+  Buy: 6,            // plan ghi t:5 nhưng 5 là ChooseTeam
   // Server → Client
   Welcome: 101,
   Pong: 102,
@@ -28,6 +30,8 @@ export const MsgType = {
   MatchState: 112,   // plan ghi 111 nhưng 111 đã là Hurt
   TeamAssigned: 113,
   Scoreboard: 114,
+  BuyResult: 115,    // plan ghi 114 nhưng 114 là Scoreboard
+  MoneyEvent: 116,
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -56,6 +60,12 @@ export interface JoinMsg {
 export interface ChooseTeamMsg {
   t: typeof MsgType.ChooseTeam
   team: TeamId | 'auto'
+}
+
+// Mua súng (server kiểm: còn sống, trong khu mua, đủ tiền, ≤ 5 lệnh/giây)
+export interface BuyMsg {
+  t: typeof MsgType.Buy
+  key: string
 }
 
 // Bật/tắt DebugShot (F7); ngoài plan, cần để server biết khi nào gửi
@@ -96,6 +106,7 @@ export interface NetPlayer {
   hp: number
   team: TeamId
   weapon: number   // súng đang cầm (để vẽ súng trên tay người khác)
+  killStreak: number   // chuỗi hạ hiện tại (≥ ECONOMY.bountyStreak: dấu truy nã trên đầu)
 }
 
 export interface SnapshotMsg {
@@ -105,6 +116,8 @@ export interface SnapshotMsg {
   ack: number          // lastProcessedSeq của chính client nhận gói này
   players: NetPlayer[]
   wpn?: WeaponState    // WeaponState của chính client nhận gói này, sau cmd `ack` (client replay cmd chưa ack lên trên)
+  money?: number       // tiền của chính client nhận gói này
+  loadout?: (OwnedWeapon | null)[]   // súng đã mua ở 4 ô (kèm số tiền đã trả → hiển thị giá bán lại)
 }
 
 export interface PlayerJoinedMsg {
@@ -125,6 +138,8 @@ export interface KillMsg {
   victimId: number
   weapon: number
   headshot: boolean
+  reward: number          // tiền người hạ được (0 nếu không tính: đồng đội, ngoài PLAYING...)
+  victimStreak: number    // chuỗi hạ của nạn nhân trước khi chết (≥ 3 = truy nã)
 }
 
 // Cả phòng: người chơi hồi sinh ở pos/yaw (client của chính người đó teleport, không làm mượt)
@@ -185,10 +200,26 @@ export interface TeamAssignedMsg {
   team: TeamId
 }
 
-export interface ScoreboardRow { id: number; name: string; team: TeamId; kills: number; deaths: number; ping: number }
+export interface ScoreboardRow { id: number; name: string; team: TeamId; kills: number; deaths: number; ping: number; money?: number }   // money chỉ có khi người nhận cùng đội
 export interface ScoreboardMsg {
   t: typeof MsgType.Scoreboard
   rows: ScoreboardRow[]
+}
+
+// Riêng người mua
+export interface BuyResultMsg {
+  t: typeof MsgType.BuyResult
+  ok: boolean
+  reason?: string   // out_of_zone | dead | phase | rate | not_buyable | already_owned | not_enough_money | unknown
+  key: string
+}
+
+export type MoneyReason = 'kill' | 'bounty' | 'buy' | 'sell' | 'reset'
+// Riêng người nhận: tiền đổi (để hiện +$500...)
+export interface MoneyEventMsg {
+  t: typeof MsgType.MoneyEvent
+  delta: number
+  reason: MoneyReason
 }
 
 export interface PongMsg {
@@ -198,8 +229,8 @@ export interface PongMsg {
 }
 
 export type AnyMsg =
-  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg
+  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)
@@ -214,12 +245,13 @@ export function isValidCmd(c: unknown): c is InputCmd {
     (m.buttons & ~ALL_BUTTONS) === 0 &&
     typeof m.yaw === 'number' && Number.isFinite(m.yaw) &&
     typeof m.pitch === 'number' && Math.abs(m.pitch) <= MAX_PITCH &&
-    typeof m.weapon === 'number' && Number.isInteger(m.weapon) && m.weapon >= 0 && m.weapon < WEAPONS.length &&
+    typeof m.weapon === 'number' && Number.isInteger(m.weapon) && m.weapon >= 0 && m.weapon < SLOT_COUNT &&   // ô 0–3
+    
     (m.fireRenderTime === undefined || (typeof m.fireRenderTime === 'number' && Number.isFinite(m.fireRenderTime)))
   )
 }
 
-export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0, team: TeamId = 'A', weapon = 0): NetPlayer {
+export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0, team: TeamId = 'A', weapon = 0, killStreak = 0): NetPlayer {
   return {
     id,
     pos: [s.pos[0], s.pos[1], s.pos[2]],
@@ -227,7 +259,7 @@ export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0,
     yaw: s.yaw, pitch: s.pitch,
     flags: (s.grounded ? NetFlag.Grounded : 0) | (s.crouching ? NetFlag.Crouching : 0) | (s.slideTimer > 0 ? NetFlag.Sliding : 0) | extraFlags,
     slideTimer: s.slideTimer, slideCooldown: s.slideCooldown,
-    hp, team, weapon,
+    hp, team, weapon, killStreak,
   }
 }
 

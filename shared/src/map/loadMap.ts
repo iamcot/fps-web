@@ -1,4 +1,4 @@
-import type { MapBox, MapFile, MapRamp, MapSpawn, LoadedMap } from './types'
+import type { MapBox, MapFile, MapRamp, MapSpawn, MapZone, LoadedMap } from './types'
 
 function mirrorBox(b: MapBox): MapBox {
   return { ...b, pos: [-b.pos[0], b.pos[1], b.pos[2]] }
@@ -16,6 +16,10 @@ function mirrorSpawn(s: MapSpawn): MapSpawn {
   return { pos: [-s.pos[0], s.pos[1], s.pos[2]], yaw: -s.yaw }
 }
 
+function mirrorZone(z: MapZone): MapZone {
+  return { min: [-z.max[0], z.min[1], z.min[2]], max: [-z.min[0], z.max[1], z.max[2]] }
+}
+
 function boxCrossesX0(b: MapBox): boolean {
   const minX = b.pos[0] - b.size[0] / 2
   const maxX = b.pos[0] + b.size[0] / 2
@@ -29,6 +33,7 @@ export function loadMap(file: MapFile): LoadedMap {
       boxes: file.boxes,
       ramps: file.ramps,
       spawns: { A: file.spawnsA, B: [] },
+      buyZones: file.buyZoneA ? { A: file.buyZoneA } : {},
     }
   }
 
@@ -59,5 +64,6 @@ export function loadMap(file: MapFile): LoadedMap {
     boxes,
     ramps,
     spawns: { A: file.spawnsA, B: spawnsB },
+    buyZones: file.buyZoneA ? { A: file.buyZoneA, B: mirrorZone(file.buyZoneA) } : {},
   }
 }

@@ -1,4 +1,4 @@
-import { MatchPhase, MsgType, makeWeaponState, type ScoreboardRow } from '@fps/shared'
+import { MatchPhase, MsgType, type ScoreboardRow } from '@fps/shared'
 import type { Room } from './room'
 
 const BROADCAST_EVERY_MS = 1000
@@ -19,9 +19,9 @@ function resetForCountdown(room: Room): void {
     p.deaths = 0
     const spawns = room.baseSpawns(p.team)
     const sp = spawns[used[p.team]++ % spawns.length]
+    room.resetEconomy(p)
     room.respawn(p, sp)
     p.invulnUntil = 0
-    p.weapon.ammo = makeWeaponState().ammo
   }
 }
 
@@ -33,13 +33,17 @@ export function broadcastMatch(room: Room): void {
   for (const p of room.players.values()) p.transport.send(msg)
 }
 
+// Tiền chỉ gửi cho đồng đội: mỗi đội một bản bảng điểm (người nhận khác đội không thấy cột tiền)
 export function broadcastScoreboard(room: Room): void {
-  const rows: ScoreboardRow[] = []
-  for (const p of room.players.values()) {
-    rows.push({ id: p.id, name: p.name, team: p.team, kills: p.kills, deaths: p.deaths, ping: Math.round(p.pingMs) })
+  const rows: Record<'A' | 'B', ScoreboardRow[]> = { A: [], B: [] }
+  for (const viewer of ['A', 'B'] as const) {
+    for (const p of room.players.values()) {
+      const row: ScoreboardRow = { id: p.id, name: p.name, team: p.team, kills: p.kills, deaths: p.deaths, ping: Math.round(p.pingMs) }
+      if (p.team === viewer) row.money = p.money
+      rows[viewer].push(row)
+    }
   }
-  const msg = { t: MsgType.Scoreboard, rows }
-  for (const p of room.players.values()) p.transport.send(msg)
+  for (const p of room.players.values()) p.transport.send({ t: MsgType.Scoreboard, rows: rows[p.team] })
 }
 
 // Máy trạng thái trận, gọi mỗi tick sau khi chốt chết/hồi sinh:

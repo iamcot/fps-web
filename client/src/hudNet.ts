@@ -27,12 +27,18 @@ export function createKillfeed() {
   document.body.appendChild(el)
   return {
     // mine: người bắn/nạn nhân là mình → viền để dễ nhìn
-    add(killer: string, weapon: string, victim: string, headshot: boolean, killerIsMe: boolean, victimIsMe: boolean): void {
+    add(killer: string, weapon: string, victim: string, headshot: boolean, killerIsMe: boolean, victimIsMe: boolean, reward = 0): void {
       const line = document.createElement('div')
       line.style.cssText =
         'background:rgba(0,0,0,0.55);padding:2px 8px;margin-bottom:3px;' +
         (killerIsMe ? 'border-right:3px solid #ff5555;' : victimIsMe ? 'border-right:3px solid #ffaa33;' : '')
       line.textContent = `${killer} [${weapon}] ${headshot ? '🎯 ' : ''}${victim}`
+      if (killerIsMe && reward > 0) {   // tiền thưởng chỉ ở dòng do mình hạ
+        const r = document.createElement('span')
+        r.textContent = ` +$${reward}`
+        r.style.cssText = `font-size:11px;font-weight:bold;color:${reward >= 1000 ? '#ffd23c' : '#5fd16b'}`
+        line.appendChild(r)
+      }
       el.appendChild(line)
       while (el.children.length > KILLFEED_MAX) el.firstElementChild!.remove()
       setTimeout(() => line.remove(), KILLFEED_LIFE_MS)
@@ -99,6 +105,24 @@ export function createHurtIndicator() {
         level[i] = Math.max(0, level[i]! - k)
         edges[i]!.style.opacity = String(level[i])
       }
+    },
+  }
+}
+
+// Dòng giữa màn hình khi hạ người bị truy nã: "TRUY NÃ! Hạ [tên] (chuỗi 3)" trong 1,5s
+export function createBountyBanner() {
+  const el = document.createElement('div')
+  el.style.cssText =
+    'position:fixed;left:0;right:0;top:22%;text-align:center;color:#ffd23c;font:bold 30px sans-serif;' +
+    'text-shadow:0 0 8px #000;pointer-events:none;z-index:21;opacity:0;transition:opacity 250ms'
+  document.body.appendChild(el)
+  let timer = 0
+  return {
+    show(victimName: string, streak: number): void {
+      el.textContent = `TRUY NÃ! Hạ ${victimName} (chuỗi ${streak})`
+      el.style.opacity = '1'
+      clearTimeout(timer)
+      timer = window.setTimeout(() => { el.style.opacity = '0' }, 1500)
     },
   }
 }
