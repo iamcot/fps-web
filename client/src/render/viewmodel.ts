@@ -7,6 +7,49 @@ const GUN_DEFAULT_POS = new THREE.Vector3(0.28, -0.3, -0.45);
 const GUN_HIDDEN_Y = -0.55;
 const ANIM_HALF = 0.15; // 0.15 s mỗi chiều
 
+// ── Hiệu ứng viewmodel (thuần hình ảnh) ────────────────────────────────────────
+const KICK_BACK = 0.04; // lùi súng 4cm
+const KICK_PITCH = (3 * Math.PI) / 180; // hếch 3°
+const KICK_TAU = 0.03; // hằng số thời gian hồi (~80ms về gần 0)
+const BOB_FREQ = 1.3; // rad / mét đi được
+const BOB_AMP_X = 0.012;
+const BOB_AMP_Y = 0.008;
+const BOB_REF_SPEED = 8.5; // tốc độ chạy: biên độ tối đa
+const RELOAD_DROP = 0.15; // hạ 15cm
+const RELOAD_TILT = (35 * Math.PI) / 180; // chúc 35°
+const RELOAD_DOWN_END = 0.4; // hạ xong ở 40% thời gian reload
+const RELOAD_UP_START = 0.8; // bắt đầu đưa lên ở 80%
+const MUZZLE_FALLBACK = new THREE.Vector3(0, 0.03, -0.6); // khi model không có node 'muzzle'
+const FLASH_SIZE = 0.14;
+
+function makeFlashTexture(): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(255,255,230,1)");
+  grad.addColorStop(0.35, "rgba(255,190,80,0.9)");
+  grad.addColorStop(1, "rgba(255,120,20,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  // vài tia để sprite xoay ngẫu nhiên nhìn khác nhau
+  g.strokeStyle = "rgba(255,220,120,0.9)";
+  g.lineWidth = 3;
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2 + 0.3;
+    g.beginPath();
+    g.moveTo(32, 32);
+    g.lineTo(32 + Math.cos(a) * 31, 32 + Math.sin(a) * 31);
+    g.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function smooth(t: number): number {
+  const x = Math.max(0, Math.min(1, t));
+  return x * x * (3 - 2 * x);
+}
+
 // ── Thông số load model ────────────────────────────────────────────────────────
 // Scale + rotation đã baked vào GunRoot node trong GLB → chỉ load, không re-apply
 const WEAPON_FILES = [
@@ -93,8 +136,14 @@ export interface ViewmodelHandle {
   cam: THREE.PerspectiveCamera;
   readonly currentWeapon: number;
   updateAspect(aspect: number): void;
-  switchWeapon(id: number): void;
+  switchWeapon(id: number): boolean;
   update(dt: number): void;
+  /** Gọi mỗi phát bắn: giật súng + lửa nòng */
+  onFire(): void;
+  /** Tốc độ ngang (m/s) + đang chạm đất, để lắc súng */
+  setMotion(speed: number, grounded: boolean): void;
+  /** Tiến độ reload 0..1, hoặc -1 nếu không reload */
+  setReload(progress: number): void;
 }
 
 export function createViewmodel(aspect: number): ViewmodelHandle {
@@ -154,32 +203,81 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       .catch((err) => console.warn(`viewmodel: cannot load ${file}`, err));
   }
 
+  // ── Flash đầu nòng ─────────────────────────────────────────────────────────
+  const flash = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: makeFlashTexture(),
+      transparent: true,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
+  flash.scale.set(FLASH_SIZE, FLASH_SIZE, 1);
+  flash.renderOrder = 10;
+  flash.visible = false;
+  gunGroup.add(flash);
+  let flashShown = false;
+  const _tmp = new THREE.Vector3();
+
   // Animation
   type Phase = "idle" | "down" | "up";
   let phase: Phase = "idle";
   let animT = 0;
   let pendingId = -1;
+  let switchOffY = 0; // lệch Y do animation đổi súng
+
+  let kick = 0; // 1 ngay sau khi bắn, hồi về 0
+  let bobPhase = 0;
+  let bobAmp = 0;
+  let moveSpeed = 0;
+  let moveGrounded = false;
+  let reloadProgress = -1;
 
   function getMesh(id: number): THREE.Object3D {
     return loaded.get(id) ?? buildPlaceholder(id);
   }
 
-  function switchWeapon(id: number) {
-    if (id === currentWeapon && phase === "idle") return;
-    if (phase !== "idle") return;
+  function switchWeapon(id: number): boolean {
+    if (id === currentWeapon && phase === "idle") return false;
+    if (phase !== "idle") return false;
     pendingId = id;
     phase = "down";
     animT = 0;
+    return true;
+  }
+
+  function onFire() {
+    kick = 1;
+    // Vị trí muzzle theo hệ toạ độ gunGroup
+    const m = currentMesh.getObjectByName("muzzle");
+    if (m) {
+      gunGroup.updateMatrixWorld(true);
+      m.getWorldPosition(_tmp);
+      gunGroup.worldToLocal(_tmp);
+      flash.position.copy(_tmp);
+    } else {
+      flash.position.copy(MUZZLE_FALLBACK);
+    }
+    flash.material.rotation = Math.random() * Math.PI * 2;
+    flash.visible = true;
+    flashShown = false;
+  }
+
+  function setMotion(speed: number, grounded: boolean) {
+    moveSpeed = speed;
+    moveGrounded = grounded;
+  }
+
+  function setReload(progress: number) {
+    reloadProgress = progress;
   }
 
   function update(dt: number) {
-    if (phase === "idle") return;
-    animT += dt;
-
+    // Đổi súng
     if (phase === "down") {
+      animT += dt;
       const t = Math.min(animT / ANIM_HALF, 1);
-      gunGroup.position.y =
-        GUN_DEFAULT_POS.y + (GUN_HIDDEN_Y - GUN_DEFAULT_POS.y) * t;
+      switchOffY = (GUN_HIDDEN_Y - GUN_DEFAULT_POS.y) * t;
       if (animT >= ANIM_HALF) {
         gunGroup.remove(currentMesh);
         currentWeapon = pendingId;
@@ -189,13 +287,44 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
         animT = 0;
       }
     } else if (phase === "up") {
+      animT += dt;
       const t = Math.min(animT / ANIM_HALF, 1);
-      gunGroup.position.y =
-        GUN_HIDDEN_Y + (GUN_DEFAULT_POS.y - GUN_HIDDEN_Y) * t;
+      switchOffY = (GUN_HIDDEN_Y - GUN_DEFAULT_POS.y) * (1 - t);
       if (animT >= ANIM_HALF) {
-        gunGroup.position.y = GUN_DEFAULT_POS.y;
+        switchOffY = 0;
         phase = "idle";
       }
+    }
+
+    // Giật: giảm theo hàm mũ
+    kick *= Math.exp(-dt / KICK_TAU);
+    if (kick < 1e-3) kick = 0;
+
+    // Lắc hình số 8: x theo sin(φ), y theo sin(2φ); biên độ ∝ tốc độ
+    const wantAmp = moveGrounded ? Math.min(1, moveSpeed / BOB_REF_SPEED) : 0;
+    bobAmp += (wantAmp - bobAmp) * Math.min(1, dt * 10);
+    if (moveGrounded) bobPhase += moveSpeed * dt * BOB_FREQ;
+
+    // Reload: hạ + chúc xuống (0..40%), giữ, đưa lên (80..100%)
+    let r = 0;
+    if (reloadProgress >= 0) {
+      r =
+        reloadProgress < RELOAD_UP_START
+          ? smooth(reloadProgress / RELOAD_DOWN_END)
+          : 1 - smooth((reloadProgress - RELOAD_UP_START) / (1 - RELOAD_UP_START));
+    }
+
+    gunGroup.position.set(
+      GUN_DEFAULT_POS.x + Math.sin(bobPhase) * BOB_AMP_X * bobAmp,
+      GUN_DEFAULT_POS.y + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp - RELOAD_DROP * r,
+      GUN_DEFAULT_POS.z + KICK_BACK * kick,
+    );
+    gunGroup.rotation.x = KICK_PITCH * kick - RELOAD_TILT * r;
+
+    // Flash hiện đúng 1 frame render
+    if (flash.visible) {
+      if (flashShown) flash.visible = false;
+      else flashShown = true;
     }
   }
 
@@ -213,5 +342,8 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     updateAspect,
     switchWeapon,
     update,
+    onFire,
+    setMotion,
+    setReload,
   };
 }

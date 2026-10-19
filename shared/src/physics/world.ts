@@ -6,6 +6,10 @@ import type { LoadedMap } from '../map/types'
 const MAP_FILTER    = (0x0001 << 16) | 0xFFFF  // member=1, collides with all
 const PLAYER_FILTER = (0x0002 << 16) | 0x0001  // member=2, collides with map only
 
+// Controller có thể để chân lún ~1e-4 dưới mặt sàn; không nâng shape lên thì canStand
+// luôn false (sàn cắt capsule) và người chơi kẹt ở trạng thái ngồi khi nhả Ctrl.
+const CANSTAND_EPS = 0.02
+
 export interface CollisionWorld {
   moveCharacter(
     pos: [number, number, number],
@@ -41,7 +45,8 @@ class PhysicsWorld implements CollisionWorld {
     this._crouchHalf = (crouchH - 2 * r) / 2
     this._standOffset  = r + this._standHalf
     this._crouchOffset = r + this._crouchHalf
-    this._standShape   = new RAPIER.Capsule(this._standHalf, r)
+    // Shape kiểm tra đứng: bỏ CANSTAND_EPS ở đáy để chạm sàn không bị tính là va chạm
+    this._standShape   = new RAPIER.Capsule(this._standHalf - CANSTAND_EPS / 2, r)
 
     this._body = w.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased())
     this._col  = w.createCollider(
@@ -93,7 +98,7 @@ class PhysicsWorld implements CollisionWorld {
   }
 
   canStand(pos: [number, number, number]): boolean {
-    const cy  = pos[1] + this._standOffset
+    const cy  = pos[1] + this._standOffset + CANSTAND_EPS / 2
     const hit = this._w.intersectionWithShape(
       { x: pos[0], y: cy, z: pos[2] },
       { x: 0, y: 0, z: 0, w: 1 },

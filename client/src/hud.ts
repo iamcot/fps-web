@@ -71,20 +71,90 @@ function buildBulletHoles(scene: THREE.Scene) {
   }
 }
 
+// ── Tâm ngắm 4 vạch (giãn theo spread) + máu + đạn ─────────────────────────────
+const CROSS_LEN   = 10   // px
+const CROSS_MIN_GAP = 4  // px
+const CAMERA_FOV_DEG = 75
+
+function buildCrosshair() {
+  const root = document.createElement('div')
+  root.style.cssText = 'position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:12'
+  const bars: HTMLDivElement[] = []
+  for (let i = 0; i < 4; i++) {
+    const b = document.createElement('div')
+    const horizontal = i < 2
+    b.style.cssText =
+      'position:absolute;background:#7CFF7C;box-shadow:0 0 2px #000;' +
+      (horizontal ? `width:${CROSS_LEN}px;height:2px;` : `width:2px;height:${CROSS_LEN}px;`)
+    root.appendChild(b)
+    bars.push(b)
+  }
+  document.body.appendChild(root)
+
+  let gap = CROSS_MIN_GAP
+  function place(g: number) {
+    // 0 trái, 1 phải, 2 trên, 3 dưới
+    bars[0]!.style.transform = `translate(${-g - CROSS_LEN}px,-1px)`
+    bars[1]!.style.transform = `translate(${g}px,-1px)`
+    bars[2]!.style.transform = `translate(-1px,${-g - CROSS_LEN}px)`
+    bars[3]!.style.transform = `translate(-1px,${g}px)`
+  }
+  place(gap)
+  return {
+    /** spreadDeg: nửa góc nón; đổi sang pixel theo FOV dọc của camera chính */
+    tick(spreadDeg: number, dtMs: number) {
+      const px = Math.tan(spreadDeg * Math.PI / 180) / Math.tan(CAMERA_FOV_DEG * Math.PI / 360) * (window.innerHeight / 2)
+      const target = Math.max(CROSS_MIN_GAP, px)
+      gap += (target - gap) * Math.min(1, dtMs / 60)   // giãn/co mượt
+      place(gap)
+    },
+  }
+}
+
+function buildStatus() {
+  const mk = (css: string) => {
+    const el = document.createElement('div')
+    el.style.cssText = 'position:fixed;pointer-events:none;z-index:12;color:#fff;font:bold 28px monospace;text-shadow:0 0 4px #000;' + css
+    document.body.appendChild(el)
+    return el
+  }
+  const hp   = mk('left:24px;bottom:20px')
+  const ammo = mk('right:24px;bottom:20px;text-align:right')
+  let lastAmmo = ''
+  return {
+    setHealth(v: number) { hp.textContent = `+ ${v}` },
+    setAmmo(name: string, cur: number, mag: number, reloading: boolean) {
+      const key = `${name}|${cur}|${mag}|${reloading}`
+      if (key === lastAmmo) return   // tránh ghi DOM mỗi frame
+      lastAmmo = key
+      ammo.innerHTML = `<div style="font-size:16px;opacity:.8">${name}</div>` +
+        (reloading ? 'RELOAD' : `${cur} / ${mag}`)
+    },
+  }
+}
+
 // ── Export ────────────────────────────────────────────────────────────────────
 export interface HUDHandle {
   showHitmarker(headshot: boolean): void
   addBulletHole(hitPos: [number, number, number], normal: [number, number, number]): void
   tick(dtMs: number): void
+  setSpread(spreadDeg: number, dtMs: number): void
+  setHealth(v: number): void
+  setAmmo(name: string, cur: number, mag: number, reloading: boolean): void
 }
 
 export function initHUD(scene: THREE.Scene): HUDHandle {
   const hm = buildHitmarker()
   const bh = buildBulletHoles(scene)
+  const ch = buildCrosshair()
+  const st = buildStatus()
 
   return {
     showHitmarker: (hs) => hm.show(hs),
     addBulletHole: (p, n) => bh.add(p, n),
     tick:          (ms)  => hm.tick(ms),
+    setSpread:     (d, ms) => ch.tick(d, ms),
+    setHealth:     (v)   => st.setHealth(v),
+    setAmmo:       (n, c, m, r) => st.setAmmo(n, c, m, r),
   }
 }

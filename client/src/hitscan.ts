@@ -1,4 +1,4 @@
-import { rayAabb, shootDir } from '@fps/shared'
+import { rayAabb } from '@fps/shared'
 import type { MovementConfig } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { targetHitboxes } from './targets'
@@ -10,15 +10,12 @@ export type HitResult =
 
 export function fireHitscan(
   eyePos: [number, number, number],
-  yaw: number,
-  pitch: number,
+  dir: [number, number, number],
   maxDist: number,
   world: CollisionWorld,
   cfg: MovementConfig,
   targets: Target[],
 ): HitResult | null {
-  const dir = shootDir(yaw, pitch)
-
   // Khoảng cách đến tường gần nhất
   const wallHit  = world.castRay(eyePos, dir, maxDist)
   const wallDist = wallHit ? wallHit.dist : maxDist

@@ -1,10 +1,11 @@
-import { DT } from '@fps/shared'
+import { DT, TICK_RATE } from '@fps/shared'
 import { stepMovement, lerpState, defaultMovement } from '@fps/shared'
 import type { PlayerState, MovementConfig, InputCmd } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { sampleButtons, yaw, pitch } from './input'
 
 let _seq      = 0
+let _tick     = 0
 let _prev: PlayerState
 let _curr: PlayerState
 
@@ -16,6 +17,7 @@ export function startLoop(
   world: CollisionWorld,
   cfg: MovementConfig,
   onRender: (state: PlayerState) => void,
+  onTick?: (state: PlayerState, cmd: InputCmd, simMs: number) => void,
 ): void {
   let acc  = 0
   let last = performance.now()
@@ -25,8 +27,11 @@ export function startLoop(
     last  = now
 
     while (acc >= DT) {
+      const cmd = _buildCmd()
       _prev  = _curr
-      _curr  = stepMovement(_curr, _buildCmd(), world, cfg, DT)
+      _curr  = stepMovement(_curr, cmd, world, cfg, DT)
+      // Thời gian mô phỏng (ms) — client và server tính giống nhau, không dùng performance.now()
+      onTick?.(_curr, cmd, (_tick++) * 1000 / TICK_RATE)
       acc   -= DT
     }
 

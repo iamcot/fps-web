@@ -56,10 +56,16 @@ export function initInput(canvas: HTMLElement): void {
 
   document.addEventListener('keydown', (e) => {
     _keys[e.code] = true
-    // Ngăn Ctrl+W/Q đóng tab khi đang khoá chuột
-    if (_locked && e.ctrlKey && (e.code === 'KeyW' || e.code === 'KeyQ')) {
+    // Ctrl+phím (S lưu trang, D bookmark, W đóng tab...) mở hộp thoại của trình duyệt
+    // → mất focus → keyup Ctrl không bao giờ tới → kẹt ngồi. Chặn mọi Ctrl+phím khi đang khoá chuột.
+    if (_locked && e.ctrlKey && e.code !== 'ControlLeft' && e.code !== 'ControlRight') {
       e.preventDefault()
     }
+  })
+  // Mất focus cửa sổ (Alt+Tab, hộp thoại...) cũng không có keyup
+  window.addEventListener('blur', () => {
+    for (const k in _keys) _keys[k] = false
+    _mouseLeft = false
   })
   document.addEventListener('keyup', (e) => { _keys[e.code] = false })
 

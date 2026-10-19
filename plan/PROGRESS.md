@@ -13,14 +13,14 @@
 - [x] 1.2 Fixed timestep loop — loop.ts (acc clamp 0.25s, buildCmd, lerpState interpolation); eye height lerp ~0.1s
 - [x] 1.3 stepMovement: đi, ma sát, trọng lực, nhảy — CollisionWorld (capsule kinematic, controller 50°, snap 0.3m, collision groups map/player); Quake accelerate; applyFriction; crouching+canStand; hitCeiling; slideTimer/slideCooldown đã decrement (logic task 1.5)
 - [x] 1.4 Không trung, bunny hop
-- [ ] 1.5 Ngồi + trượt
+- [ ] 1.5 Ngồi + trượt (đã sửa lỗi nhả Ctrl không đứng dậy: canStand bị sàn cắt capsule; trượt chưa làm)
 - [x] 1.6 Test determinism + debug overlay — movement.test.ts (2 world song song 600 tick bit-identical; chạy thẳng 2s → 8.4–8.6 m/s); F3 overlay (FPS, tốc độ, grounded, slideTimer, pos, yaw/pitch); F6 panel (sliders + Copy JSON)
 
 ## Phase 2 – Súng offline
 - [x] 2.1 Viewmodel + render pass riêng — weapons.ts (WeaponDef, WEAPONS Rifle/Pistol, WeaponState); viewmodel.ts (viewScene FOV60 near0.01, gun placeholder box, switch anim 0.3s xuống/lên, phím 1/2); renderer.autoClear=false + clearDepth() giữa 2 pass
 - [x] 2.2 Hitscan + bia — hitbox.ts (HitBox AABB, hitboxesFor, rayAabb, shootDir + 8 test); castRay trong CollisionWorld (castRayAndGetNormal Rapier); 5 bia dummy 3 phần đầu/thân/chân; fireHitscan wall-occlusion; hitmarker X trắng/đỏ 150ms; bullet hole decal tối đa 50
-- [ ] 2.3 Logic súng (đạn, reload, fire rate, spread, recoil)
-- [ ] 2.4 Hiệu ứng + âm thanh + HUD
+- [x] 2.3 Logic súng — weaponLogic.ts (tryFire, stepWeapon, spreadFor, computeShot seed hashSeed(playerId,shotSeq), RecoilState riêng, recoverRecoil) + 9 test; loop.ts có onTick(state, cmd, simMs); thông số 4 súng chỉnh theo súng thật; thêm SWITCH_MS, MOVE_SPREAD_SPEED vào weapons.ts
+- [x] 2.4 Hiệu ứng + âm thanh + HUD — viewmodel: giật/lắc số 8/reload/flash tại node 'muzzle'; audio.ts tổng hợp âm bằng code (chưa có file âm thanh), context tạo ở click đầu; HUD tâm ngắm giãn theo spread, máu, đạn
 
 ## Phase 3 – Multiplayer di chuyển
 - [ ] 3.1 Transport + netsim

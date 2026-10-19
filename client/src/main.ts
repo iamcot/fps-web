@@ -1,5 +1,8 @@
 import * as THREE from 'three'
-import { loadMap } from '@fps/shared'
+import {
+  loadMap, DT, Btn, WEAPONS, makeWeaponState, makeRecoilState,
+  stepWeapon, spreadFor, computeShot, recoverRecoil, switchWeapon,
+} from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
@@ -11,6 +14,7 @@ import { createViewmodel } from './render/viewmodel'
 import { createTargets, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
+import { initAudio, play } from './audio'
 import mapFileRaw from '@assets/maps/deathmatch.json'
 
 const mapFile   = mapFileRaw as unknown as MapFile
@@ -73,11 +77,23 @@ window.addEventListener('resize', () => {
 // ── Viewmodel ─────────────────────────────────────────────────────────────────
 const vm = createViewmodel(window.innerWidth / window.innerHeight)
 
+initAudio()
+
+// ── Logic súng (shared) ───────────────────────────────────────────────────────
+const PLAYER_ID = 1   // offline; phase 4 dùng id người chơi thật làm seed spread
+const STEP_DIST = 2.2 // m giữa hai tiếng bước chân
+const ws  = makeWeaponState()
+const rec = makeRecoilState()
+const shotDir: [number, number, number] = [0, 0, 0]
+const eyeTmp:  [number, number, number] = [0, 0, 0]
+let simMs = 0
+
 document.addEventListener('keydown', (e) => {
-  if (e.code === 'Digit1') vm.switchWeapon(0)
-  if (e.code === 'Digit2') vm.switchWeapon(1)
-  if (e.code === 'Digit3') vm.switchWeapon(2)
-  if (e.code === 'Digit4') vm.switchWeapon(3)
+  const m = /^Digit([1-4])$/.exec(e.code)
+  if (m) {
+    const id = Number(m[1]) - 1
+    if (id !== ws.current && vm.switchWeapon(id)) switchWeapon(ws, id, simMs)
+  }
   if (e.code === 'F4' && debugLines) { debugLines.visible = !debugLines.visible; e.preventDefault() }
 })
 
@@ -106,23 +122,11 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   const targets = createTargets(scene)
   const hud     = initHUD(scene)
 
-  // Vị trí mắt mới nhất (để mousedown handler dùng)
-  let latestEyePos: [number, number, number] = [spawn.pos[0], spawn.pos[1] + cfg.eyeStand, spawn.pos[2]]
-
-  renderer.domElement.addEventListener('mousedown', e => {
-    if (e.button !== 0 || !isLocked()) return
-    const result = fireHitscan(latestEyePos, yaw, pitch, 300, world, cfg, targets)
-    if (!result) return
-    if (result.kind === 'target') {
-      flashTarget(targets[result.idx]!)
-      hud.showHitmarker(result.part === 'head')
-    } else {
-      hud.addBulletHole(result.hitPos, result.normal)
-    }
-  })
-
   let eyeY   = cfg.eyeStand
   let lastMs = performance.now()
+  let stepAcc = 0
+
+  hud.setHealth(100)
 
   startLoop(world, cfg, state => {
     const now  = performance.now()
@@ -134,8 +138,17 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     eyeY += (targetEye - eyeY) * Math.min(1, 10 / 60)
 
     camera.position.set(state.pos[0], state.pos[1] + eyeY, state.pos[2])
-    latestEyePos = [camera.position.x, camera.position.y, camera.position.z]
     applyCameraRotation(camera)
+    // Recoil chỉ cộng vào camera hiển thị, không đụng yaw/pitch của chuột
+    camera.rotation.y += rec.yaw
+    camera.rotation.x += rec.pitch
+
+    const def   = WEAPONS[ws.current]!
+    const speed = Math.hypot(state.vel[0], state.vel[2])
+    vm.setMotion(speed, state.grounded)
+    vm.setReload(ws.reloadEndMs > 0 ? 1 - (ws.reloadEndMs - simMs) / def.reloadMs : -1)
+    hud.setSpread(spreadFor(def, state.grounded, speed, state.crouching), dt * 1000)
+    hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0)
 
     updateTargets(targets, dt)
     vm.update(dt)
@@ -147,5 +160,41 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     renderer.render(vm.scene, vm.cam)
 
     updateDebug(state, fps)
+  }, (state, cmd, nowMs) => {
+    // Mỗi tick mô phỏng: logic súng + bước chân
+    simMs = nowMs
+    const locked = isLocked()
+    const def    = WEAPONS[ws.current]!
+    const speed  = Math.hypot(state.vel[0], state.vel[2])
+
+    const ev = stepWeapon(ws, nowMs, locked && !!(cmd.buttons & Btn.Fire), locked && !!(cmd.buttons & Btn.Reload))
+    if (ev === 'fired') {
+      computeShot(shotDir, rec, def, PLAYER_ID, ws.shotSeq - 1, cmd.yaw, cmd.pitch,
+        spreadFor(def, state.grounded, speed, state.crouching))
+      vm.onFire()
+      play(`fire${def.id}` as 'fire0', 0.8, 0.97 + Math.random() * 0.06)
+
+      eyeTmp[0] = state.pos[0]; eyeTmp[1] = state.pos[1] + eyeY; eyeTmp[2] = state.pos[2]
+      const result = fireHitscan(eyeTmp, shotDir, def.range, world, cfg, targets)
+      if (result?.kind === 'target') {
+        flashTarget(targets[result.idx]!)
+        hud.showHitmarker(result.part === 'head')
+        play(result.part === 'head' ? 'headshot' : 'hit', 0.7)
+      } else if (result?.kind === 'wall') {
+        hud.addBulletHole(result.hitPos, result.normal)
+      }
+    } else if (ev === 'dry') {
+      play('dry'); play('reload', 0.6)
+    } else if (ev === 'reloadStart') {
+      play('reload', 0.6)
+    } else if (ev === 'reloadEnd') {
+      play('reloadDone', 0.7)
+    }
+    recoverRecoil(rec, def, ws, nowMs, DT)
+
+    if (state.grounded && speed > 1) {
+      stepAcc += speed * DT
+      if (stepAcc >= STEP_DIST) { stepAcc -= STEP_DIST; play('step', state.crouching ? 0.25 : 0.5) }
+    }
   })
 })

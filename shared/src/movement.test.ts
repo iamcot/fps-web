@@ -71,3 +71,33 @@ describe('stepMovement', () => {
     expect(horizSpeed).toBeLessThan(8.6)
   }, 20_000)
 })
+
+describe('crouch release', () => {
+  const settle = (world: Awaited<ReturnType<typeof createWorld>>, s: PlayerState, buttons: number, n: number) => {
+    for (let i = 0; i < n; i++) s = stepMovement(s, { seq: i, buttons, yaw: 0, pitch: 0, weapon: 0 }, world, cfg, DT)
+    return s
+  }
+
+  it('nhả Ctrl ngoài trống thì đứng dậy ngay', async () => {
+    const world = await createWorld(loadedMap)
+    let s = settle(world, makeState([-28, 1, -6], 0), 0, 30)
+    s = settle(world, s, Btn.Crouch, 30)
+    expect(s.crouching).toBe(true)
+    s = settle(world, s, 0, 2)
+    expect(s.crouching).toBe(false)
+  })
+
+  it('nhả Ctrl sát tường (các hướng) vẫn đứng dậy', async () => {
+    const world = await createWorld(loadedMap)
+    const base = settle(world, makeState([-28, 1, -6], 0), 0, 30)
+    for (const buttons of [Btn.Forward, Btn.Back, Btn.Left, Btn.Right]) {
+      for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        let s: PlayerState = { ...base, pos: [...base.pos] as [number, number, number], vel: [0, 0, 0] }
+        const cmd = (b: number) => ({ seq: 0, buttons: b, yaw, pitch: 0, weapon: 0 })
+        for (let i = 0; i < 240; i++) s = stepMovement(s, cmd(buttons | Btn.Crouch), world, cfg, DT)
+        for (let i = 0; i < 5; i++) s = stepMovement(s, cmd(0), world, cfg, DT)
+        expect(s.crouching, `buttons=${buttons} yaw=${yaw}`).toBe(false)
+      }
+    }
+  })
+})
