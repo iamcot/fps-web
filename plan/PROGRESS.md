@@ -36,7 +36,7 @@
 - [x] A.8 Trúng/hạ gục/bị trúng — audio/hitAudio.ts (combo, gộp 30ms, ducking, tim đập; tab Hit ở F8). Offline mới nối hit thân/đầu; kill/hurt/heartbeat là API chờ phase 4
 
 ## Phase 3 – Multiplayer di chuyển
-- [ ] 3.1 Transport + netsim
+- [x] 3.1 Transport + netsim — shared/transport.ts (interface Transport + withNetsim: hàng đợi FIFO giữ thứ tự), server/transport.ts + client/net/transport.ts (WebSocket+msgpack), net/ping.ts (Ping 1s, RTT + đếm Pong sai thứ tự trên F3); protocol.ts đổi MsgType theo plan (Ping/Pong); server trả Pong. Netsim: ?lat=&jit= (mỗi chiều). Test e2e: lat=80 → RTT 161ms; jit=30 → 0 gói đảo
 - [ ] 3.2 Room + join/leave
 - [ ] 3.3 Đồng bộ đồng hồ
 - [ ] 3.4 Server sim + snapshot + "client câm"
