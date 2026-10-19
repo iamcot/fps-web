@@ -1,7 +1,7 @@
 import { createServer } from 'http'
 import { TICK_RATE } from '@fps/shared'
 
-const PORT = 8080
+const PORT = 8081
 
 const server = createServer((_req, res) => {
   res.writeHead(200)
