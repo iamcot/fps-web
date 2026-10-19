@@ -115,6 +115,15 @@ export function stepMovement(
   const jumping = !!(input.buttons & Btn.Jump)
   const wantCrouch = !!(input.buttons & Btn.Crouch)
 
+  // Bắt đầu trượt: vừa bấm Crouch (cạnh lên) khi chạm đất, đủ nhanh, hết cooldown
+  const hSpeed = Math.hypot(vel[0], vel[2])
+  if (wantCrouch && !crouching && grounded && !jumping && hSpeed >= cfg.slideMinSpeed && slideCooldown <= 0) {
+    vel[0] += vel[0] / hSpeed * cfg.slideBoost
+    vel[2] += vel[2] / hSpeed * cfg.slideBoost
+    slideTimer    = cfg.slideDuration
+    slideCooldown = cfg.slideCooldown
+  }
+
   // Crouching state: stay crouched if button held or no room to stand
   if (wantCrouch) {
     crouching = true
@@ -136,11 +145,19 @@ export function stepMovement(
 
   const wishSpeed = crouching ? cfg.crouchSpeed : cfg.runSpeed
 
+  // Nhả Crouch (và đứng dậy được) thì kết thúc trượt
+  if (!crouching) slideTimer = 0
+  const sliding = slideTimer > 0 && grounded
+
   if (grounded) {
     if (jumping) {
       vel[1]   = cfg.jumpVelocity
       grounded = false
+      slideTimer = 0
       // skip friction on jump tick
+    } else if (sliding) {
+      // Đang trượt: ma sát thấp, không lái được
+      _applyFriction(vel, cfg.slideFriction, cfg.stopSpeed, dt)
     } else {
       _applyFriction(vel, cfg.friction, cfg.stopSpeed, dt)
       _accelerate(vel, _wd, wishSpeed, cfg.groundAccel, dt)

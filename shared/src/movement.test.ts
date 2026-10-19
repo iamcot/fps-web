@@ -101,3 +101,47 @@ describe('crouch release', () => {
     }
   })
 })
+
+describe('slide', () => {
+  const run = (world: Awaited<ReturnType<typeof createWorld>>, s: PlayerState, buttons: number, n: number) => {
+    for (let i = 0; i < n; i++) s = stepMovement(s, { seq: i, buttons, yaw: -Math.PI / 2, pitch: 0, weapon: 0 }, world, cfg, DT)
+    return s
+  }
+  const hs = (s: PlayerState) => Math.hypot(s.vel[0], s.vel[2])
+
+  it('chạy + Crouch: trượt có boost, chậm dần, hết cooldown mới trượt lại', async () => {
+    const world = await createWorld(loadedMap)
+    let s = run(world, makeState([-28, 1, -6], -Math.PI / 2), Btn.Forward, 90)   // chạy tới tốc độ tối đa
+    const before = hs(s)
+    expect(before).toBeGreaterThan(cfg.slideMinSpeed)
+
+    s = run(world, s, Btn.Forward | Btn.Crouch, 1)
+    expect(s.slideTimer).toBeGreaterThan(0)
+    expect(hs(s)).toBeGreaterThan(before + cfg.slideBoost * 0.9)
+
+    // Trượt không lái được: nhả W vẫn lướt, tốc độ giảm chậm (ma sát thấp)
+    const v1 = hs(s)
+    s = run(world, s, Btn.Crouch, 20)
+    expect(hs(s)).toBeLessThan(v1)
+    expect(hs(s)).toBeGreaterThan(v1 * 0.6)
+
+    // Nhả rồi bấm lại C khi còn cooldown (~0.5s sau lần trượt đầu): không trượt thêm
+    s = run(world, s, Btn.Forward, 5)
+    expect(s.slideCooldown).toBeGreaterThan(0)
+    s = run(world, s, Btn.Forward | Btn.Crouch, 1)
+    expect(s.slideTimer).toBe(0)
+
+    // Hết cooldown, chạy lại đủ nhanh → trượt được lần nữa
+    s = run(world, s, Btn.Forward, 120)
+    expect(s.slideCooldown).toBe(0)
+    s = run(world, s, Btn.Forward | Btn.Crouch, 1)
+    expect(s.slideTimer).toBeGreaterThan(0)
+  })
+
+  it('đi chậm + Crouch: không trượt', async () => {
+    const world = await createWorld(loadedMap)
+    let s = run(world, makeState([-28, 1, -6], -Math.PI / 2), 0, 30)
+    s = run(world, s, Btn.Crouch, 5)
+    expect(s.slideTimer).toBe(0)
+  })
+})
