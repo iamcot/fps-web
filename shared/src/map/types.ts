@@ -5,7 +5,9 @@ export type { Vec3 }
 export interface MapBox {
   pos: Vec3
   size: Vec3
-  texture: string
+  texture: string     // class / loại / tên ảnh — xem materials.ts
+  variant?: number    // chọn ảnh thứ n (từ 1) trong class
+  color?: string      // '#rrggbb' nhân vào ảnh (hoặc sơn phẳng)
   noMirror?: boolean
 }
 

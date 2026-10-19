@@ -27,7 +27,7 @@ export function createKit(team: TeamId, pal: Palette, anim: Partial<AnimTuning> 
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color, transparent: true }))
     mats.push(m.material as THREE.MeshLambertMaterial)
     m.position.set(x, y, z)
-    m.castShadow = true
+    m.castShadow = false   // nhân vật không đổ bóng thật: dùng bóng tròn giả (render/blobShadow.ts)
     parent.add(m)
     parts.push(m)
     return m

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { defaultMovement, NetFlag, TEAMS, type TeamId } from '@fps/shared'
+import { makeBlobShadow } from './blobShadow'
 import { MUZZLE_FALLBACK, makeFlashTexture } from './viewmodel'
 import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
 import { makeAnimState, updateAnim, type AnimState } from './characters/animate'
@@ -71,6 +72,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   flash.renderOrder = 10
   flash.visible = false
   rig.gunAnchor.add(flash)
+  rig.root.add(makeBlobShadow())
   return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead }
 }
 
@@ -78,6 +80,7 @@ function disposeActor(a: Actor): void {
   disposeRig(a.rig)
   a.flash.material.map?.dispose()
   a.flash.material.dispose()
+  a.rig.root.traverse(o => { if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshBasicMaterial && o.material.map?.name === '') o.material.dispose() })
 }
 
 // pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig (chỉ co chân khi ngồi, đỉnh đầu khớp hitbox).

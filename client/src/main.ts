@@ -8,6 +8,7 @@ import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
+import { createSky, SKY_HORIZON } from './render/sky'
 import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, setDead, setMatchPhase } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby, type Session } from './net/lobby'
@@ -49,8 +50,8 @@ document.body.appendChild(renderer.domElement)
 
 // ── Scene ─────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x4a6a8a)
-scene.fog = new THREE.Fog(0x4a6a8a, 80, 160)
+scene.background = new THREE.Color(SKY_HORIZON)
+scene.fog = new THREE.Fog(SKY_HORIZON, 70, 200)   // sương nhẹ, cùng màu chân trời của bầu trời
 
 // ── Lights ────────────────────────────────────────────────────────────────────
 const hemi = new THREE.HemisphereLight(0x8ab4d4, 0x3a5a2a, 1.0)
@@ -59,13 +60,14 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.4)
 sun.position.set(20, 40, 20)
 sun.castShadow = true
 sun.shadow.camera.near = 0.5
-sun.shadow.camera.far = 200
-sun.shadow.camera.left = -70
-sun.shadow.camera.right = 70
-sun.shadow.camera.top = 50
-sun.shadow.camera.bottom = -50
+sun.shadow.camera.far = 120
+sun.shadow.camera.left = -45     // vừa khít map (60×40): shadow map 2048 mịn hơn
+sun.shadow.camera.right = 45
+sun.shadow.camera.top = 35
+sun.shadow.camera.bottom = -35
 sun.shadow.mapSize.set(2048, 2048)
 scene.add(sun)
+const sky = createSky(scene, sun.position)
 
 // ── Camera ────────────────────────────────────────────────────────────────────
 const BASE_FOV = 75
@@ -338,6 +340,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     vm.update(dt)
     hud.tick(dt * 1000)
 
+    sky.update(camera.position)
     renderer.clear()
     renderer.render(scene, camera)
     renderer.clearDepth()

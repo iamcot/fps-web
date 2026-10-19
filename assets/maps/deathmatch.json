@@ -2,11 +2,11 @@
   "name": "Deathmatch",
   "mirrorX": true,
   "boxes": [
-    { "pos": [0, -0.5, 0],   "size": [60, 1, 40],    "texture": "floor", "noMirror": true },
+    { "pos": [0, -0.5, 0],   "size": [60, 1, 40],    "texture": "greenfloor", "noMirror": true },
 
-    { "pos": [-30.5, 4, 0],  "size": [1, 8, 40],     "texture": "wall" },
-    { "pos": [0, 4, -20.5],  "size": [60, 8, 1],     "texture": "wall", "noMirror": true },
-    { "pos": [0, 4, 20.5],   "size": [60, 8, 1],     "texture": "wall", "noMirror": true },
+    { "pos": [-30.5, 4, 0],  "size": [1, 8, 40],     "texture": "stone" },
+    { "pos": [0, 4, -20.5],  "size": [60, 8, 1],     "texture": "stone", "noMirror": true },
+    { "pos": [0, 4, 20.5],   "size": [60, 8, 1],     "texture": "stone", "noMirror": true },
 
     { "pos": [-19, 0, 0],      "size": [0.4, 1, 32],   "texture": "wall" },
     { "pos": [-19, 3.4, 0],        "size": [0.4, 1.6, 32],   "texture": "wall" },
@@ -27,18 +27,18 @@
     { "pos": [13, 6.8, 18],  "size": [0.2, 0.8, 4],      "texture": "wall", "noMirror": true},
     { "pos": [15, 6.8, 16],  "size": [4, 0.8, 0.2],      "texture": "wall", "noMirror": true},
 
-    { "pos": [0, 0.4, 0],   "size": [1.5, 1, 1.5],      "texture": "crate", "noMirror": true },
+    { "pos": [0, 0.5, 0],   "size": [1.5, 1, 1.5],      "texture": "crate", "noMirror": true },
   
 
     { "pos": [-10, 0.4, -8],   "size": [1, 1, 1],      "texture": "crate" },
     { "pos": [-14, 0.4, 0],   "size": [1, 1, 1],      "texture": "crate" },
     { "pos": [-10, 0.4, 8],   "size": [1, 1, 1],      "texture": "crate" },
 
-    { "pos": [-1.5, 1.5, -18],    "size": [0.4, 4, 4],      "texture": "wall" },
-    { "pos": [-1.5, 1.5, 18],    "size": [0.4, 4, 4],      "texture": "wall" }
+    { "pos": [-1.5, 1.5, -18],    "size": [0.4, 4, 4],      "texture": "brick" },
+    { "pos": [-1.5, 1.5, 18],    "size": [0.4, 4, 4],      "texture": "brick" }
   ],
   "ramps": [
-    { "from": [-27, 0, 0],     "to": [-19.75, 4.1, 0],  "width": 4 },
+    { "from": [-27, 0, 0],     "to": [-19.75, 4.1, 0],  "texture": "stone", "width": 4 },
     { "from": [-27, 0, -19],     "to": [-17, 6.4, -19],  "width": 2, "noMirror": true },
     { "from": [27, 0, 19],     "to": [17, 6.4, 19],  "width": 2, "noMirror": true }
   ],
