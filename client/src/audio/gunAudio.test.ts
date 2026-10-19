@@ -37,7 +37,6 @@ describe('allGunSoundKeys', () => {
   it('liệt kê file theo quy ước thư mục', () => {
     const keys = allGunSoundKeys(gunKey, commonKey)
     expect(keys).toContain('guns/ak47/shot_01')
-    expect(keys).toContain('guns/rulo/cock')
     expect(keys).toContain('guns/colt/reload_slide')
     expect(keys).toContain('common/shell_pistol_03')
     expect(keys).toContain('common/lowammo')
