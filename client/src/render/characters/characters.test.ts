@@ -37,7 +37,7 @@ describe('bộ nhân vật (module)', () => {
 })
 
 describe('animation thủ tục', () => {
-  const base: AnimInput = { x: 0, z: 0, dt: 1 / 60, grounded: true, crouching: false, sliding: false, pitch: 0 }
+  const base: AnimInput = { x: 0, z: 0, dt: 1 / 60, grounded: true, crouching: false, sliding: false, pitch: 0, crouchDrop: 0.6 }
   const run = (rig: ReturnType<typeof getCharacterSet>['build'] extends (t: TeamId) => infer R ? R : never, speed: number, frames: number, extra: Partial<AnimInput> = {}) => {
     const st = makeAnimState()
     let z = 0
@@ -88,12 +88,19 @@ describe('animation thủ tục', () => {
     const air = settle({ grounded: false })
     expect(air.legL.rotation.x).toBeGreaterThan(0.5)
     expect(settle({ crouching: true }).upper.rotation.x).toBeLessThan(-0.1)
+    // ngồi: chỉ chân ngắn lại + hông hạ, thân/đầu không bị scale
+    const cr = settle({ crouching: true })
+    expect(cr.legL.scale.y).toBeCloseTo(0.2 / 0.8, 2)
+    expect(cr.upper.position.y).toBeCloseTo(0.2, 2)
+    expect(cr.root.scale.y).toBe(1)
+    expect(cr.upper.scale.y).toBe(1)
   })
 
   it('pitch: đầu và súng xoay theo, tổng nghiêng bằng pitch', () => {
     const rig = settle2(0.5)
     expect(rig.headPivot.rotation.x + rig.upper.rotation.x).toBeCloseTo(0.5, 2)
-    expect(rig.gunAnchor.rotation.x + rig.upper.rotation.x).toBeCloseTo(0.5, 2)
+    // súng là con của tay: tổng xoay = upper + armR + gunAnchor = pitch (tay nghỉ đã bị gunAnchor bù)
+    expect(rig.upper.rotation.x + rig.armR.rotation.x + rig.gunAnchor.rotation.x).toBeCloseTo(0.5, 2)
     function settle2(pitch: number) { const r = getCharacterSet('robot').build('B'); const st = makeAnimState(); for (let i = 0; i < 60; i++) updateAnim(r, st, { ...base, pitch }); return r }
   })
 })

@@ -63,8 +63,9 @@ export function createKit(team: TeamId, pal: Palette, anim: Partial<AnimTuning> 
   const armR = arm(0.25, armRestR, 0)
   const armL = arm(-0.25, armRestL, -0.35)
 
-  // Súng đặt trước người ngang tầm bàn tay phải, chĩa −Z
-  const gunAnchor = pivot(upper, 0.25, 0.48, -0.4)
+  // Súng gắn vào bàn tay phải (con của armR nên bám theo tay). Xoay ngược armRestR để súng vẫn chĩa −Z khi tay ở tư thế nghỉ
+  const gunAnchor = pivot(armR, 0, -0.62)
+  gunAnchor.rotation.x = -armRestR
 
   const rig: CharacterRig = {
     root, legL, legR, upper, headPivot, armL, armR, gunAnchor, headMesh, parts, mats, team,

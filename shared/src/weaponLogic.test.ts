@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { WEAPONS, makeWeaponState } from './weapons'
+import { WEAPONS, makeWeaponState, MAX_PELLETS } from './weapons'
 import {
-  stepWeapon, tryFire, computeShot, spreadFor, makeRecoilState, recoverRecoil, switchWeapon,
+  stepWeapon, tryFire, computeShot, spreadFor, makeRecoilState, recoverRecoil, switchWeapon, shotSpread, computeShotDirs, damageFalloff,
 } from './weaponLogic'
+import { Btn } from './movement'
+import type { PlayerState } from './movement'
 import { DT } from './constants'
 
 const AK = WEAPONS[0]!
@@ -112,5 +114,72 @@ describe('computeShot', () => {
     for (let i = 0; i < 600; i++) recoverRecoil(rec, AK, ws, 10_000 + i * 16, 1 / 60)
     expect(rec.pitch).toBe(0)
     expect(rec.yaw).toBe(0)
+  })
+})
+
+describe('sniper + ngắm', () => {
+  const SNIPER = WEAPONS[4]!
+  const st = (over: Partial<PlayerState> = {}) => ({ grounded: true, crouching: false, slideTimer: 0, vel: [0, 0, 0], ...over }) as PlayerState
+
+  it('thông số theo plan: 1 phát/1,2s, 90 dmg, đầu ×2, scope FOV 30, một tầng', () => {
+    expect(SNIPER.fireIntervalMs).toBe(1200)
+    expect(SNIPER.damage).toBe(90)
+    expect(SNIPER.headMult).toBe(2)
+    expect(SNIPER.ads).toEqual({ fovs: [30], scope: true })
+  })
+  it('không ngắm: spread rất lớn; ngắm đứng yên: gần như 0; ngắm mà di chuyển/nhảy: vẫn lớn', () => {
+    expect(shotSpread(SNIPER, st(), 0)).toBeGreaterThanOrEqual(4)
+    expect(shotSpread(SNIPER, st(), Btn.Aim)).toBeLessThan(0.1)
+    expect(shotSpread(SNIPER, st({ vel: [3, 0, 0] }), Btn.Aim | Btn.Forward)).toBeGreaterThanOrEqual(4)
+    expect(shotSpread(SNIPER, st({ grounded: false }), Btn.Aim)).toBeGreaterThanOrEqual(4)
+  })
+  it('súng trường: ngắm đứng yên chụm hơn, ngắm khi chạy không đổi; ADS không che màn hình', () => {
+    expect(shotSpread(AK, st(), Btn.Aim)).toBeLessThan(shotSpread(AK, st(), 0))
+    expect(shotSpread(AK, st({ vel: [3, 0, 0] }), Btn.Aim | Btn.Forward)).toBe(shotSpread(AK, st({ vel: [3, 0, 0] }), Btn.Forward))
+    expect(AK.ads).toEqual({ fovs: [65], scope: false })
+    expect(WEAPONS[1]!.ads?.scope).toBe(false)
+    expect(COLT.ads).toBeUndefined()
+  })
+  it('sniper hồi recoil ngay sau ~120ms (không đợi hết 1,2s giữa hai phát)', () => {
+    const ws = makeWeaponState(); ws.current = 4
+    const rec = makeRecoilState(); rec.pitch = 0.05
+    ws.nextFireMs = 1200   // vừa bắn lúc t=0
+    recoverRecoil(rec, SNIPER, ws, 100, 0.016)
+    expect(rec.pitch).toBe(0.05)
+    recoverRecoil(rec, SNIPER, ws, 130, 0.016)
+    expect(rec.pitch).toBeLessThan(0.05)
+  })
+})
+
+describe('shotgun', () => {
+  const SG = WEAPONS[5]!
+  const mk = () => Array.from({ length: MAX_PELLETS }, () => [0, 0, 0] as [number, number, number])
+
+  it('8 tia/phát, mỗi tia một hướng khác nhau, lặp lại được theo seed', () => {
+    const a = mk(), b = mk()
+    expect(computeShotDirs(a, makeRecoilState(), SG, 7, 3, 0, 0, SG.spreadDeg.stand)).toBe(8)
+    computeShotDirs(b, makeRecoilState(), SG, 7, 3, 0, 0, SG.spreadDeg.stand)
+    expect(b.slice(0, 8)).toEqual(a.slice(0, 8))
+    expect(new Set(a.slice(0, 8).map(d => d.join(','))).size).toBe(8)
+    const c = mk(); computeShotDirs(c, makeRecoilState(), SG, 7, 4, 0, 0, SG.spreadDeg.stand)   // phát khác → khác
+    expect(c[0]).not.toEqual(a[0])
+  })
+  it('recoil chỉ cộng một lần cho cả phát, không phải 8 lần', () => {
+    const rec = makeRecoilState()
+    computeShotDirs(mk(), rec, SG, 1, 0, 0, 0, SG.spreadDeg.stand)
+    expect(rec.pitch).toBeCloseTo(SG.recoilPitchDeg * Math.PI / 180, 6)
+  })
+  it('súng 1 tia dùng đúng computeShot cũ (cùng hướng, cùng recoil)', () => {
+    const o1 = mk(), r1 = makeRecoilState(), r2 = makeRecoilState()
+    const o2: [number, number, number] = [0, 0, 0]
+    computeShotDirs(o1, r1, AK, 5, 9, 0.3, 0.1, 0.5)
+    computeShot(o2, r2, AK, 5, 9, 0.3, 0.1, 0.5)
+    expect(o1[0]).toEqual(o2); expect(r1).toEqual(r2)
+  })
+  it('sát thương giảm theo khoảng cách', () => {
+    expect(damageFalloff(SG, 3)).toBe(1)
+    expect(damageFalloff(SG, 18)).toBeCloseTo(0.6, 5)
+    expect(damageFalloff(SG, 50)).toBe(0.2)
+    expect(damageFalloff(AK, 100)).toBe(1)
   })
 })

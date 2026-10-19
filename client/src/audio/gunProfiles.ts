@@ -146,6 +146,43 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     dryfire: { kind: 'pistol' },
     draw: 'draw', maxVoices: 4,
   },
+  4: { // Sniper – nổ sâu, vang dài, kéo khoá nòng sau mỗi phát (chưa có file riêng: dùng âm tổng hợp)
+    folder: 'sniper',
+    layers: {
+      body: { files: ['shot_01','shot_02'], gainDb: 0,  pitch: 0.8, pitchRand: 0.02, gainRandDb: 1, delayMs: 0 },
+      tail: { files: ['tail_01'],           gainDb: -2, pitch: 0.8, pitchRand: 0.02, gainRandDb: 1, delayMs: 50, synthDecayMs: 900 },
+    },
+    thump: { gainDb: -4, startHz: 120, endHz: 50, durationMs: 110 },
+    eq: { lowShelfHz: 180, lowShelfDb: 3, highShelfHz: 3500, highShelfDb: 1 },
+    shell: 'rifle', shellDelayMs: 700,
+    cockFile: 'cock',
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.14, boltFile: 'reload_bolt', boltAtFrac: 0.85 }, steps: [
+      { file: 'reload_magout', at: 0.15, synth: 'magout' },
+      { file: 'reload_magin',  at: 0.55, synth: 'magin' },
+      { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
+    ] },
+    dryfire: { kind: 'rifle' },
+    draw: 'draw', maxVoices: 4, lowAmmoWarning: false,
+  },
+  5: { // Shotgun – nổ to, thô, vang ngắn; kéo ống đẩy giữa hai phát (chưa có file riêng: dùng âm tổng hợp)
+    folder: 'shotgun',
+    layers: {
+      body: { files: ['shot_01','shot_02'], gainDb: 0,  pitch: 0.85, pitchRand: 0.03, gainRandDb: 1, delayMs: 0 },
+      tail: { files: ['tail_01'],           gainDb: -4, pitch: 0.85, pitchRand: 0.02, gainRandDb: 1, delayMs: 35, synthDecayMs: 500 },
+    },
+    thump: { gainDb: -3, startHz: 150, endHz: 60, durationMs: 90 },
+    eq: { lowShelfHz: 200, lowShelfDb: 3, highShelfHz: 3000, highShelfDb: 0 },
+    shell: null, shellDelayMs: 0,
+    cockFile: 'pump',
+    reload: { kind: 'perRound',
+      open:   { file: 'reload_open',   at: 0.05, synth: 'magout' },
+      eject:  { file: 'reload_eject',  at: 0.10, synth: 'shells' },
+      insert: { file: 'reload_insert', from: 0.2, to: 0.8, synth: 'insert' },
+      close:  { file: 'reload_close',  at: 0.9, synth: 'bolt' },
+    },
+    dryfire: { kind: 'rifle' },
+    draw: 'draw', maxVoices: 4, lowAmmoWarning: false,
+  },
 };
 
 /** Mọi file (khoá, không đuôi) mà các profile + âm chung có thể dùng — để preload. */

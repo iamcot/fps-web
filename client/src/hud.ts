@@ -73,8 +73,7 @@ function buildBulletHoles(scene: THREE.Scene) {
 
 // ── Tâm ngắm 4 vạch (giãn theo spread) + máu + đạn ─────────────────────────────
 const CROSS_LEN   = 10   // px
-const CROSS_MIN_GAP = 4  // px
-const CAMERA_FOV_DEG = 75
+const CROSS_MIN_GAP = 1  // px (thấp để súng chính xác như M16 vẫn thấy tâm chụm/giãn khi đứng-ngồi-ngắm)
 const GAP_EXPAND_MS  = 30   // hằng thời gian khi tâm giãn
 const GAP_SHRINK_MS  = 15   // co về nhanh hơn (gần như tức thì như lúc nhảy)
 const BLOOM_DECAY_MS = 100  // độ giãn thêm sau mỗi phát bắn tan dần
@@ -96,6 +95,7 @@ function buildCrosshair() {
   document.body.appendChild(root)
 
   let gap = CROSS_MIN_GAP
+  let fovDeg = 75   // FOV dọc hiện tại của camera chính (đổi khi zoom ngắm)
   let bloom = 0   // độ (chỉ hiển thị), cộng thêm vào spread mỗi phát bắn
   function place(g: number) {
     // 0 trái, 1 phải, 2 trên, 3 dưới
@@ -106,12 +106,14 @@ function buildCrosshair() {
   }
   place(gap)
   return {
+    setFov(deg: number) { fovDeg = deg },
+    setVisible(v: boolean) { root.style.display = v ? '' : 'none' },
     /** spreadDeg: nửa góc nón; đổi sang pixel theo FOV dọc của camera chính */
     kick(deg: number) { bloom = Math.min(BLOOM_MAX_DEG, bloom + deg) },
     tick(spreadDeg: number, dtMs: number) {
       bloom *= Math.exp(-dtMs / BLOOM_DECAY_MS)
       if (bloom < 1e-3) bloom = 0
-      const px = Math.tan((spreadDeg + bloom) * Math.PI / 180) / Math.tan(CAMERA_FOV_DEG * Math.PI / 360) * (window.innerHeight / 2)
+      const px = Math.tan((spreadDeg + bloom) * Math.PI / 180) / Math.tan(fovDeg * Math.PI / 360) * (window.innerHeight / 2)
       const target = Math.max(CROSS_MIN_GAP, px)
       const tau = target > gap ? GAP_EXPAND_MS : GAP_SHRINK_MS
       gap += (target - gap) * (1 - Math.exp(-dtMs / tau))
@@ -149,6 +151,8 @@ export interface HUDHandle {
   tick(dtMs: number): void
   setSpread(spreadDeg: number, dtMs: number): void
   kickSpread(deg: number): void
+  setCrosshairVisible(v: boolean): void
+  setCrosshairFov(deg: number): void
   setHealth(v: number): void
   setAmmo(name: string, cur: number, mag: number, reloading: boolean): void
 }
@@ -165,6 +169,8 @@ export function initHUD(scene: THREE.Scene): HUDHandle {
     tick:          (ms)  => hm.tick(ms),
     setSpread:     (d, ms) => ch.tick(d, ms),
     kickSpread:    (d)   => ch.kick(d),
+    setCrosshairVisible: (v) => ch.setVisible(v),
+    setCrosshairFov: (d) => ch.setFov(d),
     setHealth:     (v)   => st.setHealth(v),
     setAmmo:       (n, c, m, r) => st.setAmmo(n, c, m, r),
   }

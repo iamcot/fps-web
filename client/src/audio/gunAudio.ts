@@ -217,9 +217,10 @@ export function playShotOther(id: number, origin: Vec3): void {
 // ── Lên cò (rulô) ─────────────────────────────────────────────────────────────
 function playCock(g: AudioGraph, p: GunSoundProfile, dest: AudioNode, when: number): void {
   const key = p.cockFile ? gunKey(p.folder, p.cockFile) : ''
-  const buf = key ? getBuffer(key) : undefined
+  // Không có file riêng thì dùng tiếng kéo khoá nòng của súng trường (common/reload_bolt), rồi mới tới âm tổng hợp
+  const buf = (key ? getBuffer(key) : undefined) ?? getBuffer(commonKey('reload_bolt'))
   if (buf) playBuffer(g, buf, dest, 1 + randSpread(0.03), -6, when)
-  else synthReload(g, 'magin', dest, when)
+  else synthReload(g, 'bolt', dest, when)
 }
 
 // ── Hết đạn / sắp hết (A.7) ───────────────────────────────────────────────────

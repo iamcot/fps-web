@@ -26,8 +26,20 @@ export const MUZZLE_FALLBACK: THREE.Vector3[] = [
   new THREE.Vector3(0, 0.111, -0.628), // M16 (trùng node muzzle)
   new THREE.Vector3(0, 0.093, -0.244), // COLT
   new THREE.Vector3(0, 0.078, -0.287), // ROULEAU
+  new THREE.Vector3(0, 0.0495, -0.927), // SNIPER (trùng node muzzle)
+  new THREE.Vector3(0, 0.06, -0.705), // SHOTGUN (glb không có node muzzle: mũi nòng đo từ geometry)
 ];
 const FLASH_SIZE = 0.14;
+
+// ── Ngắm (ADS) ─────────────────────────────────────────────────────────────────
+const ADS_DIST = 0.45; // đầu ruồi cách mắt bấy nhiêu mét: xa hơn = súng/đầu ngắm nhỏ hơn
+const ADS_RATE = 14; // 1/giây: tốc độ chuyển vào/ra tư thế ngắm
+const ADS_BOB = 0.15; // lắc súng còn lại khi ngắm (so với bình thường)
+// Hạ súng thêm khi ngắm (m) để khung ngắm/tay xách không che tầm nhìn (đầu ruồi nằm dưới tâm một chút).
+// M16 có đầu ruồi cao + tay xách nên cần hạ nhiều hơn AK.
+const ADS_DROP: Record<number, number> = { 0: 0.03 ,1: 0.1 };
+const SIGHT_SLAB = 0.1; // vùng đầu ruồi: 10% chiều dài súng tính từ đầu nòng
+const SIGHT_HALF_W = 0.008; // chỉ xét đỉnh gần trục giữa (x≈0) để bỏ qua các chi tiết bên hông
 
 export function makeFlashTexture(): THREE.Texture {
   const c = document.createElement("canvas");
@@ -64,6 +76,8 @@ const WEAPON_FILES = [
   "/models/m16.glb",
   "/models/colt.glb",
   "/models/rouleau.glb",
+  "/models/sniper.glb",
+  "/models/shotgun.glb",
 ] as const;
 
 // ── Placeholder box (dùng khi model chưa load xong) ───────────────────────────
@@ -137,6 +151,35 @@ function prepareModel(scene: THREE.Group): THREE.Group {
   return scene;
 }
 
+// Đỉnh đầu ruồi (hệ gunGroup): điểm cao nhất, gần trục giữa, trong đoạn đầu nòng. Dùng để đặt súng sao cho
+// đầu ruồi nằm đúng tâm màn hình khi ngắm. Chạy một lần mỗi model lúc load.
+function measureSight(model: THREE.Object3D): THREE.Vector3 | null {
+  model.updateMatrixWorld(true);
+  const v = new THREE.Vector3();
+  let zMin = Infinity, zMax = -Infinity;
+  const meshes: THREE.Mesh[] = [];
+  model.traverse((o) => { if (o instanceof THREE.Mesh) meshes.push(o); });
+  for (const m of meshes) {
+    const p = m.geometry.getAttribute("position");
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld);
+      if (v.z < zMin) zMin = v.z;
+      if (v.z > zMax) zMax = v.z;
+    }
+  }
+  if (!(zMax > zMin)) return null;
+  const zLimit = zMin + (zMax - zMin) * SIGHT_SLAB;
+  let best: THREE.Vector3 | null = null;
+  for (const m of meshes) {
+    const p = m.geometry.getAttribute("position");
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld);
+      if (v.z <= zLimit && Math.abs(v.x) <= SIGHT_HALF_W && (!best || v.y > best.y)) best = best ? best.copy(v) : v.clone();
+    }
+  }
+  return best;
+}
+
 // ── ViewmodelHandle ────────────────────────────────────────────────────────────
 export interface ViewmodelHandle {
   scene: THREE.Scene;
@@ -151,6 +194,10 @@ export interface ViewmodelHandle {
   setMotion(speed: number, grounded: boolean): void;
   /** Tiến độ reload 0..1, hoặc -1 nếu không reload */
   setReload(progress: number): void;
+  /** Đang giữ ngắm không (scoped: che súng khi vào scope). Chuyển mượt trong update */
+  setAim(aiming: boolean, scoped: boolean): void;
+  /** 0 (hông) … 1 (ngắm xong) */
+  readonly aimAmount: number;
 }
 
 export function createViewmodel(aspect: number): ViewmodelHandle {
@@ -189,6 +236,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
 
   // Cache model đã load
   const loaded = new Map<number, THREE.Group>();
+  const sights = new Map<number, THREE.Vector3>();
 
   // Load cả 2 model song song
   const loader = new GLTFLoader();
@@ -201,6 +249,8 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       .then((gltf) => {
         const model = prepareModel(gltf.scene);
         loaded.set(wid, model);
+        const sight = measureSight(model);
+        if (sight) sights.set(wid, sight);
         if (wid === currentWeapon && phase === "idle") {
           gunGroup.remove(currentMesh);
           currentMesh = model;
@@ -239,6 +289,9 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   let moveSpeed = 0;
   let moveGrounded = false;
   let reloadProgress = -1;
+  let aimWant = false;
+  let aimScoped = false;
+  let aimT = 0;
 
   function getMesh(id: number): THREE.Object3D {
     return loaded.get(id) ?? buildPlaceholder(id);
@@ -277,6 +330,11 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
 
   function setReload(progress: number) {
     reloadProgress = progress;
+  }
+
+  function setAim(aiming: boolean, scoped: boolean) {
+    aimWant = aiming;
+    aimScoped = scoped;
   }
 
   function update(dt: number) {
@@ -321,10 +379,20 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
           : 1 - smooth((reloadProgress - RELOAD_UP_START) / (1 - RELOAD_UP_START));
     }
 
+    // Ngắm: kéo súng vào giữa, thân súng thẳng trực diện, đầu ruồi trùng tâm màn hình
+    aimT += ((aimWant && phase === "idle" ? 1 : 0) - aimT) * Math.min(1, dt * ADS_RATE);
+    if (Math.abs(aimT - (aimWant ? 1 : 0)) < 1e-3) aimT = aimWant ? 1 : 0;
+    const a = smooth(aimT);
+    const sight = sights.get(currentWeapon);
+    const adsX = sight ? -sight.x : 0;
+    const adsY = sight ? -sight.y - (ADS_DROP[currentWeapon] ?? 0) : GUN_DEFAULT_POS.y + 0.2;
+    const adsZ = sight ? -ADS_DIST - sight.z : GUN_DEFAULT_POS.z;
+    const bob = 1 - a * (1 - ADS_BOB);
+    gunGroup.visible = !(aimScoped && aimT > 0.6);
     gunGroup.position.set(
-      GUN_DEFAULT_POS.x + Math.sin(bobPhase) * BOB_AMP_X * bobAmp,
-      GUN_DEFAULT_POS.y + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp - RELOAD_DROP * r,
-      GUN_DEFAULT_POS.z + KICK_BACK * kick,
+      GUN_DEFAULT_POS.x + (adsX - GUN_DEFAULT_POS.x) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob,
+      GUN_DEFAULT_POS.y + (adsY - GUN_DEFAULT_POS.y) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r,
+      GUN_DEFAULT_POS.z + (adsZ - GUN_DEFAULT_POS.z) * a + KICK_BACK * kick,
     );
     gunGroup.rotation.x = KICK_PITCH * kick - RELOAD_TILT * r;
 
@@ -352,5 +420,9 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     onFire,
     setMotion,
     setReload,
+    setAim,
+    get aimAmount() {
+      return aimT;
+    },
   };
 }

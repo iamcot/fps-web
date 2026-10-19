@@ -7,6 +7,7 @@ export const Btn = {
   Crouch:  1 << 5,
   Fire:    1 << 6,
   Reload:  1 << 7,
+  Aim:     1 << 8,   // giữ chuột phải: ngắm (ADS / scope)
 } as const
 
 export interface InputCmd {

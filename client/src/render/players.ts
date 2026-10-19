@@ -18,7 +18,7 @@ export interface TeamInfo {
 }
 
 const FLASH_MS = 60
-const WEAPON_FILES = ['/models/ak47.glb', '/models/m16.glb', '/models/colt.glb', '/models/rouleau.glb']
+const WEAPON_FILES = ['/models/ak47.glb', '/models/m16.glb', '/models/colt.glb', '/models/rouleau.glb', '/models/sniper.glb', '/models/shotgun.glb']
 
 // Súng cầm trên tay người khác: load một lần mỗi loại, mỗi người clone (dùng chung geometry/material)
 const gunModels = new Map<number, THREE.Object3D>()
@@ -80,7 +80,7 @@ function disposeActor(a: Actor): void {
   a.flash.material.dispose()
 }
 
-// pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig (thu thân theo tỉ lệ như hitbox).
+// pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig (chỉ co chân khi ngồi, đỉnh đầu khớp hitbox).
 export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   const { standHeight, crouchHeight } = defaultMovement
   const actors = new Map<number, Actor>()
@@ -147,7 +147,6 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     const rig = a.rig
     const crouching = (p.flags & NetFlag.Crouching) !== 0
     const h = crouching ? crouchHeight : standHeight
-    rig.root.scale.y = h / standHeight
     rig.root.position.set(p.pos[0], p.pos[1], p.pos[2])
     rig.root.rotation.y = p.yaw
     const dead = (p.flags & NetFlag.Dead) !== 0
@@ -158,7 +157,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       updateAnim(rig, a.anim, {
         x: p.pos[0], z: p.pos[2], dt,
         grounded: (p.flags & NetFlag.Grounded) !== 0, crouching, sliding: (p.flags & NetFlag.Sliding) !== 0,
-        pitch: p.pitch ?? 0,
+        pitch: p.pitch ?? 0, crouchDrop: standHeight - crouchHeight,
       })
     } else a.anim.hasLast = false   // hồi sinh xa chỗ chết: không tính thành chạy
     // Bất tử: nhấp nháy mờ

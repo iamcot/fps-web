@@ -158,6 +158,7 @@ export interface ShotFxMsg {
   origin: [number, number, number]
   dir: [number, number, number]
   dist: number
+  extra?: { dir: [number, number, number]; dist: number }[]   // các tia còn lại của súng nhiều tia (shotgun), cùng gốc origin
 }
 
 // Chỉ gửi người bắn khi đã bật debug: tia + hitbox mọi người khác ở thời điểm đã tua

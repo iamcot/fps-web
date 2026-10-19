@@ -11,6 +11,9 @@ let _locked = false
 let _skipFirstMove = false
 const _keys: Record<string, boolean> = {}
 let _mouseLeft = false
+let _mouseRight = false
+let _wheel = 0       // tổng bước lăn chuột chưa đọc (dấu: >0 lăn xuống)
+let _sensScale = 1   // giảm độ nhạy khi zoom (tỉ lệ theo FOV)
 
 // ── Overlay ───────────────────────────────────────────────────────────────────
 const _overlay = document.createElement('div')
@@ -40,6 +43,7 @@ export function initInput(canvas: HTMLElement): void {
       // vì browser không gửi keyup sau khi thoát lock
       for (const k in _keys) _keys[k] = false
       _mouseLeft = false
+      _mouseRight = false
     }
   })
 
@@ -49,8 +53,8 @@ export function initInput(canvas: HTMLElement): void {
       _skipFirstMove = false
       if (Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return
     }
-    yaw   -= e.movementX * _sens
-    pitch -= e.movementY * _sens
+    yaw   -= e.movementX * _sens * _sensScale
+    pitch -= e.movementY * _sens * _sensScale
     pitch  = Math.max(-1.553, Math.min(1.553, pitch))
   })
 
@@ -66,12 +70,15 @@ export function initInput(canvas: HTMLElement): void {
   window.addEventListener('blur', () => {
     for (const k in _keys) _keys[k] = false
     _mouseLeft = false
+    _mouseRight = false
   })
   document.addEventListener('keyup', (e) => { _keys[e.code] = false })
 
-  canvas.addEventListener('mousedown', (e) => { if (e.button === 0) _mouseLeft = true })
+  canvas.addEventListener('mousedown', (e) => { if (e.button === 0) _mouseLeft = true; else if (e.button === 2) _mouseRight = true })
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+  document.addEventListener('wheel', (e) => { if (_locked) _wheel += Math.sign(e.deltaY) }, { passive: true })
   // mouseup trên document để không miss khi nhả ngoài canvas
-  document.addEventListener('mouseup',  (e) => { if (e.button === 0) _mouseLeft = false })
+  document.addEventListener('mouseup',  (e) => { if (e.button === 0) _mouseLeft = false; else if (e.button === 2) _mouseRight = false })
 }
 
 export function sampleButtons(): number {
@@ -84,6 +91,7 @@ export function sampleButtons(): number {
   if (_keys['KeyC'] || _keys['ControlLeft'] || _keys['ControlRight']) b |= Btn.Crouch
   if (_mouseLeft)                                               b |= Btn.Fire
   if (_keys['KeyR'])                                            b |= Btn.Reload
+  if (_mouseRight)                                              b |= Btn.Aim
   return b
 }
 
@@ -103,3 +111,9 @@ export function isKeyDown(code: string): boolean {
 export function isLocked(): boolean {
   return _locked
 }
+
+/** Độ nhạy chuột nhân thêm (1 = bình thường); zoom càng sâu càng nhỏ */
+export function setSensScale(v: number): void { _sensScale = v }
+
+/** Đọc rồi xoá số bước lăn chuột tích luỹ (>0 lăn xuống, <0 lăn lên) */
+export function consumeWheel(): number { const w = _wheel; _wheel = 0; return w }

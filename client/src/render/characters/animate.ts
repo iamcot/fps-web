@@ -24,6 +24,7 @@ export interface AnimInput {
   crouching: boolean
   sliding: boolean
   pitch: number
+  crouchDrop: number        // m hạ hông khi ngồi hết mức (chỉ chân co lại, thân/đầu giữ nguyên tỉ lệ)
 }
 
 const RUN_SPEED = 8.5          // tốc độ chạy: biên độ tối đa
@@ -34,6 +35,8 @@ const SLIDE_LEAN = 0.55        // ngả người ra sau khi trượt (rad, +X = 
 const CROUCH_LEAN = -0.2       // cúi người về trước khi ngồi
 const AIR_LEG_L = 0.7          // nhảy: co chân (một chân co nhiều hơn)
 const AIR_LEG_R = 0.3
+
+const HIP_Y = 0.8              // chiều cao hông khi đứng (khớp kit.ts)
 
 const approach = (cur: number, target: number, k: number) => cur + (target - cur) * k
 
@@ -71,10 +74,13 @@ export function updateAnim(rig: CharacterRig, st: AnimState, inp: AnimInput): vo
   rig.legR.rotation.x = legR
   rig.armL.rotation.x = armL
   rig.upper.rotation.x = lean + inp.pitch * (1 - HEAD_PITCH)
-  // Đầu, tay phải và súng cùng nhìn/chĩa theo pitch (+pitch = ngước lên = xoay +X quanh pivot)
+  // Đầu và tay phải (kéo theo súng) cùng nhìn/chĩa theo pitch (+pitch = ngước lên = xoay +X quanh pivot)
   rig.headPivot.rotation.x = inp.pitch * HEAD_PITCH
   rig.armR.rotation.x = rig.armRestR + inp.pitch * HEAD_PITCH
-  rig.gunAnchor.rotation.x = inp.pitch * HEAD_PITCH
   // Nhún nhẹ khi chạy (hai lần mỗi chu kỳ bước)
-  rig.upper.position.y = 0.8 + Math.abs(sw) * rig.anim.bobAmp
+  // Ngồi: hạ hông, chân co ngắn lại (scale riêng chân), thân và đầu giữ nguyên
+  const hip = HIP_Y - inp.crouchDrop * st.crouch
+  rig.legL.position.y = hip; rig.legR.position.y = hip
+  rig.legL.scale.y = rig.legR.scale.y = hip / HIP_Y
+  rig.upper.position.y = hip + Math.abs(sw) * rig.anim.bobAmp
 }

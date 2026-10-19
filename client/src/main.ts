@@ -1,12 +1,13 @@
 import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
-  stepWeaponCmd, shotSpread, spreadFor, computeShot, recoverRecoil,
+  stepWeaponCmd, shotSpread, computeShotDirs, MAX_PELLETS, recoverRecoil,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
-import { createWorld } from '@fps/shared/physics/world'
+import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
-import { initInput, applyCameraRotation, isLocked, yaw, pitch, setLook } from './input'
+import { initInput, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
+import { createScope } from './scope'
 import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, setDead, setMatchPhase } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby, type Session } from './net/lobby'
@@ -67,7 +68,11 @@ sun.shadow.mapSize.set(2048, 2048)
 scene.add(sun)
 
 // ── Camera ────────────────────────────────────────────────────────────────────
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300)
+const BASE_FOV = 75
+const RECOIL_VIEW_TAU = 0.045   // s: độ mượt khi camera nhấc lên theo recoil
+const recView = { pitch: 0, yaw: 0 }
+const FOV_EASE = 16   // 1/giây: tốc độ zoom vào/ra
+const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.1, 300)
 camera.rotation.order = 'YXZ'
 
 initInput(renderer.domElement)
@@ -103,19 +108,15 @@ let playerId = 1   // offline = 1; online = id server cấp (seed spread phải 
 const steps = new StepTracker()
 const ws  = makeWeaponState()
 const rec = makeRecoilState()
-const shotDir: [number, number, number] = [0, 0, 0]
+const shotDirs: [number, number, number][] = Array.from({ length: MAX_PELLETS }, () => [0, 0, 0] as [number, number, number])
 const eyeTmp:  [number, number, number] = [0, 0, 0]
 let simMs = 0
 let wantedWeapon = 0
 let lastBtns = 0
 const MOVE_KEYS = Btn.Forward | Btn.Back | Btn.Left | Btn.Right
-// Tốc độ dùng cho spread: nhả hết phím di chuyển thì tính là đứng yên dù quán tính còn
-// ~0.3s (ma sát giảm dần theo hàm mũ); đang trượt vẫn tính là di chuyển
-const spreadSpeed = (speed: number, slideTimer: number) =>
-  (lastBtns & MOVE_KEYS) || slideTimer > 0 ? speed : 0
 
 document.addEventListener('keydown', (e) => {
-  const m = /^Digit([1-4])$/.exec(e.code)
+  const m = new RegExp(`^Digit([1-${WEAPONS.length}])$`).exec(e.code)
   if (m) {
     const id = Number(m[1]) - 1
     if (id !== wantedWeapon && vm.switchWeapon(id)) {
@@ -146,6 +147,8 @@ const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
 let hudRef: ReturnType<typeof initHUD> | null = null
+let worldRef: CollisionWorld | null = null
+const HOLE_EPS = 0.05   // sai số khi xác định tia kết thúc ở tường (không phải ở người)
 const ghosts = createGhosts(scene)
 const tracers = createTracers(scene)
 const debugShots = createDebugShots(scene)
@@ -170,7 +173,16 @@ sessionP.then(session => {
       hudRef?.showHitmarker(msg.headshot)   // chỉ hiện khi server xác nhận
       playHit(msg.headshot ? 'head' : 'body')
     } else if (msg.t === MsgType.ShotFx) {
-      tracers.add(msg.origin, msg.dir, msg.dist)
+      const ray = (dir: [number, number, number], dist: number) => {
+        tracers.add(msg.origin, dir, dist)
+        // Server chỉ gửi điểm kết thúc tia; raycast lại map: nếu tia dừng đúng ở tường thì có vết đạn, nếu trúng người thì không
+        const wh = worldRef?.castRay(msg.origin, dir, dist + HOLE_EPS)
+        if (wh && wh.dist >= dist - HOLE_EPS) {
+          hudRef?.addBulletHole([msg.origin[0] + dir[0] * wh.dist, msg.origin[1] + dir[1] * wh.dist, msg.origin[2] + dir[2] * wh.dist], wh.normal)
+        }
+      }
+      ray(msg.dir, msg.dist)
+      if (msg.extra) for (const e of msg.extra) ray(e.dir, e.dist)
       playersRenderer.muzzleFlash(msg.shooterId)
       playShotOther(msg.weapon, msg.origin)
     } else if (msg.t === MsgType.DebugShot) {
@@ -234,6 +246,7 @@ initTuningPanel(cfg)
 let debugLines: THREE.LineSegments | null = null
 
 createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world => {
+  worldRef = world
   // Debug wireframe (F4)
   const { vertices, colors } = world.debugRender()
   const geo = new THREE.BufferGeometry()
@@ -267,6 +280,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   hudRef = hud
 
   let eyeY   = cfg.eyeStand
+  let zoomLevel = 0
+  const scopeOverlay = createScope()
   let lastMs = performance.now()
 
   hud.setHealth(100)
@@ -283,15 +298,40 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     camera.position.set(state.pos[0], state.pos[1] + eyeY, state.pos[2])
     applyCameraRotation(camera)
     // Recoil chỉ cộng vào camera hiển thị, không đụng yaw/pitch của chuột
-    camera.rotation.y += rec.yaw
-    camera.rotation.x += rec.pitch
+    // (recView đuổi theo rec theo hàm mũ để camera giật mượt thay vì bật cứng; hướng đạn vẫn dùng rec thật)
+    const recK = 1 - Math.exp(-dt / RECOIL_VIEW_TAU)
+    recView.pitch += (rec.pitch - recView.pitch) * recK
+    recView.yaw += (rec.yaw - recView.yaw) * recK
+    camera.rotation.y += recView.yaw
+    camera.rotation.x += recView.pitch
     updateListener(camera.position.x, camera.position.y, camera.position.z, camera.rotation.y, camera.rotation.x)
 
     const def   = WEAPONS[ws.current]!
     const speed = Math.hypot(state.vel[0], state.vel[2])
+
+    // Ngắm: giữ chuột phải (súng có `ads`), không ngắm khi đang nạp / đổi súng / đã chết. Lăn chuột đổi mức zoom (sniper)
+    const ads = def.ads
+    const aiming = !!ads && vm.currentWeapon === ws.current && ws.reloadEndMs === 0 && lastHp > 0 && isLocked() &&
+      (sampleButtons() & Btn.Aim) !== 0
+    const wheel = consumeWheel()
+    if (!aiming) zoomLevel = 0
+    else if (ads!.fovs.length > 1 && wheel !== 0) zoomLevel = Math.max(0, Math.min(ads!.fovs.length - 1, zoomLevel - Math.sign(wheel)))
+    const fovTarget = aiming ? ads!.fovs[Math.min(zoomLevel, ads!.fovs.length - 1)]! : BASE_FOV
+    if (Math.abs(camera.fov - fovTarget) > 0.01) {
+      camera.fov += (fovTarget - camera.fov) * Math.min(1, dt * FOV_EASE)
+      camera.updateProjectionMatrix()
+    }
+    // Zoom càng sâu chuột càng chậm (cùng góc quay trên màn hình)
+    setSensScale(Math.tan(camera.fov * Math.PI / 360) / Math.tan(BASE_FOV * Math.PI / 360))
+    vm.setAim(aiming, !!ads?.scope)
+    const scoped = !!ads?.scope && aiming && vm.aimAmount > 0.9
+    scopeOverlay.setVisible(scoped)
+    hud.setCrosshairVisible(!scoped)   // súng trường ngắm vẫn giữ tâm; chỉ scope mới ẩn
+    hud.setCrosshairFov(camera.fov)
+
     vm.setMotion(speed, state.grounded)
     vm.setReload(ws.reloadEndMs > 0 ? 1 - (ws.reloadEndMs - simMs) / def.reloadMs : -1)
-    hud.setSpread(spreadFor(def, state.grounded, spreadSpeed(speed, state.slideTimer), state.crouching), dt * 1000)
+    hud.setSpread(shotSpread(def, state, (lastBtns & MOVE_KEYS) | (aiming ? Btn.Aim : 0)), dt * 1000)   // cùng công thức với lúc bắn
     hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0)
 
     updateTargets(targets, dt)
@@ -323,19 +363,25 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
 
     const ev = stepWeaponCmd(ws, cmd)
     if (ev === 'fired') {
-      computeShot(shotDir, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, shotSpread(def, state, cmd.buttons))
+      const pellets = computeShotDirs(shotDirs, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, shotSpread(def, state, cmd.buttons))
       vm.onFire()
       hud.kickSpread(def.recoilPitchDeg * 2)   // tâm giãn theo độ giật của súng (hiển thị)
       playShot(def.id, ws.ammo[def.id]!)
 
       eyeTmp[0] = state.pos[0]; eyeTmp[1] = state.pos[1] + eyeY; eyeTmp[2] = state.pos[2]
-      const result = fireHitscan(eyeTmp, shotDir, def.range, world, cfg, targets)
-      if (result?.kind === 'target') {
-        flashTarget(targets[result.idx]!)
-        hud.showHitmarker(result.part === 'head')
-        playHit(result.part === 'head' ? 'head' : 'body')
-      } else if (result?.kind === 'wall') {
-        hud.addBulletHole(result.hitPos, result.normal)
+      let hitHead = false, hitBody = false
+      for (let k = 0; k < pellets; k++) {
+        const result = fireHitscan(eyeTmp, shotDirs[k]!, def.range, world, cfg, targets)
+        if (result?.kind === 'target') {
+          flashTarget(targets[result.idx]!)
+          if (result.part === 'head') hitHead = true; else hitBody = true
+        } else if (result?.kind === 'wall') {
+          hud.addBulletHole(result.hitPos, result.normal)
+        }
+      }
+      if (hitHead || hitBody) {   // một hitmarker + một tiếng cho cả phát
+        hud.showHitmarker(hitHead)
+        playHit(hitHead ? 'head' : 'body')
       }
     } else if (ev === 'dry') {
       playDry(def.id)

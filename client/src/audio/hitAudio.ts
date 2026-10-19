@@ -157,8 +157,8 @@ function beat(): void {
   const g = getGraph()
   if (!g) return
   const t = g.ctx.currentTime
-  tone(g.ctx, g.master, { type: 'sine', freq: 55, gainDb: -20, decayMs: 110, when: t })
-  tone(g.ctx, g.master, { type: 'sine', freq: 55, gainDb: -20, decayMs: 110, when: t + 0.22 })   // 2 nhịp mỗi chu kỳ
+  tone(g.ctx, g.master, { type: 'sine', freq: 55, gainDb: -28, decayMs: 110, when: t })
+  tone(g.ctx, g.master, { type: 'sine', freq: 55, gainDb: -28, decayMs: 110, when: t + 0.22 })   // 2 nhịp mỗi chu kỳ
 }
 
 /** Gọi khi máu đổi. Dưới 30: tim đập lặp đến khi hồi máu/hồi sinh. */

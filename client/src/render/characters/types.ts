@@ -16,7 +16,7 @@ export interface CharacterRig {
   headPivot: THREE.Group // pivot ở cổ
   armL: THREE.Group      // pivot ở vai
   armR: THREE.Group
-  gunAnchor: THREE.Group // trong `upper`, chĩa −Z
+  gunAnchor: THREE.Group // con của armR, đặt ở bàn tay, chĩa −Z (khi pitch = 0)
   headMesh: THREE.Mesh   // để test khớp hitbox
   parts: THREE.Mesh[]    // mọi khối (hiệu ứng chết tách ra từ đây)
   mats: THREE.MeshLambertMaterial[]

@@ -1,4 +1,4 @@
-import { WEAPONS, SWITCH_MS, MOVE_SPREAD_SPEED } from './weapons'
+import { WEAPONS, SWITCH_MS, MOVE_SPREAD_SPEED, MAX_PELLETS } from './weapons'
 import type { WeaponDef, WeaponState } from './weapons'
 import { hashSeed, mulberry32 } from './math'
 import { shootDir } from './hitbox'
@@ -123,9 +123,43 @@ export function computeShot(
   rec.yaw   += kickYaw
 }
 
-/** Recoil hồi về 0 khi không bắn (nowMs >= nextFireMs). */
+/**
+ * Hướng bắn cho mọi tia của một phát (súng thường: 1 tia). Spread random có seed (playerId, shotSeq[, chỉ số tia]);
+ * recoil chỉ cộng một lần, sau khi đã tính xong mọi tia. Trả số tia, ghi vào outs[0..n).
+ */
+export function computeShotDirs(
+  outs: [number, number, number][],
+  rec: RecoilState,
+  def: WeaponDef,
+  playerId: number,
+  shotSeq: number,
+  yaw: number,
+  pitch: number,
+  spreadDeg: number,
+): number {
+  const n = def.pellets ?? 1
+  if (n === 1) { computeShot(outs[0]!, rec, def, playerId, shotSeq, yaw, pitch, spreadDeg); return 1 }
+  const recPitch = rec.pitch, recYaw = rec.yaw
+  for (let i = 0; i < n; i++) {
+    rec.pitch = recPitch; rec.yaw = recYaw   // mọi tia dùng recoil trước phát bắn
+    computeShot(outs[i]!, rec, def, playerId, shotSeq * MAX_PELLETS + i, yaw, pitch, spreadDeg)
+  }
+  // rec đã được đặt lại trước tia cuối rồi mới cộng kick, nên kick chỉ cộng đúng một lần cho cả phát
+  return n
+}
+
+/** Hệ số sát thương theo khoảng cách (1 nếu súng không có falloff). */
+export function damageFalloff(def: WeaponDef, dist: number): number {
+  const f = def.falloff
+  if (!f || dist <= f.fullM) return 1
+  if (dist >= f.endM) return f.minMult
+  return 1 + (f.minMult - 1) * (dist - f.fullM) / (f.endM - f.fullM)
+}
+
+/** Recoil hồi về 0 khi không bắn (nowMs >= nextFireMs, hoặc sớm hơn nếu súng có recoilRecoverDelayMs). */
 export function recoverRecoil(rec: RecoilState, def: WeaponDef, ws: WeaponState, nowMs: number, dt: number): void {
-  if (nowMs < ws.nextFireMs) return
+  const resumeMs = def.recoilRecoverDelayMs === undefined ? ws.nextFireMs : ws.nextFireMs - def.fireIntervalMs + def.recoilRecoverDelayMs
+  if (nowMs < resumeMs) return
   const step = def.recoilRecoverDegPerSec * DEG * dt
   rec.pitch = rec.pitch > 0 ? Math.max(0, rec.pitch - step) : Math.min(0, rec.pitch + step)
   rec.yaw   = rec.yaw   > 0 ? Math.max(0, rec.yaw   - step) : Math.min(0, rec.yaw   + step)
@@ -165,5 +199,6 @@ const MOVE_KEYS = Btn.Forward | Btn.Back | Btn.Left | Btn.Right
  */
 export function shotSpread(def: WeaponDef, state: PlayerState, buttons: number): number {
   const moving = (buttons & MOVE_KEYS) !== 0 || state.slideTimer > 0
+  if (def.aimSpreadDeg !== undefined && (buttons & Btn.Aim) && state.grounded && !moving) return def.aimSpreadDeg
   return spreadFor(def, state.grounded, moving ? Math.hypot(state.vel[0], state.vel[2]) : 0, state.crouching)
 }
