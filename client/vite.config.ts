@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import { resolve } from 'path'
 
 export default defineConfig({
+  server: { host: true },   // nghe mọi card mạng để máy khác trong LAN vào được (Vite in dòng Network)
   optimizeDeps: {
     entries: ['index.html'],
   },

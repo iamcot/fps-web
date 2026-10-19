@@ -7,6 +7,7 @@ import { wrapWebSocket } from './transport'
 import { startHeartbeat } from './heartbeat'
 import { TickLoop } from './tickLoop'
 import { enqueueCmds, stepRoom, sendSnapshots } from './simulation'
+import { lanAddresses } from './lan'
 import { RoomManager, sanitizeName, sanitizeRoom, type Player, type Room } from './room'
 
 const PORT = 8081
@@ -93,6 +94,7 @@ wss.on('connection', ws => {
 createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => {
   w.dispose()
   server.listen(PORT, () => {
-    console.log(`listening ${PORT}`)
+    console.log(`listening ${PORT} (mọi card mạng)`)
+    for (const a of lanAddresses()) console.log(`  LAN ${a.iface}: ws://${a.address}:${PORT}   → máy khác mở http://${a.address}:5173`)
   })
 })
