@@ -14,7 +14,11 @@ import { createViewmodel } from './render/viewmodel'
 import { createTargets, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
-import { initAudio, play } from './audio'
+import {
+  initAudio, updateListener, playShot, playDry, playDraw, startReload, cancelReload,
+  playHit, playStep,
+} from './audio'
+import { initAudioTuning } from './audio/tuning'
 import mapFileRaw from '@assets/maps/deathmatch.json'
 
 const mapFile   = mapFileRaw as unknown as MapFile
@@ -78,6 +82,7 @@ window.addEventListener('resize', () => {
 const vm = createViewmodel(window.innerWidth / window.innerHeight)
 
 initAudio()
+initAudioTuning()
 
 // ── Logic súng (shared) ───────────────────────────────────────────────────────
 const PLAYER_ID = 1   // offline; phase 4 dùng id người chơi thật làm seed spread
@@ -98,7 +103,11 @@ document.addEventListener('keydown', (e) => {
   const m = /^Digit([1-4])$/.exec(e.code)
   if (m) {
     const id = Number(m[1]) - 1
-    if (id !== ws.current && vm.switchWeapon(id)) switchWeapon(ws, id, simMs)
+    if (id !== ws.current && vm.switchWeapon(id)) {
+      switchWeapon(ws, id, simMs)
+      cancelReload()   // đổi súng giữa lúc nạp: im ngay
+      playDraw(id)
+    }
   }
   if (e.code === 'F4' && debugLines) { debugLines.visible = !debugLines.visible; e.preventDefault() }
 })
@@ -148,6 +157,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     // Recoil chỉ cộng vào camera hiển thị, không đụng yaw/pitch của chuột
     camera.rotation.y += rec.yaw
     camera.rotation.x += rec.pitch
+    updateListener(camera.position.x, camera.position.y, camera.position.z, camera.rotation.y, camera.rotation.x)
 
     const def   = WEAPONS[ws.current]!
     const speed = Math.hypot(state.vel[0], state.vel[2])
@@ -180,29 +190,28 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
         spreadFor(def, state.grounded, spreadSpeed(speed, state.slideTimer), state.crouching))
       vm.onFire()
       hud.kickSpread(def.recoilPitchDeg * 2)   // tâm giãn theo độ giật của súng (hiển thị)
-      play(`fire${def.id}` as 'fire0', 0.8, 0.97 + Math.random() * 0.06)
+      playShot(def.id, ws.ammo[def.id]!)
 
       eyeTmp[0] = state.pos[0]; eyeTmp[1] = state.pos[1] + eyeY; eyeTmp[2] = state.pos[2]
       const result = fireHitscan(eyeTmp, shotDir, def.range, world, cfg, targets)
       if (result?.kind === 'target') {
         flashTarget(targets[result.idx]!)
         hud.showHitmarker(result.part === 'head')
-        play(result.part === 'head' ? 'headshot' : 'hit', 0.7)
+        playHit(result.part === 'head' ? 'head' : 'body')
       } else if (result?.kind === 'wall') {
         hud.addBulletHole(result.hitPos, result.normal)
       }
     } else if (ev === 'dry') {
-      play('dry'); play('reload', 0.6)
+      playDry(def.id)
+      startReload(def.id, 0, def.reloadMs)   // hết đạn: cạch rồi tự nạp
     } else if (ev === 'reloadStart') {
-      play('reload', 0.6)
-    } else if (ev === 'reloadEnd') {
-      play('reloadDone', 0.7)
+      startReload(def.id, ws.ammo[def.id]!, def.reloadMs)
     }
     recoverRecoil(rec, def, ws, nowMs, DT)
 
     if (state.grounded && speed > 1) {
       stepAcc += speed * DT
-      if (stepAcc >= STEP_DIST) { stepAcc -= STEP_DIST; play('step', state.crouching ? 0.25 : 0.5) }
+      if (stepAcc >= STEP_DIST) { stepAcc -= STEP_DIST; playStep(state.crouching ? 0.25 : 0.5) }
     }
   })
 })

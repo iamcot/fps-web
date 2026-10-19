@@ -22,6 +22,16 @@
 - [x] 2.3 Logic súng — weaponLogic.ts (tryFire, stepWeapon, spreadFor, computeShot seed hashSeed(playerId,shotSeq), RecoilState riêng, recoverRecoil) + 9 test; loop.ts có onTick(state, cmd, simMs); thông số 4 súng chỉnh theo súng thật; thêm SWITCH_MS, MOVE_SPREAD_SPEED vào weapons.ts
 - [x] 2.4 Hiệu ứng + âm thanh + HUD — viewmodel: giật/lắc số 8/reload/flash tại node 'muzzle'; audio.ts tổng hợp âm bằng code (chưa có file âm thanh), context tạo ở click đầu; HUD tâm ngắm giãn theo spread, máu, đạn
 
+## Task riêng – Âm thanh súng (plan/08-task-gun-audio.md)
+- [ ] A.1 Thay bộ súng — BỎ QUA theo yêu cầu (đặc tính súng giữ nguyên)
+- [x] A.2 Cấu trúc file + loader — audio/loader.ts: ogg/mp3 theo canPlayType, file thiếu → bỏ qua, gom 1 cảnh báo console; chưa có file nào trong client/public/sounds nên đang chạy hoàn toàn bằng âm tổng hợp
+- [x] A.3 Profile từng súng — audio/gunProfiles.ts (theo id súng hiện có; thêm LayerDef.synthDecayMs, GunSoundProfile.cockFile)
+- [x] A.4 Đồ thị Web Audio — audio/context.ts (master+compressor, gunGroup), synth.ts, gunAudio.ts (bus EQ, voice limit, thump, vỏ đạn, súng người khác qua panner/lowpass/listener, lên cò rulô)
+- [x] A.5 Bảng F8 — audio/tuning.ts (slider, Bắn thử, Xả 1 giây, Copy JSON, peak meter)
+- [~] A.6 Nạp đạn — phần âm thanh xong (mag + perRound, huỷ khi đổi súng). BỎ QUA A.6.1 (reloadEmptyMs/reloadEmpty trong shared = đặc tính súng): "nạp rỗng" suy ra từ ammo==0 lúc bắt đầu nạp, thời lượng dùng reloadMs hiện có
+- [x] A.7 Hết đạn + cảnh báo sắp hết (setting bật/tắt ở F8 > Chung)
+- [x] A.8 Trúng/hạ gục/bị trúng — audio/hitAudio.ts (combo, gộp 30ms, ducking, tim đập; tab Hit ở F8). Offline mới nối hit thân/đầu; kill/hurt/heartbeat là API chờ phase 4
+
 ## Phase 3 – Multiplayer di chuyển
 - [ ] 3.1 Transport + netsim
 - [ ] 3.2 Room + join/leave
