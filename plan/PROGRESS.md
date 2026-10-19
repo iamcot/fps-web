@@ -86,3 +86,11 @@ Làm một mạch H.0 → H.8 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - [x] H.6 HUD dưới màn hình (tiền, tim, 4 ô, đạn)
 - [x] H.7 Giỏ hàng + menu cửa hàng
 - [x] H.8 Phản hồi tiền thưởng, truy nã
+
+## 10 – Tay nhân vật & tư thế cầm súng
+- [ ] P.1 Điểm neo trên súng (hand_r, hand_l, mag)
+- [ ] P.2 Tay khối hộp + IK 2 khớp (có test)
+- [ ] P.3 File poses.json + loader + hot-reload
+- [ ] P.4 3rd person: hai tay cầm súng dài
+- [ ] P.5 1st person: hai cánh tay, đẩy súng xa, nạp đạn bằng tay trái
+- [ ] P.6 Bảng chỉnh F9 + camera debug F10
