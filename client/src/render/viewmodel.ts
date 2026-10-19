@@ -41,7 +41,7 @@ function makeFlashTexture(): THREE.Texture {
   g.fillRect(0, 0, 64, 64);
   // vài tia để sprite xoay ngẫu nhiên nhìn khác nhau
   g.strokeStyle = "rgba(255,220,120,0.9)";
-  g.lineWidth = 3;
+  g.lineWidth = 1;
   for (let i = 0; i < 4; i++) {
     const a = (i * Math.PI) / 2 + 0.3;
     g.beginPath();

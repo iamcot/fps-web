@@ -79,7 +79,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     layers: {
       body: { files: ['shot_01','shot_02','shot_03','shot_04'], gainDb: 0,  pitch: 0.95, pitchRand: 0.03, gainRandDb: 1, delayMs: 0 },
       mech: { files: ['mech_01'],                                gainDb: -4, pitch: 0.95, pitchRand: 0.04, gainRandDb: 1, delayMs: 0 },
-      tail: { files: ['tail_01'],                                gainDb: -2, pitch: 0.94, pitchRand: 0.02, gainRandDb: 1, delayMs: 40, synthTailHz: 2600 },
+      tail: { files: ['tail_01'],                                gainDb: -2, pitch: 0.94, pitchRand: 0.02, gainRandDb: 1, delayMs: 40},
     },
     thump: { gainDb: -8, startHz: 130, endHz: 60, durationMs: 70 },
     eq: { lowShelfHz: 200, lowShelfDb: 3, highShelfHz: 4500, highShelfDb: 2 },
@@ -120,7 +120,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -12, startHz: 170, endHz: 85, durationMs: 45 },
     eq: { lowShelfHz: 250, lowShelfDb: -1, highShelfHz: 4000, highShelfDb: 3 },
     shell: 'pistol', shellDelayMs: 380,
-    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0, speed: 1.3, boltFile: 'reload_bolt', boltAtFrac: 0.8 }, steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0, speed: 0.5, boltFile: 'reload_bolt', boltAtFrac: 0.6 }, steps: [
       { file: 'reload_magout', at: 0.2,  synth: 'magout' },
       { file: 'reload_magin',  at: 0.6,  synth: 'magin' },
       { file: 'reload_slide',  at: 0.85, synth: 'bolt', emptyOnly: true },
