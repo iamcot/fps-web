@@ -76,14 +76,17 @@ def normalize(params_path, out_path):
     root.matrix_world = M
 
     # 3) Thêm Empty muzzle / eject (toạ độ hệ Blender, TRƯỚC biến đổi)
-    for name in ("muzzle", "eject"):
-        if name in p and bpy.data.objects.get(name) is None:
+    # anchors (plan 10): {"hand_r": [...], "hand_l": [...], "mag": [...]} cùng hệ toạ độ với muzzle
+    pts = {k: p[k] for k in ("muzzle", "eject") if k in p}
+    pts.update(p.get("anchors", {}))
+    for name in pts:
+        if bpy.data.objects.get(name) is None:
             e = bpy.data.objects.new(name, None)
             e.empty_display_size = 0.02
             scene.collection.objects.link(e)
             e.parent = root
             e.matrix_parent_inverse = Matrix.Identity(4)
-            e.location = Vector(p[name])
+            e.location = Vector(pts[name])
 
     # 4) Đổi tên object theo map (ví dụ băng đạn)
     for old, new in p.get("rename", {}).items():

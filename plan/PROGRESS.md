@@ -88,9 +88,17 @@ Làm một mạch H.0 → H.8 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - [x] H.8 Phản hồi tiền thưởng, truy nã
 
 ## 10 – Tay nhân vật & tư thế cầm súng
-- [ ] P.1 Điểm neo trên súng (hand_r, hand_l, mag)
-- [ ] P.2 Tay khối hộp + IK 2 khớp (có test)
-- [ ] P.3 File poses.json + loader + hot-reload
-- [ ] P.4 3rd person: hai tay cầm súng dài
-- [ ] P.5 1st person: hai cánh tay, đẩy súng xa, nạp đạn bằng tay trái
-- [ ] P.6 Bảng chỉnh F9 + camera debug F10
+Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên một task"). Lệch plan / cần biết:
+- P.1: `gun_tool.py` đã nhận `"anchors"` (thành Empty trong glb) nhưng CHƯA chạy lại để xuất glb mới (các glb hiện có không có node `mag`, hand_r/hand_l). Client dùng anchor trong `poses.json` (đã đủ cho 8 súng), thiếu thì mới đọc từ glb (`scanModelAnchors`), cuối cùng (0,0,0). Vì không glb nào có mesh `mag` nên phần băng đạn đi theo tay trái đã viết (`updateMag`) nhưng chưa thể thấy; tay trái vẫn đi theo `reloadLeftHand.keys`.
+- P.2: `render/blockArm.ts` (`solveTwoBone` thuần + `BlockArm`). Hộp tay dùng chung 1 geometry đơn vị, kích thước đặt bằng scale nên chỉnh độ dài/độ dày ở F9 thấy ngay. Hộp dài theo +Z local (plan ghi −Z; đổi vì dùng quy ước lookAt của Object3D). Test: `blockArm.test.ts`.
+- P.3: `render/poses.ts` (kiểu + `loadPoses` điền mặc định + cảnh báo một lần, hot-reload qua `import.meta.hot`), thêm `client/src/vite-env.d.ts`, test `poses.test.ts`. `poses.json` là bản người dùng đã có sẵn (không tìm thấy `plan/10-poses.default.json`).
+- P.4: `players.ts` — `aimPivot` là con của `rig.upper` (xoay phần pitch mà `animate.ts` giao cho đầu/tay = `HEAD_PITCH`, nay export), súng 2 tay gắn vào `holder` dưới `aimPivot`, hai `BlockArm` nằm dưới `rig.upper` nên đi theo ngả người khi ngồi/trượt. Đổi chế độ 1↔2 tay trong cùng frame đổi súng; khối tay cũ ẩn + loại khỏi `rig.parts` (hiệu ứng chết tách đúng tay đang dùng). Lửa nòng đổi parent theo súng.
+- P.5: `viewmodel.ts` — `gunGroup` vẫn là nút nhận mọi hiệu ứng (lắc, giật, hạ, ngắm), vai đứng yên trong không gian camera, IK chạy sau khi đặt súng (`gunGroup.updateMatrix()`). FOV theo `first.fov`, đèn Hemisphere + Directional. Nạp đạn súng 2 tay: nghiêng theo `gunTiltDeg`, tay trái đi theo keys; súng 1 tay/ôm báng giữ kiểu hạ + chúc cũ. Ngắm (ADS) giữ cách cũ (đầu ruồi về tâm), góc đặt súng của JSON mất dần khi ngắm.
+- P.6: `render/poseEditor.ts` — F9 (5 tab, slider + ô số, Copy JSON / Copy súng này / Reset về file, chấm debug anchor/vai/khuỷu, tay không với tới tô đỏ — chỉ góc nhất), F10 camera quỹ đạo (kéo chuột trái xoay, lăn zoom) hiện model 3rd person của chính mình. Offline cũng dùng được.
+- Kiểm bằng Chromium thật (offline): cả 8 súng ở 2 góc nhìn dựng được, IK bám đúng, F9 hiện đủ. Giá trị trong `poses.json` là số đoán nên tay/súng chưa đẹp: tay trái ở góc 1 hơi to/che nhiều màn hình, cần chỉnh bằng F9 (anchors → gunPos → vai/độ dài tay → pole).
+- [x] P.1 Điểm neo trên súng (script + đọc anchor; chưa xuất lại glb)
+- [x] P.2 Tay khối hộp + IK 2 khớp (có test)
+- [x] P.3 File poses.json + loader + hot-reload
+- [x] P.4 3rd person: hai tay cầm súng dài
+- [~] P.5 1st person: hai cánh tay, đẩy súng xa, nạp đạn bằng tay trái (chạy được, chưa chỉnh số đẹp; băng đạn rời chưa có model)
+- [~] P.6 Bảng chỉnh F9 + camera debug F10 (chưa có chấm debug cho góc 3 và tab Style chưa sửa được màu)

@@ -21,166 +21,95 @@
     }
   },
   "third": {
-    "shoulderR": [0.25, 1.4, 0.0],
-    "shoulderL": [-0.25, 1.4, 0.0],
-    "aimPivot": [0.0, 1.35, 0.0],
-    "poleR": [0.35, -0.55, 0.25],
-    "poleL": [-0.35, -0.55, 0.05]
+    "shoulderR": [
+      0.25,
+      1.4,
+      0
+    ],
+    "shoulderL": [
+      -0.25,
+      1.4,
+      0
+    ],
+    "aimPivot": [
+      0,
+      1.35,
+      0
+    ],
+    "poleR": [
+      0.35,
+      -0.55,
+      0.25
+    ],
+    "poleL": [
+      -0.35,
+      -0.55,
+      0.05
+    ]
   },
   "first": {
-    "fov": 54,
-    "shoulderR": [0.22, -0.3, 0.12],
-    "shoulderL": [-0.2, -0.3, 0.1],
-    "poleR": [0.45, -0.5, 0.2],
-    "poleL": [-0.45, -0.5, 0.1]
-  },
-  "weapons": {
-    "ak47": {
-      "anchors": {
-        "hand_r": [0, 0, 0],
-        "hand_l": [0, 0.02, -0.33],
-        "mag": [0, -0.08, -0.12]
-      },
-      "third": {
-        "hold": "twoHand",
-        "gunPos": [0.12, -0.05, -0.25],
-        "gunRotDeg": [0, 2, 0]
-      },
-      "first": {
-        "hold": "twoHand",
-        "gunPos": [0.14, -0.16, -0.36],
-        "gunRotDeg": [0, 2, 0],
-        "scale": 1.0
-      }
-    },
-    "m16": {
-      "anchors": {
-        "hand_r": [0, 0, 0],
-        "hand_l": [0, 0.02, -0.3],
-        "mag": [0, -0.08, -0.1]
-      },
-      "third": {
-        "hold": "twoHand",
-        "gunPos": [0.12, -0.04, -0.25],
-        "gunRotDeg": [0, 2, 0]
-      },
-      "first": {
-        "hold": "twoHand",
-        "gunPos": [0.14, -0.15, -0.36],
-        "gunRotDeg": [0, 2, 0],
-        "scale": 1.0
-      }
-    },
-    "sniper": {
-      "anchors": {
-        "hand_r": [0, 0, 0],
-        "hand_l": [0, 0.02, -0.38],
-        "mag": [0, -0.07, -0.1]
-      },
-      "third": {
-        "hold": "twoHand",
-        "gunPos": [0.12, -0.03, -0.22],
-        "gunRotDeg": [0, 2, 0]
-      },
-      "first": {
-        "hold": "twoHand",
-        "gunPos": [0.14, -0.15, -0.34],
-        "gunRotDeg": [0, 2, 0],
-        "scale": 1.0
-      }
-    },
-    "shotgun": {
-      "anchors": {
-        "hand_r": [0, 0, 0],
-        "hand_l": [0, -0.01, -0.35],
-        "mag": [0, -0.04, -0.2]
-      },
-      "third": {
-        "hold": "twoHand",
-        "gunPos": [0.12, -0.05, -0.24],
-        "gunRotDeg": [0, 2, 0]
-      },
-      "first": {
-        "hold": "twoHand",
-        "gunPos": [0.14, -0.17, -0.36],
-        "gunRotDeg": [0, 2, 0],
-        "scale": 1.0
-      }
-    },
-    "smg": {
-      "anchors": {
-        "hand_r": [0, 0, 0],
-        "hand_l": [0, 0.03, -0.2],
-        "mag": [0, -0.08, -0.06]
-      },
-      "third": {
-        "hold": "twoHand",
-        "gunPos": [0.12, -0.06, -0.28],
-        "gunRotDeg": [0, 2, 0]
-      },
-      "first": {
-        "hold": "twoHand",
-        "gunPos": [0.14, -0.16, -0.4],
-        "gunRotDeg": [0, 2, 0],
-        "scale": 1.0
-      }
-    },
-    "colt": {
-      "anchors": {
-        "hand_r": [0, 0, 0],
-        "hand_l": [-0.02, -0.03, 0.01],
-        "mag": [0, -0.07, 0.01]
-      },
-      "third": {
-        "hold": "oneHand"
-      },
-      "first": {
-        "hold": "pistolSupport",
-        "gunPos": [0.1, -0.13, -0.42],
-        "gunRotDeg": [0, 4, 0],
-        "scale": 1.0
-      }
-    },
-    "rulo": {
-      "anchors": {
-        "hand_r": [0, 0, 0],
-        "hand_l": [-0.02, -0.03, 0.01],
-        "mag": [0, 0.02, -0.06]
-      },
-      "third": {
-        "hold": "oneHand"
-      },
-      "first": {
-        "hold": "pistolSupport",
-        "gunPos": [0.1, -0.13, -0.42],
-        "gunRotDeg": [0, 4, 0],
-        "scale": 1.0
-      }
-    },
-    "knife": {
-      "anchors": {
-        "hand_r": [0, 0, 0]
-      },
-      "third": {
-        "hold": "oneHand"
-      },
-      "first": {
-        "hold": "oneHand",
-        "gunPos": [0.18, -0.18, -0.38],
-        "gunRotDeg": [10, 20, -15],
-        "scale": 1.0
-      }
-    }
+    "fov": 64,
+    "shoulderR": [
+      0.395,
+      0.01,
+      0.12
+    ],
+    "shoulderL": [
+      -0.2,
+      -0.335,
+      0.08
+    ],
+    "poleR": [
+      -0.465,
+      -0.505,
+      0.005
+    ],
+    "poleL": [
+      -0.26,
+      -0.585,
+      -0.325
+    ]
   },
   "reloadLeftHand": {
     "keys": [
-      { "t": 0.0, "to": "hand_l" },
-      { "t": 0.12, "to": "mag" },
-      { "t": 0.3, "to": "mag", "offset": [-0.05, -0.3, 0.1] },
-      { "t": 0.45, "to": "mag", "offset": [-0.05, -0.3, 0.1] },
-      { "t": 0.55, "to": "mag" },
-      { "t": 0.7, "to": "hand_l" },
-      { "t": 1.0, "to": "hand_l" }
+      {
+        "t": 0,
+        "to": "hand_l"
+      },
+      {
+        "t": 0.12,
+        "to": "mag"
+      },
+      {
+        "t": 0.3,
+        "to": "mag",
+        "offset": [
+          -0.05,
+          -0.3,
+          0.1
+        ]
+      },
+      {
+        "t": 0.45,
+        "to": "mag",
+        "offset": [
+          -0.05,
+          -0.3,
+          0.1
+        ]
+      },
+      {
+        "t": 0.55,
+        "to": "mag"
+      },
+      {
+        "t": 0.7,
+        "to": "hand_l"
+      },
+      {
+        "t": 1,
+        "to": "hand_l"
+      }
     ],
     "magDetachT": 0.12,
     "magAttachT": 0.55,
@@ -189,6 +118,376 @@
       "pitch": 10,
       "inT": 0.1,
       "outT": 0.85
+    }
+  },
+  "weapons": {
+    "ak47": {
+      "anchors": {
+        "hand_r": [
+          0,
+          0,
+          0
+        ],
+        "hand_l": [
+          0,
+          0.02,
+          -0.33
+        ],
+        "mag": [
+          0,
+          -0.08,
+          -0.12
+        ]
+      },
+      "third": {
+        "hold": "twoHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          1.5,
+          0
+        ]
+      },
+      "first": {
+        "hold": "twoHand",
+        "gunRotDeg": [
+          7.5,
+          5.5,
+          -7
+        ],
+        "scale": 1,
+        "gunPos": [
+          0.125,
+          -0.24,
+          -0.37
+        ]
+      }
+    },
+    "m16": {
+      "anchors": {
+        "hand_r": [
+          0,
+          0,
+          0
+        ],
+        "hand_l": [
+          0,
+          0.02,
+          -0.3
+        ],
+        "mag": [
+          0,
+          -0.08,
+          -0.1
+        ]
+      },
+      "third": {
+        "hold": "twoHand",
+        "gunPos": [
+          0.12,
+          -0.04,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          2,
+          0
+        ]
+      },
+      "first": {
+        "hold": "twoHand",
+        "gunRotDeg": [
+          7,
+          7.5,
+          -7
+        ],
+        "scale": 1,
+        "gunPos": [
+          0.135,
+          -0.24,
+          -0.37
+        ]
+      }
+    },
+    "colt": {
+      "anchors": {
+        "hand_r": [
+          0,
+          0,
+          0
+        ],
+        "hand_l": [
+          -0.02,
+          -0.03,
+          0.01
+        ],
+        "mag": [
+          0,
+          -0.07,
+          0.01
+        ]
+      },
+      "third": {
+        "hold": "oneHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ]
+      },
+      "first": {
+        "hold": "pistolSupport",
+        "gunRotDeg": [
+          14.5,
+          4.5,
+          -11
+        ],
+        "scale": 0.83,
+        "gunPos": [
+          0.025,
+          -0.19,
+          -0.355
+        ]
+      }
+    },
+    "rulo": {
+      "anchors": {
+        "hand_r": [
+          0,
+          0,
+          0
+        ],
+        "hand_l": [
+          -0.02,
+          -0.03,
+          0.01
+        ],
+        "mag": [
+          0,
+          0.02,
+          -0.06
+        ]
+      },
+      "third": {
+        "hold": "oneHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ]
+      },
+      "first": {
+        "hold": "pistolSupport",
+        "gunRotDeg": [
+          7,
+          2,
+          -5
+        ],
+        "scale": 1.1,
+        "gunPos": [
+          0.015,
+          -0.19,
+          -0.395
+        ]
+      }
+    },
+    "sniper": {
+      "anchors": {
+        "hand_r": [
+          0,
+          0,
+          0
+        ],
+        "hand_l": [
+          0,
+          0.02,
+          -0.38
+        ],
+        "mag": [
+          0,
+          -0.07,
+          -0.1
+        ]
+      },
+      "third": {
+        "hold": "twoHand",
+        "gunPos": [
+          0.12,
+          -0.03,
+          -0.22
+        ],
+        "gunRotDeg": [
+          0,
+          2,
+          0
+        ]
+      },
+      "first": {
+        "hold": "twoHand",
+        "gunRotDeg": [
+          6,
+          7.5,
+          -7
+        ],
+        "scale": 0.97,
+        "gunPos": [
+          0.13,
+          -0.17,
+          -0.26
+        ]
+      }
+    },
+    "shotgun": {
+      "anchors": {
+        "hand_r": [
+          0.012,
+          0,
+          0
+        ],
+        "hand_l": [
+          -0.008,
+          -0.016,
+          -0.56
+        ],
+        "mag": [
+          0.11,
+          -0.072,
+          -0.2
+        ]
+      },
+      "third": {
+        "hold": "twoHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.24
+        ],
+        "gunRotDeg": [
+          0,
+          2,
+          0
+        ]
+      },
+      "first": {
+        "hold": "twoHand",
+        "gunRotDeg": [
+          7.5,
+          9.5,
+          -7
+        ],
+        "scale": 0.96,
+        "gunPos": [
+          0.13,
+          -0.195,
+          -0.235
+        ]
+      }
+    },
+    "knife": {
+      "anchors": {
+        "hand_r": [
+          -0.018,
+          0.108,
+          0.052
+        ],
+        "hand_l": [
+          0.182,
+          0,
+          -0.12
+        ],
+        "mag": [
+          0.032,
+          0,
+          0
+        ]
+      },
+      "third": {
+        "hold": "oneHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ]
+      },
+      "first": {
+        "hold": "oneHand",
+        "gunRotDeg": [
+          0.5,
+          31,
+          -4
+        ],
+        "scale": 1,
+        "gunPos": [
+          0.17,
+          -0.305,
+          -0.545
+        ]
+      }
+    },
+    "smg": {
+      "anchors": {
+        "hand_r": [
+          0,
+          0,
+          0
+        ],
+        "hand_l": [
+          0,
+          0.03,
+          -0.2
+        ],
+        "mag": [
+          0,
+          -0.08,
+          -0.06
+        ]
+      },
+      "third": {
+        "hold": "twoHand",
+        "gunPos": [
+          0.12,
+          -0.06,
+          -0.28
+        ],
+        "gunRotDeg": [
+          0,
+          2,
+          0
+        ]
+      },
+      "first": {
+        "hold": "twoHand",
+        "gunRotDeg": [
+          21.5,
+          21,
+          -6
+        ],
+        "scale": 0.93,
+        "gunPos": [
+          0.165,
+          -0.255,
+          -0.41
+        ]
+      }
     }
   }
 }

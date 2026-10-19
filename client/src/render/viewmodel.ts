@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import type { TeamId } from "@fps/shared";
+import { BlockArm } from "./blockArm";
+import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf } from "./poses";
 
 // ── Hằng số ────────────────────────────────────────────────────────────────────
 const GUN_DEFAULT_POS = new THREE.Vector3(0.28, -0.3, -0.45);
@@ -220,13 +223,38 @@ export interface ViewmodelHandle {
   setAim(aiming: boolean, scoped: boolean): void;
   /** 0 (hông) … 1 (ngắm xong) */
   readonly aimAmount: number;
+  /** Màu tay áo theo đội */
+  setTeam(team: TeamId): void;
+  /** Ẩn cả súng lẫn tay (camera debug F10, chết) */
+  setHidden(hidden: boolean): void;
+  /** Cho bảng F9: tay + súng + trạng thái giải IK của frame vừa rồi */
+  readonly debug: ViewmodelDebug;
+}
+
+export interface ViewmodelDebug {
+  gunGroup: THREE.Group;
+  armR: BlockArm;
+  armL: BlockArm;
+  shoulderR: THREE.Vector3;
+  shoulderL: THREE.Vector3;
+  /** Đích IK trong không gian camera (valid* = frame vừa rồi có giải tay đó) */
+  targetR: THREE.Vector3;
+  targetL: THREE.Vector3;
+  validR: boolean;
+  validL: boolean;
+  /** Tiến độ nạp đạn đã dừng hình (0..1), -1 = không ép */
+  freezeReload: number;
+  /** Tô đỏ tay không với tới súng */
+  showReach: boolean;
 }
 
 export function createViewmodel(aspect: number): ViewmodelHandle {
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(60, aspect, 0.01, 20);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  cam.fov = poses.first.fov;
+  cam.updateProjectionMatrix();
+  scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x4a4036, 0.9));
   const dl = new THREE.DirectionalLight(0xffffff, 1.0);
   dl.position.set(1, 2, 1);
   scene.add(dl);
@@ -235,21 +263,41 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   gunGroup.position.copy(GUN_DEFAULT_POS);
   scene.add(gunGroup);
 
-  // ── Cánh tay trái (sleeve) ─────────────────────────────────────────────────
-  // Dựng cánh tay đi từ cạnh dưới màn hình vươn lên ôm lấy thân súng
-  // const armMesh = new THREE.Mesh(
-  //   new THREE.BoxGeometry(0.15, 0.7, 0.3), // [rộng, chiều dài, độ dày]
-  //   new THREE.MeshLambertMaterial({ color: 0x1e2840 }), // màu tay áo tối
-  // )
-
-  // // Dịch sang phải và tiến lên phía trước (Z âm nhiều hơn) để khớp với ống lót tay của súng
-  // armMesh.position.set(-0.18, -0.28, -0.38)
-
-  // // Xoay nhẹ để tay ôm tự nhiên vào thân súng
-  // armMesh.rotation.z = -0.25;
-  // armMesh.rotation.x = 0.35;
-
-  // gunGroup.add(armMesh)
+  // ── Hai cánh tay khối hộp ─────────────────────────────────────────────────
+  // Vai đứng yên trong không gian camera; hiệu ứng (lắc, giật, hạ súng, nạp) chỉ áp lên súng, tay IK bám theo hai điểm neo.
+  let sleeve = colorOf(poses.style.sleeveColor.A);
+  const skin = colorOf(poses.style.skinColor);
+  const armR = new BlockArm(() => poses.style.first, sleeve, skin);
+  const armL = new BlockArm(() => poses.style.first, sleeve, skin);
+  scene.add(armR.root, armL.root);
+  const shoulderR = new THREE.Vector3(), shoulderL = new THREE.Vector3();
+  const poleR = new THREE.Vector3(), poleL = new THREE.Vector3();
+  const targetR = new THREE.Vector3(), targetL = new THREE.Vector3();
+  const _a = new THREE.Vector3(), _b = new THREE.Vector3();
+  let hidden = false;
+  const _off = new THREE.Vector3();
+  const DEG = Math.PI / 180;
+  // Băng đạn đi theo tay trái giữa magDetachT..magAttachT (chỉ khi model có mesh tên 'mag'; các glb hiện tại chưa có)
+  let magHeld: { mesh: THREE.Object3D; parent: THREE.Object3D; weapon: number; pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3 } | null = null;
+  function restoreMag(): void {
+    if (!magHeld) return;
+    const h = magHeld;
+    h.parent.add(h.mesh);
+    h.mesh.position.copy(h.pos); h.mesh.quaternion.copy(h.quat); h.mesh.scale.copy(h.scale);
+    magHeld = null;
+  }
+  function updateMag(rp: number): void {
+    const rl = poses.reloadLeftHand;
+    const want = rp >= rl.magDetachT && rp < rl.magAttachT && dbg.validL;
+    if (magHeld && (!want || magHeld.weapon !== currentWeapon)) restoreMag();
+    if (!want || magHeld) return;
+    const mesh = currentMesh.getObjectByName("mag");
+    if (!mesh || !mesh.parent) return;
+    magHeld = { mesh, parent: mesh.parent, weapon: currentWeapon, pos: mesh.position.clone(), quat: mesh.quaternion.clone(), scale: mesh.scale.clone() };
+    armL.handMesh.attach(mesh);
+  }
+  const dbg: ViewmodelDebug = { gunGroup, armR, armL, shoulderR, shoulderL, targetR, targetL, validR: false, validL: false, freezeReload: -1, showReach: false };
+  onPosesChange(() => { cam.fov = poses.first.fov; cam.updateProjectionMatrix(); });
 
   // Trạng thái
   let currentWeapon = 0;
@@ -271,6 +319,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       .then((gltf) => {
         const model = prepareModel(gltf.scene);
         adjustModel(wid, model);
+        scanModelAnchors(wid, model);
         loaded.set(wid, model);
         const sight = measureSight(model);
         if (sight) sights.set(wid, sight);
@@ -315,6 +364,13 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   let aimWant = false;
   let aimScoped = false;
   let aimT = 0;
+
+  // Vị trí tay cầm súng ở hông: poses.json (first.gunPos), thiếu thì mặc định cũ
+  const _base = new THREE.Vector3();
+  function basePos(id: number): THREE.Vector3 {
+    const g = weaponPose(id).first.gunPos;
+    return g ? _base.set(g[0], g[1], g[2]) : _base.copy(GUN_DEFAULT_POS);
+  }
 
   function getMesh(id: number): THREE.Object3D {
     return loaded.get(id) ?? buildPlaceholder(id);
@@ -376,7 +432,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     if (phase === "down") {
       animT += dt;
       const t = Math.min(animT / ANIM_HALF, 1);
-      switchOffY = (GUN_HIDDEN_Y - GUN_DEFAULT_POS.y) * t;
+      switchOffY = (GUN_HIDDEN_Y - basePos(currentWeapon).y) * t;
       if (animT >= ANIM_HALF) {
         gunGroup.remove(currentMesh);
         currentWeapon = pendingId;
@@ -388,7 +444,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     } else if (phase === "up") {
       animT += dt;
       const t = Math.min(animT / ANIM_HALF, 1);
-      switchOffY = (GUN_HIDDEN_Y - GUN_DEFAULT_POS.y) * (1 - t);
+      switchOffY = (GUN_HIDDEN_Y - basePos(currentWeapon).y) * (1 - t);
       if (animT >= ANIM_HALF) {
         switchOffY = 0;
         phase = "idle";
@@ -404,31 +460,84 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     bobAmp += (wantAmp - bobAmp) * Math.min(1, dt * 10);
     if (moveGrounded) bobPhase += moveSpeed * dt * BOB_FREQ;
 
-    // Reload: hạ + chúc xuống (0..40%), giữ, đưa lên (80..100%)
+    // Reload. Súng 1 tay / ôm báng: hạ + chúc xuống (0..40%), giữ, đưa lên (80..100%). Súng 2 tay: nghiêng theo
+    // poses.json (gunTiltDeg) và tay trái đi theo reloadLeftHand.keys
+    const pose = weaponPose(currentWeapon).first;
+    const rl = poses.reloadLeftHand;
+    const rp = dbg.freezeReload >= 0 ? dbg.freezeReload : reloadProgress;
+    const two = pose.hold === "twoHand";
     let r = 0;
-    if (reloadProgress >= 0) {
-      r =
-        reloadProgress < RELOAD_UP_START
-          ? smooth(reloadProgress / RELOAD_DOWN_END)
-          : 1 - smooth((reloadProgress - RELOAD_UP_START) / (1 - RELOAD_UP_START));
+    if (rp >= 0 && !two) {
+      r = rp < RELOAD_UP_START ? smooth(rp / RELOAD_DOWN_END) : 1 - smooth((rp - RELOAD_UP_START) / (1 - RELOAD_UP_START));
+    }
+    let tiltRoll = 0, tiltPitch = 0;
+    if (rp >= 0 && two) {
+      const g = rl.gunTiltDeg;
+      const w = smooth((rp - g.inT) / 0.15) * (1 - smooth((rp - (g.outT - 0.15)) / 0.15));
+      tiltRoll = g.roll * w * DEG; tiltPitch = g.pitch * w * DEG;
     }
 
     // Ngắm: kéo súng vào giữa, thân súng thẳng trực diện, đầu ruồi trùng tâm màn hình
     aimT += ((aimWant && phase === "idle" ? 1 : 0) - aimT) * Math.min(1, dt * ADS_RATE);
     if (Math.abs(aimT - (aimWant ? 1 : 0)) < 1e-3) aimT = aimWant ? 1 : 0;
     const a = smooth(aimT);
+    const base = basePos(currentWeapon);
+    const bx = base.x, by = base.y, bz = base.z;
     const sight = sights.get(currentWeapon);
     const adsX = sight ? -sight.x : 0;
-    const adsY = sight ? -sight.y - (ADS_DROP[currentWeapon] ?? 0) : GUN_DEFAULT_POS.y + 0.2;
-    const adsZ = sight ? -ADS_DIST - sight.z : GUN_DEFAULT_POS.z;
+    const adsY = sight ? -sight.y - (ADS_DROP[currentWeapon] ?? 0) : by + 0.2;
+    const adsZ = sight ? -ADS_DIST - sight.z : bz;
     const bob = 1 - a * (1 - ADS_BOB);
-    gunGroup.visible = !(aimScoped && aimT > 0.6);
+    gunGroup.visible = !(aimScoped && aimT > 0.6) && !hidden;
     gunGroup.position.set(
-      GUN_DEFAULT_POS.x + (adsX - GUN_DEFAULT_POS.x) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob,
-      GUN_DEFAULT_POS.y + (adsY - GUN_DEFAULT_POS.y) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r,
-      GUN_DEFAULT_POS.z + (adsZ - GUN_DEFAULT_POS.z) * a + KICK_BACK * kick,
+      bx + (adsX - bx) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob,
+      by + (adsY - by) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r,
+      bz + (adsZ - bz) * a + KICK_BACK * kick,
     );
-    gunGroup.rotation.x = KICK_PITCH * kick - RELOAD_TILT * r;
+    const hip = 1 - a;   // góc đặt súng của poses.json mất dần khi ngắm (thân súng thẳng)
+    gunGroup.rotation.set(
+      pose.gunRotDeg[0] * DEG * hip + KICK_PITCH * kick - RELOAD_TILT * r + tiltPitch,
+      pose.gunRotDeg[1] * DEG * hip,
+      pose.gunRotDeg[2] * DEG * hip + tiltRoll,
+    );
+    gunGroup.scale.setScalar(pose.scale);
+
+    // Tay: giải IK SAU khi mọi hiệu ứng đã áp lên súng (thứ tự này tránh tay trễ súng một frame)
+    gunGroup.updateMatrix();
+    const M = gunGroup.matrix;
+    const f = poses.first;
+    shoulderR.set(f.shoulderR[0], f.shoulderR[1], f.shoulderR[2]);
+    shoulderL.set(f.shoulderL[0], f.shoulderL[1], f.shoulderL[2]);
+    poleR.set(shoulderR.x + f.poleR[0], shoulderR.y + f.poleR[1], shoulderR.z + f.poleR[2]);
+    poleL.set(shoulderL.x + f.poleL[0], shoulderL.y + f.poleL[1], shoulderL.z + f.poleL[2]);
+    const showArms = gunGroup.visible;
+    armR.setVisible(showArms);
+    getAnchor(currentWeapon, "hand_r", targetR).applyMatrix4(M);
+    armR.solve(shoulderR, targetR, poleR);
+    dbg.validR = true;
+    const leftOn = showArms && pose.hold !== "oneHand";
+    armL.setVisible(leftOn);
+    dbg.validL = leftOn;
+    if (leftOn) {
+      const keys = rl.keys;
+      if (rp >= 0 && keys.length >= 2) {
+        let i = 0;
+        while (i < keys.length - 2 && rp >= keys[i + 1]!.t) i++;
+        const k0 = keys[i]!, k1 = keys[i + 1]!;
+        const u = smooth(k1.t > k0.t ? (rp - k0.t) / (k1.t - k0.t) : 1);
+        getAnchor(currentWeapon, k0.to, _a).applyMatrix4(M);
+        getAnchor(currentWeapon, k1.to, _b).applyMatrix4(M);
+        if (k0.offset) _a.add(_off.set(k0.offset[0], k0.offset[1], k0.offset[2]));
+        if (k1.offset) _b.add(_off.set(k1.offset[0], k1.offset[1], k1.offset[2]));
+        targetL.lerpVectors(_a, _b, u);
+      } else {
+        getAnchor(currentWeapon, "hand_l", targetL).applyMatrix4(M);
+      }
+      armL.solve(shoulderL, targetL, poleL);
+    }
+    updateMag(rp);
+    armR.setReachedColor(dbg.showReach);
+    armL.setReachedColor(dbg.showReach);
 
     // Flash hiện đúng 1 frame render
     if (flash.visible) {
@@ -462,5 +571,12 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     get aimAmount() {
       return aimT;
     },
+    setTeam(team: TeamId) {
+      sleeve = colorOf(poses.style.sleeveColor[team]);
+      armR.setColors(sleeve, skin);
+      armL.setColors(sleeve, skin);
+    },
+    setHidden(h: boolean) { hidden = h; },
+    debug: dbg,
   };
 }

@@ -30,7 +30,7 @@ export interface AnimInput {
 const RUN_SPEED = 8.5          // tốc độ chạy: biên độ tối đa
 const TELEPORT_M = 3           // nhảy xa hơn mức này trong một frame = hồi sinh/teleport, không tính là chạy
 const POSE_EASE = 15           // 1/giây: tốc độ chuyển tư thế nhảy/trượt/ngồi
-const HEAD_PITCH = 0.7         // phần pitch do đầu/súng đảm nhận; phần còn lại (1−0.7) do nghiêng thân
+export const HEAD_PITCH = 0.7         // phần pitch do đầu/súng đảm nhận; phần còn lại (1−0.7) do nghiêng thân
 const SLIDE_LEAN = 0.55        // ngả người ra sau khi trượt (rad, +X = đổ ra sau)
 const CROUCH_LEAN = -0.2       // cúi người về trước khi ngồi
 const AIR_LEG_L = 0.7          // nhảy: co chân (một chân co nhiều hơn)

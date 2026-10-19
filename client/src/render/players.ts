@@ -4,8 +4,10 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { defaultMovement, ECONOMY, NetFlag, TEAMS, type TeamId } from '@fps/shared'
 import { makeBlobShadow } from './blobShadow'
 import { MUZZLE_FALLBACK, makeFlashTexture, adjustModel } from './viewmodel'
+import { BlockArm } from './blockArm'
+import { poses, weaponPose, getAnchor, scanModelAnchors, colorOf } from './poses'
 import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
-import { makeAnimState, updateAnim, type AnimState } from './characters/animate'
+import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './characters/animate'
 import { createDeathFx } from './characters/deathFx'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
@@ -34,6 +36,7 @@ function requestGuns(): void {
     loader.loadAsync(file).then(gltf => {
       gltf.scene.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = false; o.receiveShadow = false } })
       adjustModel(id, gltf.scene)
+      scanModelAnchors(id, gltf.scene)
       gunModels.set(id, gltf.scene)
     }).catch(err => console.warn(`players: cannot load ${file}`, err))
   })
@@ -78,7 +81,9 @@ function makeWantedSprite(): THREE.Sprite {
   return sp
 }
 
-// Mỗi người = một rig dựng từ bộ nhân vật của phòng (render/characters) + súng + lửa nòng + animation
+// Mỗi người = một rig dựng từ bộ nhân vật của phòng (render/characters) + súng + lửa nòng + animation.
+// Súng 2 tay (poses.json third.hold = twoHand): súng gắn vào `holder` (con của `aimPivot`, xoay theo pitch),
+// hai BlockArm bám hai điểm neo trên súng bằng IK. Súng 1 tay: như cũ (súng ở bàn tay phải của rig).
 interface Actor {
   rig: CharacterRig
   anim: AnimState
@@ -87,7 +92,21 @@ interface Actor {
   flash: THREE.Sprite
   flashUntil: number
   wasDead: boolean
+  aimPivot: THREE.Group
+  holder: THREE.Group
+  armR: BlockArm
+  armL: BlockArm
+  twoHand: boolean | null   // null = chưa chọn chế độ
 }
+
+const HIP_Y = 0.8   // khớp kit.ts: `upper` có gốc ở hông
+const _m = new THREE.Matrix4()
+const _eul = new THREE.Euler()
+const _anchor = new THREE.Vector3()
+const _shoulder = new THREE.Vector3()
+const _pole = new THREE.Vector3()
+const _handTarget = new THREE.Vector3()
+const DEG = Math.PI / 180
 
 function makeActor(rig: CharacterRig, dead: boolean): Actor {
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -98,13 +117,65 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   flash.visible = false
   rig.gunAnchor.add(flash)
   rig.root.add(makeBlobShadow())
-  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead }
+  const aimPivot = new THREE.Group()
+  const holder = new THREE.Group()
+  aimPivot.add(holder)
+  rig.upper.add(aimPivot)
+  const sleeve = colorOf(poses.style.sleeveColor[rig.team])
+  const skin = colorOf(poses.style.skinColor)
+  const armR = new BlockArm(() => poses.style.third, sleeve, skin)
+  const armL = new BlockArm(() => poses.style.third, sleeve, skin)
+  armR.setVisible(false); armL.setVisible(false)
+  rig.upper.add(armR.root, armL.root)
+  for (const arm of [armR, armL]) rig.mats.push(...arm.mats)
+  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null }
 }
 
 function disposeActor(a: Actor): void {
   disposeRig(a.rig)
+  a.armR.dispose(); a.armL.dispose()
   a.flash.material.map?.dispose()
   a.flash.material.dispose()
+}
+
+// Chuyển giữa tay khối cũ (súng 1 tay) và hai BlockArm (súng 2 tay) ngay trong frame đổi súng
+function setHold(a: Actor, two: boolean): void {
+  if (a.twoHand === two) return
+  a.twoHand = two
+  const { rig } = a
+  rig.armR.visible = rig.armL.visible = !two
+  const swap = (from: THREE.Mesh[], to: THREE.Mesh[]) => {
+    for (const m of from) { const i = rig.parts.indexOf(m); if (i >= 0) rig.parts.splice(i, 1) }
+    for (const m of to) if (!rig.parts.includes(m)) rig.parts.push(m)
+  }
+  const old: THREE.Mesh[] = []
+  for (const g of [rig.armL, rig.armR]) g.traverse(o => { if (o instanceof THREE.Mesh) old.push(o) })
+  const blocks = [...a.armR.meshes, ...a.armL.meshes]
+  if (two) swap(old, blocks); else swap(blocks, old)
+  if (!two) { a.armR.setVisible(false); a.armL.setVisible(false) }
+  const parent = two ? a.holder : rig.gunAnchor
+  if (a.gun) parent.add(a.gun)
+  parent.add(a.flash)
+}
+
+// Đặt súng ở holder theo poses.json rồi giải IK hai tay vào hai điểm neo. Mọi toạ độ trong hệ `rig.upper`.
+function solveArms(a: Actor, weapon: number, pitch: number): void {
+  const t = poses.third, wp = weaponPose(weapon).third
+  a.aimPivot.position.set(t.aimPivot[0], t.aimPivot[1] - HIP_Y, t.aimPivot[2])
+  a.aimPivot.rotation.x = pitch * HEAD_PITCH
+  a.holder.position.set(wp.gunPos[0], wp.gunPos[1], wp.gunPos[2])
+  a.holder.rotation.copy(_eul.set(wp.gunRotDeg[0] * DEG, wp.gunRotDeg[1] * DEG, wp.gunRotDeg[2] * DEG, 'XYZ'))
+  a.aimPivot.updateMatrix(); a.holder.updateMatrix()
+  _m.multiplyMatrices(a.aimPivot.matrix, a.holder.matrix)
+  const arm = (side: 'R' | 'L') => {
+    const sh = side === 'R' ? t.shoulderR : t.shoulderL, pl = side === 'R' ? t.poleR : t.poleL
+    _shoulder.set(sh[0], sh[1] - HIP_Y, sh[2])
+    _pole.set(sh[0] + pl[0], sh[1] - HIP_Y + pl[1], sh[2] + pl[2])
+    getAnchor(weapon, side === 'R' ? 'hand_r' : 'hand_l', _anchor)
+    _handTarget.copy(_anchor).applyMatrix4(_m)
+    ;(side === 'R' ? a.armR : a.armL).solve(_shoulder, _handTarget, _pole)
+  }
+  arm('R'); arm('L')
 }
 
 // pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig (chỉ co chân khi ngồi, đỉnh đầu khớp hitbox).
@@ -179,10 +250,11 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     if (a.gunId === weapon && a.gun) return
     const src = gunModels.get(weapon)
     if (!src) return   // chưa load xong: thử lại frame sau
-    if (a.gun) a.rig.gunAnchor.remove(a.gun)
+    const parent = a.twoHand ? a.holder : a.rig.gunAnchor
+    if (a.gun) a.gun.removeFromParent()
     a.gun = src.clone(true)
     a.gunId = weapon
-    a.rig.gunAnchor.add(a.gun)
+    parent.add(a.gun)
     // Toạ độ đầu nòng đã đo sẵn trong hệ gunGroup (node 'muzzle' nằm trong GunRoot đã scale nên không dùng trực tiếp)
     a.flash.position.copy(MUZZLE_FALLBACK[weapon] ?? MUZZLE_FALLBACK[0]!)
   }
@@ -207,7 +279,14 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     // Bất tử: nhấp nháy mờ
     const op = (p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1
     if (rig.mats[0]!.opacity !== op || op !== 1) for (const m of rig.mats) m.opacity = op
-    dressGun(a, p.weapon ?? 0)
+    const weapon = p.weapon ?? 0
+    dressGun(a, weapon)
+    const two = weaponPose(weapon).third.hold === 'twoHand' && !!a.gun
+    setHold(a, two)
+    if (two && !dead) {
+      solveArms(a, weapon, p.pitch ?? 0)
+      a.armR.setVisible(true); a.armL.setVisible(true)
+    }
     dressWanted(p, a, h)
     a.flash.visible = nowMs < a.flashUntil
     dressLabel(p.id, a, h)

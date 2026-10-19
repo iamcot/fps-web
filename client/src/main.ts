@@ -26,9 +26,10 @@ import { createDebugShots } from './render/debugShots'
 import { createKillfeed, createDeathScreen, createHurtIndicator, createBountyBanner } from './hudNet'
 import { createShop } from './shop'
 import { createMatchHud, createScoreboard } from './hudMatch'
-import { MsgType, MatchPhase } from '@fps/shared'
+import { MsgType, MatchPhase, NetFlag, type TeamId } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
+import { createPoseEditor } from './render/poseEditor'
 import { createTargets, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
@@ -106,6 +107,14 @@ window.addEventListener('resize', () => {
 
 // ── Viewmodel ─────────────────────────────────────────────────────────────────
 const vm = createViewmodel(window.innerWidth / window.innerHeight)
+const poseEditor = createPoseEditor(vm, () => vm.currentWeapon, id => {
+  // F9 chọn súng → cầm luôn (chỉ offline; online súng do server cấp). Nhét vào ô theo dòng của nó rồi đổi sang ô đó
+  if (sessionRef || dead) return
+  const slot = CATEGORY_SLOT[WEAPONS[id]!.category]
+  ws.slots[slot] = id; ws.slot = slot; ws.current = id; ws.wantSlot = slot; ws.reloadEndMs = 0
+  setWantedWeapon(slot)
+})   // F9 bảng chỉnh tư thế tay/súng, F10 camera quỹ đạo
+let vmTeam: TeamId | undefined
 
 initAudio(() => playDraw(ws.current))   // vào màn chơi: súng mặc định cũng phát tiếng rút súng
 initAudioTuning()
@@ -212,6 +221,7 @@ document.addEventListener('keydown', e => { if (e.code === 'Tab') { e.preventDef
 document.addEventListener('keyup', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = false } })
 window.addEventListener('blur', () => { tabHeld = false })
 let lastHp = 100
+const selfDebug = { id: 0, pos: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, flags: 0, weapon: 0 }   // F10
 const sessionP = showLobby()
 sessionP.then(session => {
   if (!session) return
@@ -423,18 +433,29 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee)
 
     updateTargets(targets, dt)
+    const myTeamNow = sessionRef?.teams.get(sessionRef.yourId) ?? 'A'
+    if (myTeamNow !== vmTeam) { vmTeam = myTeamNow; vm.setTeam(myTeamNow) }
+    poseEditor.tick(dt)
     vm.update(dt)
     hud.tick(dt * 1000)
 
     sky.update(camera.position)
     renderer.clear()
+    if (poseEditor.orbitOn) poseEditor.applyOrbit(camera, state.pos[0], state.pos[1], state.pos[2])   // F10: camera quanh người mình
     renderer.render(scene, camera)
     renderer.clearDepth()
-    renderer.render(vm.scene, vm.cam)
+    if (!poseEditor.orbitOn) renderer.render(vm.scene, vm.cam)
 
     // Người khác: vẽ trễ (INTERP_DELAY_MS + trễ một chiều) bằng nội suy; chưa vào phòng thì danh sách rỗng
     if (snapStore) ghosts.update(snapStore.players, snapStore.yourId)
-    if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)))
+    if (poseEditor.orbitOn) {
+      // F10: dựng thêm model 3rd person của chính mình (bình thường không vẽ) với súng đang cầm
+      const others = snapStore ? interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)) : []
+      selfDebug.id = playerId; selfDebug.pos = state.pos; selfDebug.yaw = state.yaw; selfDebug.pitch = state.pitch
+      selfDebug.flags = (state.grounded ? NetFlag.Grounded : 0) | (state.crouching ? NetFlag.Crouching : 0) | (state.slideTimer > 0 ? NetFlag.Sliding : 0)
+      selfDebug.weapon = ws.current
+      playersRenderer.update([...others.filter(o => o.id !== playerId), selfDebug], -1)
+    } else if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)))
     tracers.update(dt * 1000)
     debugShots.update(dt * 1000)
     deathScreen.tick()
