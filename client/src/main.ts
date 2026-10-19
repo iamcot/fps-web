@@ -30,6 +30,7 @@ import { MsgType, MatchPhase, NetFlag, type TeamId } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
 import { createPoseEditor } from './render/poseEditor'
+import { createBloodFx } from './render/bloodFx'
 import { createTargets, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
@@ -194,6 +195,13 @@ let worldRef: CollisionWorld | null = null
 const HOLE_EPS = 0.05   // sai số khi xác định tia kết thúc ở tường (không phải ở người)
 const ghosts = createGhosts(scene)
 const tracers = createTracers(scene)
+// Máu trắng khi trúng người: giọt va chạm với map qua castRay của physics world (offline cũng có world)
+const bloodCast = (o: [number, number, number], d: [number, number, number], m: number) => worldRef?.castRay(o, d, m) ?? null
+const blood = createBloodFx(scene, () => (worldRef ? bloodCast : null))
+let lastSampled: ReturnType<Interpolator['sample']> = []   // người khác ở frame vẽ gần nhất (đích của HitConfirm)
+const lastFireOrigin: [number, number, number] = [0, 0, 0]
+const lastFireDir: [number, number, number] = [0, 0, -1]
+const hitCenter: [number, number, number] = [0, 0, 0]
 const debugShots = createDebugShots(scene)
 const killfeed = createKillfeed()
 const deathScreen = createDeathScreen()
@@ -231,6 +239,16 @@ sessionP.then(session => {
   session.transport.onMessage(msg => {
     if (msg.t === MsgType.HitConfirm) {
       hudRef?.showHitmarker(msg.headshot)   // chỉ hiện khi server xác nhận
+      // Máu: server không gửi điểm trúng nên lấy điểm trên tia vừa bắn gần thân/đầu mục tiêu nhất
+      const tgt = lastSampled.find(o => o.id === msg.targetId)
+      if (tgt) {
+        hitCenter[0] = tgt.pos[0]; hitCenter[1] = tgt.pos[1] + (msg.headshot ? 1.62 : 1.1); hitCenter[2] = tgt.pos[2]
+        const t = Math.max(0, (hitCenter[0] - lastFireOrigin[0]) * lastFireDir[0] + (hitCenter[1] - lastFireOrigin[1]) * lastFireDir[1] + (hitCenter[2] - lastFireOrigin[2]) * lastFireDir[2])
+        const hx = lastFireOrigin[0] + lastFireDir[0] * t, hy = lastFireOrigin[1] + lastFireDir[1] * t, hz = lastFireOrigin[2] + lastFireDir[2] * t
+        const off = Math.hypot(hx - hitCenter[0], hy - hitCenter[1], hz - hitCenter[2])
+        if (off < 0.5) { hitCenter[0] = hx; hitCenter[1] = hy; hitCenter[2] = hz }
+        blood.spawn(hitCenter, lastFireDir, msg.headshot)
+      }
       playHit(msg.headshot ? 'head' : 'body')
     } else if (msg.t === MsgType.ShotFx) {
       const ray = (dir: [number, number, number], dist: number) => {
@@ -239,6 +257,10 @@ sessionP.then(session => {
         const wh = worldRef?.castRay(msg.origin, dir, dist + HOLE_EPS)
         if (wh && wh.dist >= dist - HOLE_EPS) {
           hudRef?.addBulletHole([msg.origin[0] + dir[0] * wh.dist, msg.origin[1] + dir[1] * wh.dist, msg.origin[2] + dir[2] * wh.dist], wh.normal)
+        } else if (dist < (WEAPONS[msg.weapon]?.range ?? 0) - 0.5) {
+          // Tia dừng giữa trời trước tầm bắn = trúng người. Bỏ qua nếu trúng mình (điểm ngay sát camera)
+          const hx = msg.origin[0] + dir[0] * dist, hy = msg.origin[1] + dir[1] * dist, hz = msg.origin[2] + dir[2] * dist
+          if (Math.hypot(hx - camera.position.x, hy - camera.position.y, hz - camera.position.z) > 1.2) blood.spawn([hx, hy, hz], dir, false)
         }
       }
       if (!WEAPONS[msg.weapon]?.melee) {   // dao: không vệt đạn/lửa nòng, chỉ có tiếng vụt
@@ -455,8 +477,12 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       selfDebug.flags = (state.grounded ? NetFlag.Grounded : 0) | (state.crouching ? NetFlag.Crouching : 0) | (state.slideTimer > 0 ? NetFlag.Sliding : 0)
       selfDebug.weapon = ws.current
       playersRenderer.update([...others.filter(o => o.id !== playerId), selfDebug], -1)
-    } else if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)))
+    } else if (snapStore) {
+      lastSampled = interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs))
+      playersRenderer.update(lastSampled)
+    }
     tracers.update(dt * 1000)
+    blood.update(dt)
     debugShots.update(dt * 1000)
     deathScreen.tick()
     matchHud.tick(clock.serverNow())
@@ -475,15 +501,19 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     if (ev === 'fired') {
       const pellets = computeShotDirs(shotDirs, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, shotSpread(def, state, cmd.buttons))
       vm.onFire(def.melee)
+      lastFireDir[0] = shotDirs[0]![0]; lastFireDir[1] = shotDirs[0]![1]; lastFireDir[2] = shotDirs[0]![2]   // cho điểm máu khi HitConfirm về
       hud.kickSpread(def.recoilPitchDeg * 2)   // tâm giãn theo độ giật của súng (hiển thị)
       playShot(def.id, ws.ammo[def.id]!)
 
       eyeTmp[0] = state.pos[0]; eyeTmp[1] = state.pos[1] + eyeY; eyeTmp[2] = state.pos[2]
+      lastFireOrigin[0] = eyeTmp[0]; lastFireOrigin[1] = eyeTmp[1]; lastFireOrigin[2] = eyeTmp[2]
       let hitHead = false, hitBody = false
       for (let k = 0; k < pellets; k++) {
         const result = fireHitscan(eyeTmp, shotDirs[k]!, def.range, world, cfg, targets)
         if (result?.kind === 'target') {
           flashTarget(targets[result.idx]!)
+          hitCenter[0] = eyeTmp[0] + shotDirs[k]![0] * result.dist; hitCenter[1] = eyeTmp[1] + shotDirs[k]![1] * result.dist; hitCenter[2] = eyeTmp[2] + shotDirs[k]![2] * result.dist
+          blood.spawn(hitCenter, shotDirs[k]!, result.part === 'head')
           if (result.part === 'head') hitHead = true; else hitBody = true
         } else if (result?.kind === 'wall' && !def.melee) {
           hud.addBulletHole(result.hitPos, result.normal)

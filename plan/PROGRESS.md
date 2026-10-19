@@ -102,3 +102,8 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - [x] P.4 3rd person: hai tay cầm súng dài
 - [~] P.5 1st person: hai cánh tay, đẩy súng xa, nạp đạn bằng tay trái (chạy được, chưa chỉnh số đẹp; băng đạn rời chưa có model)
 - [~] P.6 Bảng chỉnh F9 + camera debug F10 (chưa có chấm debug cho góc 3 và tab Style chưa sửa được màu)
+
+## Điểm nhấn – máu trắng khi trúng đạn (ngoài plan)
+- `render/bloodFx.ts` (pool 220 giọt InstancedMesh + 90 vệt dẹt): giọt văng theo hướng đạn + hất lên, rơi theo trọng lực, chạm sàn/tường (raycast physics world mỗi frame) thì để lại vệt trắng dính bề mặt (lookAt theo normal), mờ dần sau 14s. Chỉ hiệu ứng client, không đổi protocol/shared.
+- Nguồn điểm trúng: offline = tia trúng hình nhân; online đạn của mình = điểm trên tia vừa bắn gần thân/đầu mục tiêu nhất khi nhận `HitConfirm` (server không gửi điểm trúng); đạn người khác = tia `ShotFx` dừng giữa trời trước tầm bắn (bỏ qua nếu sát camera = trúng mình). Đạn người khác luôn tính là trúng thân (không biết headshot).
+- Kiểm bằng Chromium (gọi `spawn` trực tiếp): giọt bay, vệt dính sàn đúng. Chưa kiểm vệt dính tường và trúng người thật online.
