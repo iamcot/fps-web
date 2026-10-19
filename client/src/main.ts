@@ -1,20 +1,21 @@
 import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, makeWeaponState, makeRecoilState,
-  stepWeapon, spreadFor, computeShot, recoverRecoil, switchWeapon,
+  stepWeaponCmd, spreadFor, computeShot, recoverRecoil,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, applyCameraRotation, isLocked, yaw, pitch } from './input'
-import { startLoop, initGameState, defaultMovement, setNetHooks, currentState } from './loop'
+import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
 import { clock } from './net/clock'
 import { attachSnapshots, type SnapshotStore } from './net/snapshots'
 import { createPlayersRenderer } from './render/players'
-import { Interpolator, InterpDelay } from './net/interpolation'
+import { Interpolator, InterpDelay, interp } from './net/interpolation'
+import { reconcileWeapon } from './net/weaponSync'
 import { Prediction } from './net/prediction'
 import { createGhosts } from './render/ghosts'
 import { MsgType } from '@fps/shared'
@@ -101,6 +102,7 @@ const rec = makeRecoilState()
 const shotDir: [number, number, number] = [0, 0, 0]
 const eyeTmp:  [number, number, number] = [0, 0, 0]
 let simMs = 0
+let wantedWeapon = 0
 let lastBtns = 0
 const MOVE_KEYS = Btn.Forward | Btn.Back | Btn.Left | Btn.Right
 // Tốc độ dùng cho spread: nhả hết phím di chuyển thì tính là đứng yên dù quán tính còn
@@ -112,8 +114,9 @@ document.addEventListener('keydown', (e) => {
   const m = /^Digit([1-4])$/.exec(e.code)
   if (m) {
     const id = Number(m[1]) - 1
-    if (id !== ws.current && vm.switchWeapon(id)) {
-      switchWeapon(ws, id, simMs)
+    if (id !== wantedWeapon && vm.switchWeapon(id)) {
+      wantedWeapon = id   // logic súng đổi ở tick kế tiếp qua cmd.weapon
+      setWantedWeapon(id)
       cancelReload()   // đổi súng giữa lúc nạp: im ngay
       playDraw(id)
     }
@@ -140,6 +143,7 @@ sessionP.then(session => {
   snapStore = attachSnapshots(session.transport, session.yourId, s => {
     interpolator.push(s.serverTime, s.players, s.yourId)
     if (s.self) prediction?.onSnapshot(s.ack, s.self)
+    if (s.wpn && prediction) reconcileWeapon(ws, s.wpn, prediction.pending)
   })
   session.transport.onClose(() => {
     setNetHooks(null); snapStore = null; prediction = null
@@ -170,7 +174,11 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     prediction = pred
     setNetHooks({
       current: () => pred.predicted,
-      step: cmd => { session.transport.send({ t: MsgType.Inputs, cmds: [cmd] }); return pred.step(cmd) },
+      step: cmd => {
+        if (cmd.buttons & Btn.Fire) cmd.fireRenderTime = interp.currentRenderTime   // 4.3: server tua hitbox về đây
+        session.transport.send({ t: MsgType.Inputs, cmds: [cmd] })
+        return pred.step(cmd)
+      },
       visualOffset: () => pred.decayOffset(),
     })
   })
@@ -225,11 +233,10 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     // Mỗi tick mô phỏng: logic súng + bước chân
     simMs = nowMs
     lastBtns = cmd.buttons
-    const locked = isLocked()
     const def    = WEAPONS[ws.current]!
     const speed  = Math.hypot(state.vel[0], state.vel[2])
 
-    const ev = stepWeapon(ws, nowMs, locked && !!(cmd.buttons & Btn.Fire), locked && !!(cmd.buttons & Btn.Reload))
+    const ev = stepWeaponCmd(ws, cmd)
     if (ev === 'fired') {
       computeShot(shotDir, rec, def, PLAYER_ID, ws.shotSeq - 1, cmd.yaw, cmd.pitch,
         spreadFor(def, state.grounded, spreadSpeed(speed, state.slideTimer), state.crouching))

@@ -4,6 +4,7 @@ import { clock } from './net/clock'
 import { interp } from './net/interpolation'
 import type { SnapshotStore } from './net/snapshots'
 import type { Prediction } from './net/prediction'
+import { weaponSyncStats } from './net/weaponSync'
 
 export function initDebugOverlay(
   net?: PingStats,
@@ -32,6 +33,7 @@ export function initDebugOverlay(
       `pos  ${state.pos.map(v => v.toFixed(2)).join('  ')}`,
       `yaw  ${state.yaw.toFixed(3)}   pitch ${state.pitch.toFixed(3)}`,
       ...(pred?.() ? [`pending ${pred()!.pending.length}   sai số reconcile ${pred()!.lastError.toFixed(3)} m   max 5s ${pred()!.maxError().toFixed(3)} m`] : []),
+      ...(pred?.() ? [`súng: lệch server ${weaponSyncStats.mismatches}/${weaponSyncStats.checks} lần`] : []),
       ...(snap?.() ? [`snapshot/s ${snap()!.perSec.toFixed(1)}   ghost(F5) bóng ma server`] : []),
       ...(snap?.()?.serverTime ? [`snapshot: serverNow − serverTime = ${(clock.serverNow() - snap()!.serverTime).toFixed(0)} ms   #${snap()!.count}`] : []),
       ...(net ? [`RTT  ${net.rttMs.toFixed(0)} ms   pong sai thứ tự ${net.outOfOrder}`, `interp delay ${interp.delayMs.toFixed(0)} ms (trễ 1 chiều ${clock.oneWayMs.toFixed(0)})`, `serverNow ${clock.serverNow().toFixed(0)}   offset ${clock.offset.toFixed(1)}${clock.synced ? '' : ' (chưa sync)'}`] : []),

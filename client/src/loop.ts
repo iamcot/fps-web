@@ -2,15 +2,22 @@ import { DT, TICK_RATE } from '@fps/shared'
 import { stepMovement, lerpState, defaultMovement } from '@fps/shared'
 import type { PlayerState, MovementConfig, InputCmd } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
-import { sampleButtons, yaw, pitch } from './input'
+import { Btn } from '@fps/shared'
+import { sampleButtons, yaw, pitch, isLocked } from './input'
 
 let _seq      = 0
 let _tick     = 0
 let _prev: PlayerState
 let _curr: PlayerState
 
+// Súng đang chọn: gửi theo mỗi cmd, logic súng đổi súng khi xử lý cmd (client và server như nhau)
+let _weapon = 0
+export function setWantedWeapon(id: number): void { _weapon = id }
+
 function _buildCmd(): InputCmd {
-  return { seq: _seq++, buttons: sampleButtons(), yaw, pitch, weapon: 0 }
+  let buttons = sampleButtons()
+  if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload)   // chưa khoá chuột thì không bắn/nạp
+  return { seq: _seq++, buttons, yaw, pitch, weapon: _weapon }
 }
 
 // Chế độ online (3.6): state do Prediction giữ; loop chỉ tạo cmd, gọi step và vẽ.

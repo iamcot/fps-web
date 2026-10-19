@@ -1,6 +1,6 @@
 import {
-  Btn, DT, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SNAPSHOT_EVERY_TICKS,
-  isValidCmd, stateToNet, stepMovement,
+  Btn, DT, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE,
+  isValidCmd, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
 import type { Player, Room } from './room'
@@ -9,12 +9,17 @@ import type { Player, Room } from './room'
 const HELD_MASK = ~(Btn.Jump | Btn.Fire | Btn.Reload)
 const MAX_CMDS_PER_MSG = 16
 
-// Cmd từ client không đáng tin: sai thì bỏ; hàng đợi quá dài thì bỏ cmd cũ nhất
-export function enqueueCmds(p: Player, cmds: unknown): void {
+// Cmd từ client không đáng tin: sai thì bỏ; hàng đợi quá dài thì bỏ cmd cũ nhất.
+// seq quyết định thời gian của súng (fire rate/reload) nên không được chạy nhanh hơn thời gian thực:
+// cmd có seq vượt quá SEQ_AHEAD_SLACK_MS so với mốc của cmd đầu tiên thì bỏ (seq nhảy cóc, gửi dồn).
+export function enqueueCmds(p: Player, cmds: unknown, nowMs: number = performance.now()): void {
   if (!Array.isArray(cmds)) return
   for (let i = 0; i < cmds.length && i < MAX_CMDS_PER_MSG; i++) {
     const c = cmds[i]
     if (!isValidCmd(c)) continue
+    const offset = nowMs - c.seq * 1000 / TICK_RATE
+    if (p.seqOffset === null) p.seqOffset = offset
+    else if (offset < p.seqOffset - SEQ_AHEAD_SLACK_MS) continue
     p.inputQueue.push(c)
     if (p.inputQueue.length > MAX_INPUT_QUEUE) p.inputQueue.shift()
   }
@@ -29,6 +34,7 @@ export function stepPlayer(p: Player, cfg: MovementConfig): void {
     p.state = stepMovement(p.state, cmd, p.world, cfg, DT)
     p.lastProcessedSeq = cmd.seq
     p.lastCmd = cmd
+    if (stepWeaponCmd(p.weapon, cmd) === 'fired') p.shotsFired++   // phát bắn hợp lệ (4.2 sẽ chấm trúng)
     ran++
   }
   if (ran > 0) { p.starvedTicks = 0; return }
@@ -59,6 +65,6 @@ export function sendSnapshots(room: Room, tick: number, serverTime: number): voi
   const players: NetPlayer[] = []
   for (const p of room.players.values()) players.push(stateToNet(p.id, p.state))
   for (const p of room.players.values()) {
-    p.transport.send({ t: MsgType.Snapshot, tick, serverTime, ack: p.lastProcessedSeq, players })
+    p.transport.send({ t: MsgType.Snapshot, tick, serverTime, ack: p.lastProcessedSeq, players, wpn: p.weapon })
   }
 }

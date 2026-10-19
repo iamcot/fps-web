@@ -1,5 +1,6 @@
 import { encode as mpEncode, decode as mpDecode } from '@msgpack/msgpack'
 import { Btn, type InputCmd, type PlayerState } from './movement'
+import { WEAPONS, type WeaponState } from './weapons'
 
 // Phân loại message theo plan/04-phase3-netcode-move.md (C2S 1-3, S2C 101-105)
 export const MsgType = {
@@ -67,6 +68,7 @@ export interface SnapshotMsg {
   serverTime: number
   ack: number          // lastProcessedSeq của chính client nhận gói này
   players: NetPlayer[]
+  wpn?: WeaponState    // WeaponState của chính client nhận gói này, sau cmd `ack` (client replay cmd chưa ack lên trên)
 }
 
 export interface PlayerJoinedMsg {
@@ -103,7 +105,8 @@ export function isValidCmd(c: unknown): c is InputCmd {
     (m.buttons & ~ALL_BUTTONS) === 0 &&
     typeof m.yaw === 'number' && Number.isFinite(m.yaw) &&
     typeof m.pitch === 'number' && Math.abs(m.pitch) <= MAX_PITCH &&
-    typeof m.weapon === 'number' && Number.isInteger(m.weapon)
+    typeof m.weapon === 'number' && Number.isInteger(m.weapon) && m.weapon >= 0 && m.weapon < WEAPONS.length &&
+    (m.fireRenderTime === undefined || (typeof m.fireRenderTime === 'number' && Number.isFinite(m.fireRenderTime)))
   )
 }
 

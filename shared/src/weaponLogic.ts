@@ -2,6 +2,9 @@ import { WEAPONS, SWITCH_MS, MOVE_SPREAD_SPEED } from './weapons'
 import type { WeaponDef, WeaponState } from './weapons'
 import { hashSeed, mulberry32 } from './math'
 import { shootDir } from './hitbox'
+import { Btn } from './movement'
+import type { InputCmd } from './movement'
+import { TICK_RATE } from './constants'
 
 const DEG = Math.PI / 180
 
@@ -126,4 +129,30 @@ export function recoverRecoil(rec: RecoilState, def: WeaponDef, ws: WeaponState,
   const step = def.recoilRecoverDegPerSec * DEG * dt
   rec.pitch = rec.pitch > 0 ? Math.max(0, rec.pitch - step) : Math.min(0, rec.pitch + step)
   rec.yaw   = rec.yaw   > 0 ? Math.max(0, rec.yaw   - step) : Math.min(0, rec.yaw   + step)
+}
+
+/**
+ * Một tick logic súng theo cmd: đổi súng (cmd.weapon) rồi stepWeapon. Thời gian = seq * 1000 / TICK_RATE
+ * (không dùng tick server) nên client và server tính fire rate/reload giống hệt nhau.
+ */
+export function stepWeaponCmd(ws: WeaponState, cmd: InputCmd): WeaponEvent {
+  const nowMs = cmd.seq * 1000 / TICK_RATE
+  switchWeapon(ws, cmd.weapon, nowMs)
+  return stepWeapon(ws, nowMs, !!(cmd.buttons & Btn.Fire), !!(cmd.buttons & Btn.Reload))
+}
+
+export function copyWeaponState(dst: WeaponState, src: WeaponState): void {
+  dst.current = src.current
+  for (let i = 0; i < src.ammo.length; i++) dst.ammo[i] = src.ammo[i]!
+  dst.reloadEndMs = src.reloadEndMs
+  dst.nextFireMs = src.nextFireMs
+  dst.shotSeq = src.shotSeq
+  dst.triggerHeld = src.triggerHeld
+}
+
+export function weaponStatesEqual(a: WeaponState, b: WeaponState): boolean {
+  if (a.current !== b.current || a.reloadEndMs !== b.reloadEndMs || a.nextFireMs !== b.nextFireMs ||
+      a.shotSeq !== b.shotSeq || a.triggerHeld !== b.triggerHeld) return false
+  for (let i = 0; i < a.ammo.length; i++) if (a.ammo[i] !== b.ammo[i]) return false
+  return true
 }

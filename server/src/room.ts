@@ -1,4 +1,4 @@
-import { MsgType, type InputCmd, type LoadedMap, type PlayerState, type Transport } from '@fps/shared'
+import { MsgType, makeWeaponState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 
 export const EMPTY_ROOM_TTL_MS = 60_000
@@ -16,6 +16,9 @@ export interface Player {
   world: CollisionWorld | null   // Rapier world riêng mỗi người (capsule kinematic); nạp bất đồng bộ sau khi join
   idleCmd: InputCmd              // scratch tái sử dụng khi hàng đợi trống
   starvedTicks: number           // số tick liên tiếp hàng đợi trống
+  weapon: WeaponState            // đạn/reload/fire rate do server giữ (4.1)
+  shotsFired: number             // số phát bắn hợp lệ từ lúc vào phòng (log/test)
+  seqOffset: number | null       // now − seq*1000/TICK_RATE của cmd đầu tiên; chặn seq chạy nhanh hơn thời gian thực
 }
 
 export class Room {
@@ -51,6 +54,9 @@ export class Room {
       world: null,
       idleCmd: { seq: 0, buttons: 0, yaw: sp.yaw, pitch: 0, weapon: 0 },
       starvedTicks: 0,
+      weapon: makeWeaponState(),
+      shotsFired: 0,
+      seqOffset: null,
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name })
     for (const other of this.players.values()) {

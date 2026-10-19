@@ -1,4 +1,4 @@
-import { MsgType, netToState, type NetPlayer, type PlayerState, type Transport } from '@fps/shared'
+import { MsgType, netToState, type NetPlayer, type PlayerState, type Transport, type WeaponState } from '@fps/shared'
 
 // Snapshot mới nhất từ server (task 3.4: "client câm" chỉ vẽ đúng cái này)
 export interface SnapshotStore {
@@ -8,6 +8,7 @@ export interface SnapshotStore {
   ack: number
   players: NetPlayer[]
   self: PlayerState | null    // state của chính mình trong snapshot mới nhất
+  wpn: WeaponState | null     // súng của mình (sau cmd ack)
   count: number
   perSec: number              // số snapshot nhận mỗi giây (cập nhật mỗi ~1s)
 }
@@ -17,7 +18,7 @@ export function attachSnapshots(
   yourId: number,
   onSnapshot?: (store: SnapshotStore) => void,
 ): SnapshotStore {
-  const store: SnapshotStore = { yourId, tick: 0, serverTime: 0, ack: -1, players: [], self: null, count: 0, perSec: 0 }
+  const store: SnapshotStore = { yourId, tick: 0, serverTime: 0, ack: -1, players: [], self: null, wpn: null, count: 0, perSec: 0 }
   let windowStart = performance.now()
   let windowCount = 0
   transport.onMessage(msg => {
@@ -36,6 +37,7 @@ export function attachSnapshots(
     }
     const me = msg.players.find(p => p.id === yourId)
     store.self = me ? netToState(me) : null
+    store.wpn = msg.wpn ?? null
     onSnapshot?.(store)
   })
   return store

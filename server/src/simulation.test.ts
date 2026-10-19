@@ -153,3 +153,87 @@ describe('TickLoop', () => {
     expect(loop.skipped).toBeGreaterThan(500)
   })
 })
+
+describe('súng trên server (4.1)', () => {
+  // Gửi Fire liên tục `n` cmd, mỗi tick một cmd, trả số phát hợp lệ
+  function holdFire(weapon: number, n: number, pulse = false) {
+    const { p } = setup()
+    for (let i = 0; i < n; i++) {
+      const fire = pulse ? (i % 2 === 0 ? Btn.Fire : 0) : Btn.Fire
+      enqueueCmds(p, [cmd(i, fire, { weapon })], i * 1000 / 60)
+      stepPlayer(p, defaultMovement)
+    }
+    return p
+  }
+
+  it('AK47 giữ cò: đúng 10 phát/giây theo fireIntervalMs, bất kể tick server', () => {
+    const p = holdFire(0, 60)
+    expect(p.shotsFired).toBe(10)
+    expect(p.weapon.ammo[0]).toBe(30 - 10)
+  })
+
+  it('cmd đến dồn 2 cái/tick vẫn tính fire rate theo seq', () => {
+    const { p } = setup()
+    for (let i = 0; i < 60; i += 2) {
+      enqueueCmds(p, [cmd(i, Btn.Fire), cmd(i + 1, Btn.Fire)], i * 1000 / 60)
+      stepPlayer(p, defaultMovement)
+    }
+    expect(p.shotsFired).toBe(10)
+  })
+
+  it('COLT bán tự động: phải nhả cò mới bắn tiếp', () => {
+    // đổi sang COLT khoá bắn 300ms; giữ cò qua lúc khoá thì cú bấm đó mất, không tự bắn khi hết khoá
+    expect(holdFire(2, 60).shotsFired).toBe(0)
+    // bấm mỗi 2 tick: sau 300ms khoá còn ~0.7s, mỗi phát cách ≥160ms (10 tick) → tick 18,28,38,48,58 = 5 phát
+    expect(holdFire(2, 60, true).shotsFired).toBe(5)
+  })
+
+  it('xả hết băng rồi tự nạp: ammo về đầy sau reloadMs', () => {
+    const { p } = setup()
+    let seq = 0
+    const run = (n: number, buttons: number) => {
+      for (let i = 0; i < n; i++, seq++) { enqueueCmds(p, [cmd(seq, buttons)], seq * 1000 / 60); stepPlayer(p, defaultMovement) }
+    }
+    run(200, Btn.Fire)             // 30 viên hết trong ~3s, rồi cạch + tự nạp
+    expect(p.weapon.ammo[0]).toBe(0)
+    expect(p.shotsFired).toBe(30)
+    run(160, 0)                     // 2.5s reload
+    expect(p.weapon.ammo[0]).toBe(30)
+  })
+
+  it('đổi súng qua cmd.weapon', () => {
+    const { p } = setup()
+    enqueueCmds(p, [cmd(0, 0, { weapon: 3 })], 0)
+    stepPlayer(p, defaultMovement)
+    expect(p.weapon.current).toBe(3)
+  })
+
+  it('seq nhảy cóc bị bỏ: không bắn nhanh hơn thời gian thực', () => {
+    const { p } = setup()
+    enqueueCmds(p, [cmd(0)], 0)
+    stepPlayer(p, defaultMovement)
+    enqueueCmds(p, [cmd(6000, Btn.Fire)], 100)   // 100 giây trong 100ms thật
+    stepPlayer(p, defaultMovement)
+    expect(p.lastProcessedSeq).toBe(0)
+    expect(p.shotsFired).toBe(0)
+  })
+
+  it('gửi dồn nhưng trong sai số 1s vẫn nhận', () => {
+    const { p } = setup()
+    enqueueCmds(p, [cmd(0)], 0)
+    enqueueCmds(p, [cmd(30)], 100)   // 500ms seq, 100ms thật: nằm trong slack
+    stepPlayer(p, defaultMovement)
+    expect(p.inputQueue.length + (p.lastProcessedSeq >= 0 ? 1 : 0)).toBeGreaterThan(0)
+    expect(p.inputQueue.some(c => c.seq === 30) || p.lastProcessedSeq === 30).toBe(true)
+  })
+
+  it('snapshot kèm WeaponState của chính người nhận', () => {
+    const { room, p, got } = setup()
+    enqueueCmds(p, [cmd(0, Btn.Fire)], 0)
+    stepPlayer(p, defaultMovement)
+    sendSnapshots(room, 0, 0)
+    const snap = got.find(m => m.t === MsgType.Snapshot)
+    if (!snap || snap.t !== MsgType.Snapshot) throw new Error('không có snapshot')
+    expect(snap.wpn?.ammo[0]).toBe(29)
+  })
+})

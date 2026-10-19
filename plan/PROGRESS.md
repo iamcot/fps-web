@@ -45,7 +45,7 @@
 - [x] 3.7 Ghost + kiểm thử ping cao — render/ghosts.ts (F5: wireframe tại snapshot mới nhất của mọi người, mình màu vàng); F3 thêm pending, sai số reconcile (lần cuối + max 5s), snapshot/s (cùng RTT, offset, interp delay có từ trước). Kiểm: browser ?lat=100 nhấn D → vị trí đổi sau 41ms; ghost của mình trễ 1.59m khi chạy
 
 ## Phase 4 – Bắn online
-- [ ] 4.1 Bắn qua InputCmd, server kiểm soát đạn/fire rate
+- [x] 4.1 Bắn qua InputCmd, server kiểm soát đạn/fire rate — shared: stepWeaponCmd(ws, cmd) (đổi súng theo cmd.weapon + stepWeapon, nowMs = seq*1000/TICK_RATE), copyWeaponState/weaponStatesEqual, SnapshotMsg.wpn (WeaponState của người nhận), isValidCmd kiểm weapon trong dải + fireRenderTime hữu hạn, SEQ_AHEAD_SLACK_MS=1000; server: Player.weapon/shotsFired, bỏ cmd có seq chạy nhanh hơn thời gian thực >1s (thay cho 'đếm >66 cmd/giây'); client: cmd.weapon + Fire/Reload tắt khi chưa khoá chuột (loop.ts), fireRenderTime = interp.currentRenderTime khi Fire, net/weaponSync.ts reconcile súng (đặt state server, replay cmd chưa ack) + F3 'súng: lệch server n/m'. Chưa có: server chưa chấm trúng (4.2). Đo: bot giữ Fire AK 6s ở lat 0 / 100±20 / 150±40: ammo client = server, 0 lệch/180 lần. Plan nói Pistol 4 phát/giây nhưng COLT là bán tự động 160ms: AK47 = 10 phát/s đúng fireIntervalMs, COLT cần nhả cò giữa các phát
 - [ ] 4.2 Server hitscan (chưa lag comp)
 - [ ] 4.3 Lịch sử hitbox + lag compensation
 - [ ] 4.4 Máu, chết, hồi sinh, bất tử
