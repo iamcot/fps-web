@@ -140,6 +140,7 @@ const playersRenderer = createPlayersRenderer(scene, {
   teamOf: id => sessionRef?.teams.get(id),
   nameOf: id => sessionRef?.names.get(id),
   myTeam: () => sessionRef?.teams.get(sessionRef.yourId),
+  characterSet: () => sessionRef?.characterSet ?? '',
 })
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()

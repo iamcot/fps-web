@@ -3,18 +3,21 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { defaultMovement, NetFlag, TEAMS, type TeamId } from '@fps/shared'
 import { MUZZLE_FALLBACK, makeFlashTexture } from './viewmodel'
+import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
+import { makeAnimState, updateAnim, type AnimState } from './characters/animate'
+import { createDeathFx } from './characters/deathFx'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
-interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; flags: number; weapon?: number }
+interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number }
 
 export interface TeamInfo {
   teamOf(id: number): TeamId | undefined
   nameOf(id: number): string | undefined
   myTeam(): TeamId | undefined
+  characterSet?(): string   // bộ nhân vật của phòng (mặc định nếu thiếu)
 }
 
 const FLASH_MS = 60
-const SKIN = 0xe0b090
 const WEAPON_FILES = ['/models/ak47.glb', '/models/m16.glb', '/models/colt.glb', '/models/rouleau.glb']
 
 // Súng cầm trên tay người khác: load một lần mỗi loại, mỗi người clone (dùng chung geometry/material)
@@ -49,116 +52,68 @@ function makeNameSprite(text: string, color: string): THREE.Sprite {
   return sp
 }
 
-// Kích thước khớp hitbox (shared/hitbox.ts): chân 0–0.8, thân 0.8–1.45, đầu 1.45–1.8 (rộng 0.35, sâu 0.3)
-// và thân rộng ≤ 0.6. Gốc ở chân, mặt nhìn −Z (yaw 0), lưng +Z.
-interface Rig {
-  root: THREE.Group
-  mats: THREE.MeshLambertMaterial[]
-  team: TeamId
-  gunAnchor: THREE.Group
+// Mỗi người = một rig dựng từ bộ nhân vật của phòng (render/characters) + súng + lửa nòng + animation
+interface Actor {
+  rig: CharacterRig
+  anim: AnimState
   gun: THREE.Object3D | null
   gunId: number
   flash: THREE.Sprite
   flashUntil: number
+  wasDead: boolean
 }
 
-function buildRig(team: TeamId): Rig {
-  const root = new THREE.Group()
-  const mats: THREE.MeshLambertMaterial[] = []
-  const mat = (color: number) => {
-    const m = new THREE.MeshLambertMaterial({ color, transparent: true })
-    mats.push(m)
-    return m
-  }
-  const box = (parent: THREE.Object3D, w: number, h: number, d: number, color: number, x: number, y: number, z: number): THREE.Mesh => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color))
-    m.position.set(x, y, z)
-    m.castShadow = true
-    parent.add(m)
-    return m
-  }
-  const cop = team === 'A'
-  const cloth = cop ? TEAMS.A.color : 0x1c1c1c
-  const pants = cop ? 0x1d2f55 : 0x2e2e2e
-
-  // Chân + thân + đầu
-  box(root, 0.22, 0.8, 0.26, pants, -0.1, 0.4, 0)
-  box(root, 0.22, 0.8, 0.26, pants, 0.1, 0.4, 0)
-  box(root, 0.4, 0.65, 0.26, cloth, 0, 1.125, 0)
-  box(root, 0.35, 0.35, 0.3, SKIN, 0, 1.625, 0)
-
-  // Tay: nhấc về phía trước như đang cầm súng (pivot ở vai)
-  const arm = (x: number, rotX: number, rotZ: number) => {
-    const p = new THREE.Group()
-    p.position.set(x, 1.4, 0)
-    p.rotation.set(rotX, 0, rotZ)
-    box(p, 0.1, 0.6, 0.14, cloth, 0, -0.3, 0)
-    box(p, 0.1, 0.1, 0.14, SKIN, 0, -0.62, 0)   // bàn tay
-    root.add(p)
-  }
-  arm(0.25, 1.35, 0)
-  arm(-0.25, 1.15, -0.35)
-
-  if (cop) {
-    // Mũ kê-pi: hộp dẹt + vành trước
-    box(root, 0.38, 0.1, 0.34, 0x1b2748, 0, 1.85, 0)
-    box(root, 0.38, 0.03, 0.14, 0x0e0e0e, 0, 1.81, -0.2)
-    box(root, 0.39, 0.03, 0.35, 0xd9b84a, 0, 1.79, 0)   // dải vàng
-  } else {
-    // Sọc ngang trên thân, khăn che nửa mặt dưới, túi tiền sau lưng
-    for (const y of [0.95, 1.12, 1.29]) box(root, 0.42, 0.05, 0.28, 0xe8e8e8, 0, y, 0)
-    box(root, 0.37, 0.16, 0.32, 0x111111, 0, 1.53, 0)
-    box(root, 0.37, 0.07, 0.32, 0x111111, 0, 1.76, 0)   // khăn buộc trán
-    const sack = box(root, 0.32, 0.34, 0.16, 0x7a6a3a, 0, 1.1, 0.21)
-    box(sack, 0.12, 0.08, 0.1, 0x4f4326, 0, 0.2, 0)   // miệng túi
-  }
-
-  // Súng đặt trước người, ngang tầm bàn tay phải, chĩa −Z
-  const gunAnchor = new THREE.Group()
-  gunAnchor.position.set(0.25, 1.28, -0.4)
-  root.add(gunAnchor)
+function makeActor(rig: CharacterRig, dead: boolean): Actor {
   const flash = new THREE.Sprite(new THREE.SpriteMaterial({
     map: makeFlashTexture(), transparent: true, depthTest: false, blending: THREE.AdditiveBlending,
   }))
   flash.scale.set(0.3, 0.3, 1)
   flash.renderOrder = 10
   flash.visible = false
-  gunAnchor.add(flash)
-
-  return { root, mats, team, gunAnchor, gun: null, gunId: -1, flash, flashUntil: 0 }
+  rig.gunAnchor.add(flash)
+  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead }
 }
 
-function disposeRig(r: Rig): void {
-  r.root.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose() })
-  for (const m of r.mats) m.dispose()
-  r.flash.material.map?.dispose()
-  r.flash.material.dispose()
+function disposeActor(a: Actor): void {
+  disposeRig(a.rig)
+  a.flash.material.map?.dispose()
+  a.flash.material.dispose()
 }
 
-// Người chơi = người khối hộp (Cớm / Cướp); pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig.
+// pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig (thu thân theo tỉ lệ như hitbox).
 export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   const { standHeight, crouchHeight } = defaultMovement
-  const rigs = new Map<number, Rig>()
+  const actors = new Map<number, Actor>()
   const lastSeen = new Map<number, number>()   // id → số frame cuối được thấy (tránh cấp phát Set mỗi frame)
   const labels = new Map<number, THREE.Sprite>()
+  const deathFx = createDeathFx(scene)
   let frame = 0
+  let lastNow = performance.now()
+  let setId = ''
   requestGuns()
 
-  // Dựng lại khi đội đổi (TeamAssigned đến sau snapshot đầu)
-  function ensure(id: number): Rig {
-    const team = info?.teamOf(id) ?? 'A'
-    let r = rigs.get(id)
-    if (r && r.team !== team) { scene.remove(r.root); disposeRig(r); r = undefined }
-    if (!r) {
-      r = buildRig(team)
-      scene.add(r.root)
-      rigs.set(id, r)
+  function dropActor(id: number, a: Actor): void {
+    scene.remove(a.rig.root)
+    disposeActor(a)
+    actors.delete(id)
+    lastSeen.delete(id)
+  }
+
+  // Dựng lại khi đội đổi (TeamAssigned đến sau snapshot đầu) hoặc đổi bộ nhân vật
+  function ensure(p: RenderPlayer): Actor {
+    const team = info?.teamOf(p.id) ?? 'A'
+    let a = actors.get(p.id)
+    if (a && a.rig.team !== team) { dropActor(p.id, a); a = undefined }
+    if (!a) {
+      a = makeActor(getCharacterSet(setId).build(team), (p.flags & NetFlag.Dead) !== 0)
+      scene.add(a.rig.root)
+      actors.set(p.id, a)
     }
-    return r
+    return a
   }
 
   // Tên chỉ cho đồng đội, kẻ địch không có nhãn
-  function dressLabel(id: number, r: Rig, h: number): void {
+  function dressLabel(id: number, a: Actor, h: number): void {
     const team = info?.teamOf(id)
     let label = labels.get(id)
     const mate = team !== undefined && team === info?.myTeam()
@@ -171,35 +126,47 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       }
     }
     if (label) {
-      label.visible = mate && r.root.visible
-      label.position.set(r.root.position.x, r.root.position.y + h + 0.5, r.root.position.z)
+      label.visible = mate && a.rig.root.visible
+      label.position.set(a.rig.root.position.x, a.rig.root.position.y + h + 0.5, a.rig.root.position.z)
     }
   }
 
-  function dressGun(r: Rig, weapon: number): void {
-    if (r.gunId === weapon && r.gun) return
+  function dressGun(a: Actor, weapon: number): void {
+    if (a.gunId === weapon && a.gun) return
     const src = gunModels.get(weapon)
     if (!src) return   // chưa load xong: thử lại frame sau
-    if (r.gun) r.gunAnchor.remove(r.gun)
-    r.gun = src.clone(true)
-    r.gunId = weapon
-    r.gunAnchor.add(r.gun)
+    if (a.gun) a.rig.gunAnchor.remove(a.gun)
+    a.gun = src.clone(true)
+    a.gunId = weapon
+    a.rig.gunAnchor.add(a.gun)
     // Toạ độ đầu nòng đã đo sẵn trong hệ gunGroup (node 'muzzle' nằm trong GunRoot đã scale nên không dùng trực tiếp)
-    r.flash.position.copy(MUZZLE_FALLBACK[weapon] ?? MUZZLE_FALLBACK[0]!)
+    a.flash.position.copy(MUZZLE_FALLBACK[weapon] ?? MUZZLE_FALLBACK[0]!)
   }
 
-  function place(id: number, r: Rig, p: RenderPlayer, nowMs: number) {
-    const h = (p.flags & NetFlag.Crouching) ? crouchHeight : standHeight
-    r.root.scale.y = h / standHeight
-    r.root.position.set(p.pos[0], p.pos[1], p.pos[2])
-    r.root.rotation.y = p.yaw
-    r.root.visible = !(p.flags & NetFlag.Dead)   // người chết không vẽ
+  function place(p: RenderPlayer, a: Actor, nowMs: number, dt: number) {
+    const rig = a.rig
+    const crouching = (p.flags & NetFlag.Crouching) !== 0
+    const h = crouching ? crouchHeight : standHeight
+    rig.root.scale.y = h / standHeight
+    rig.root.position.set(p.pos[0], p.pos[1], p.pos[2])
+    rig.root.rotation.y = p.yaw
+    const dead = (p.flags & NetFlag.Dead) !== 0
+    if (dead && !a.wasDead) deathFx.burst(rig)   // vừa chết: các khối tách ra
+    a.wasDead = dead
+    rig.root.visible = !dead
+    if (!dead) {
+      updateAnim(rig, a.anim, {
+        x: p.pos[0], z: p.pos[2], dt,
+        grounded: (p.flags & NetFlag.Grounded) !== 0, crouching, sliding: (p.flags & NetFlag.Sliding) !== 0,
+        pitch: p.pitch ?? 0,
+      })
+    } else a.anim.hasLast = false   // hồi sinh xa chỗ chết: không tính thành chạy
     // Bất tử: nhấp nháy mờ
     const op = (p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1
-    if (r.mats[0]!.opacity !== op || op !== 1) for (const m of r.mats) m.opacity = op
-    dressGun(r, p.weapon ?? 0)
-    r.flash.visible = nowMs < r.flashUntil
-    dressLabel(id, r, h)
+    if (rig.mats[0]!.opacity !== op || op !== 1) for (const m of rig.mats) m.opacity = op
+    dressGun(a, p.weapon ?? 0)
+    a.flash.visible = nowMs < a.flashUntil
+    dressLabel(p.id, a, h)
   }
 
   return {
@@ -208,27 +175,32 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     update(players: RenderPlayer[], selfId = -1) {
       frame++
       const now = performance.now()
+      const dt = Math.min(0.1, (now - lastNow) / 1000)
+      lastNow = now
+      const want = info?.characterSet?.() ?? ''
+      if (want !== setId) {   // đổi bộ nhân vật (vào phòng khác): dựng lại tất cả
+        setId = want
+        for (const [id, a] of actors) dropActor(id, a)
+      }
       for (const p of players) {
         if (p.id === selfId) continue
-        const r = ensure(p.id)
+        const a = ensure(p)
         lastSeen.set(p.id, frame)
-        place(p.id, r, p, now)
+        place(p, a, now, dt)
       }
-      for (const [id, r] of rigs) {
+      for (const [id, a] of actors) {
         if (lastSeen.get(id) === frame) continue
-        scene.remove(r.root)
-        disposeRig(r)
         const lb = labels.get(id)
         if (lb) { scene.remove(lb); lb.material.map?.dispose(); lb.material.dispose(); labels.delete(id) }
-        rigs.delete(id)
-        lastSeen.delete(id)
+        dropActor(id, a)
       }
+      deathFx.update(dt)
     },
     // Lửa đầu nòng khi nhận ShotFx của người này
     muzzleFlash(id: number) {
-      const r = rigs.get(id)
-      if (r) r.flashUntil = performance.now() + FLASH_MS
+      const a = actors.get(id)
+      if (a) a.flashUntil = performance.now() + FLASH_MS
     },
-    clear() { this.update([]) },
+    clear() { this.update([]); deathFx.clear() },
   }
 }

@@ -80,3 +80,21 @@ describe('RoomManager', () => {
     expect(rm.rooms.size).toBe(0)
   })
 })
+
+describe('bộ nhân vật theo phòng', () => {
+  it('chọn lúc tạo phòng, người vào sau dùng bộ của phòng; Welcome báo bộ đó', () => {
+    const rm = new RoomManager(map, () => 0)
+    const a = fake(), b = fake()
+    const first = rm.join('r', 'A', a.t, 0, 'auto', 'robot')
+    const second = rm.join('r', 'B', b.t, 0, 'auto', 'blocky')   // xin blocky nhưng phòng đã là robot
+    expect(first.room.characterSet).toBe('robot')
+    expect(second.room.characterSet).toBe('robot')
+    expect(b.got[0]).toMatchObject({ t: MsgType.Welcome, characterSet: 'robot' })
+  })
+  it('mặc định blocky', () => {
+    const rm = new RoomManager(map, () => 0)
+    const a = fake()
+    rm.join('x', 'A', a.t)
+    expect(a.got[0]).toMatchObject({ characterSet: 'blocky' })
+  })
+})

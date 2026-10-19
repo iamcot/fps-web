@@ -1,4 +1,4 @@
-import { MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId } from '@fps/shared'
+import { DEFAULT_CHARACTER_SET, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 
@@ -58,6 +58,7 @@ export class Room {
     private now: () => number,
     private random: () => number = Math.random,
     readonly rules: MatchRules = MATCH,
+    readonly characterSet: CharacterSetId = DEFAULT_CHARACTER_SET,   // chọn lúc tạo phòng, không đổi sau đó
   ) {
     this.emptySince = now()
   }
@@ -129,7 +130,7 @@ export class Room {
       pingMs: 0,
       seqOffset: null,
     }
-    transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name,
+    transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name, characterSet: this.characterSet,
       players: [...this.players.values()].map(o => ({ id: o.id, name: o.name })) })
     for (const other of this.players.values()) {
       other.transport.send({ t: MsgType.PlayerJoined, id: player.id, name: player.name })
@@ -236,16 +237,16 @@ export class RoomManager {
   constructor(private map: LoadedMap, private now: () => number = () => performance.now(), private rules: MatchRules = MATCH) {}
 
   // Vào phòng chưa có thì tạo mới. tryJoin trả null khi phòng đầy
-  join(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto'): { room: Room; player: Player } {
-    const res = this.tryJoin(roomId, name, transport, tick, team)
+  join(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET): { room: Room; player: Player } {
+    const res = this.tryJoin(roomId, name, transport, tick, team, characterSet)
     if (!res) throw new Error('phòng đầy')
     return res
   }
 
-  tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto'): { room: Room; player: Player } | null {
+  tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET): { room: Room; player: Player } | null {
     let room = this.rooms.get(roomId)
     if (!room) {
-      room = new Room(roomId, this.map, this.now, Math.random, this.rules)
+      room = new Room(roomId, this.map, this.now, Math.random, this.rules, characterSet)
       this.rooms.set(roomId, room)
     }
     const player = room.join(name, transport, tick, this.now(), team)

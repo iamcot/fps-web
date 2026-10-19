@@ -24,3 +24,11 @@ describe('teams', () => {
     expect(winnerOf(3, 2)).toBe('A'); expect(winnerOf(1, 2)).toBe('B'); expect(winnerOf(2, 2)).toBeNull()
   })
 })
+
+import { isCharacterSet, CHARACTER_SETS } from './index'
+describe('characters', () => {
+  it('isCharacterSet chỉ nhận id trong danh mục', () => {
+    for (const id of CHARACTER_SETS) expect(isCharacterSet(id)).toBe(true)
+    expect(isCharacterSet('x')).toBe(false); expect(isCharacterSet(undefined)).toBe(false); expect(isCharacterSet(3)).toBe(false)
+  })
+})

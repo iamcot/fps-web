@@ -1,7 +1,7 @@
 import { createServer } from 'http'
 import { readFileSync } from 'fs'
 import { WebSocketServer } from 'ws'
-import { TICK_RATE, MsgType, MatchPhase, MATCH, loadMap, defaultMovement, type MapFile } from '@fps/shared'
+import { TICK_RATE, MsgType, isCharacterSet, DEFAULT_CHARACTER_SET, MatchPhase, MATCH, loadMap, defaultMovement, type MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { wrapWebSocket } from './transport'
 import { startHeartbeat } from './heartbeat'
@@ -85,7 +85,7 @@ wss.on('connection', ws => {
       const roomId = sanitizeRoom(msg.room)
       if (!name || !roomId) return
       const pref = msg.team === 'A' || msg.team === 'B' ? msg.team : 'auto'
-      const res = rooms.tryJoin(roomId, name, transport, loop.tick, pref)
+      const res = rooms.tryJoin(roomId, name, transport, loop.tick, pref, isCharacterSet(msg.characterSet) ? msg.characterSet : DEFAULT_CHARACTER_SET)
       if (!res) { console.log(`${stamp()} [room ${roomId}] "${name}" bị từ chối: phòng đầy`); ws.close(1008, 'room full'); return }
       ;({ room, player } = res)
       const joined = player

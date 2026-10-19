@@ -3,6 +3,7 @@ import { Btn, type InputCmd, type PlayerState } from './movement'
 import type { HitBox } from './hitbox'
 import { WEAPONS, type WeaponState } from './weapons'
 import type { MatchPhase, TeamId } from './teams'
+import type { CharacterSetId } from './characters'
 
 // Phân loại message theo plan/04-phase3-netcode-move.md (C2S 1-3, S2C 101-105)
 export const MsgType = {
@@ -48,6 +49,7 @@ export interface JoinMsg {
   name: string
   room: string
   team?: TeamId | 'auto'   // đội muốn vào; mặc định auto
+  characterSet?: string    // bộ nhân vật; chỉ có tác dụng khi người này tạo phòng mới (sai/thiếu → mặc định)
 }
 
 // Đổi đội (server áp luật cân bằng, trả lời bằng TeamAssigned)
@@ -69,6 +71,7 @@ export interface WelcomeMsg {
   tick: number
   serverTime: number
   mapName: string
+  characterSet: CharacterSetId   // bộ nhân vật của phòng
   players: { id: number; name: string }[]   // những người đã có trong phòng lúc vào (để biết tên cho killfeed)
 }
 
