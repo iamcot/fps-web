@@ -76,6 +76,8 @@ const vm = createViewmodel(window.innerWidth / window.innerHeight)
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Digit1') vm.switchWeapon(0)
   if (e.code === 'Digit2') vm.switchWeapon(1)
+  if (e.code === 'Digit3') vm.switchWeapon(2)
+  if (e.code === 'Digit4') vm.switchWeapon(3)
   if (e.code === 'F4' && debugLines) { debugLines.visible = !debugLines.visible; e.preventDefault() }
 })
 
