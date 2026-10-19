@@ -34,6 +34,15 @@ export class ClockSync {
   serverNow(): number { return this.now() + this.applied }
   get offset(): number { return this.applied }
   get synced(): boolean { return this.hasSample }
+
+  // Trễ một chiều ước lượng = RTT trung bình / 2 (trung bình, không phải nhỏ nhất: snapshot
+  // đến theo trễ thực tế chứ không theo mẫu đẹp nhất)
+  get oneWayMs(): number {
+    if (this.samples.length === 0) return 0
+    let sum = 0
+    for (const s of this.samples) sum += s.rtt
+    return sum / this.samples.length / 2
+  }
 }
 
 export const clock = new ClockSync()

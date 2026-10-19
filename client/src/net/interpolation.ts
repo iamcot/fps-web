@@ -22,7 +22,29 @@ export interface InterpPlayer {
 }
 
 // Phase 4 dùng khi bắn: thời điểm server mà người chơi đang "nhìn thấy" ở frame này
-export const interp = { currentRenderTime: 0 }
+export const interp = { currentRenderTime: 0, delayMs: INTERP_DELAY_MS }
+
+const MAX_ONE_WAY_MS = 250
+const DELAY_SLEW_MS_PER_FRAME = 1
+
+// serverNow ước lượng giờ thật của server, còn snapshot đến muộn thêm trễ một chiều. Nếu chỉ lùi
+// INTERP_DELAY_MS cố định thì ping cao sẽ không còn snapshot "b" để nội suy. Nên lùi thêm đúng
+// bằng trễ một chiều. Đổi delay từ từ (≤1ms/frame) để người khác không bị trượt/nhảy.
+export class InterpDelay {
+  private _value = INTERP_DELAY_MS
+  private started = false
+
+  get value(): number { return this._value }
+
+  // Gọi mỗi frame với trễ một chiều ước lượng (ms)
+  update(oneWayMs: number): number {
+    const target = INTERP_DELAY_MS + Math.min(Math.max(oneWayMs, 0), MAX_ONE_WAY_MS)
+    if (!this.started) { this._value = target; this.started = oneWayMs > 0 }
+    else if (target > this._value) this._value = Math.min(target, this._value + DELAY_SLEW_MS_PER_FRAME)
+    else this._value = Math.max(target, this._value - DELAY_SLEW_MS_PER_FRAME)
+    return this._value
+  }
+}
 
 export class Interpolator {
   private buffers = new Map<number, Entry[]>()
@@ -48,9 +70,10 @@ export class Interpolator {
   }
 
   // Gọi mỗi frame với serverNow() hiện tại; trả về danh sách dùng lại (hợp lệ tới lần gọi sau)
-  sample(serverNow: number): InterpPlayer[] {
-    const renderTime = serverNow - INTERP_DELAY_MS
+  sample(serverNow: number, delayMs = INTERP_DELAY_MS): InterpPlayer[] {
+    const renderTime = serverNow - delayMs
     interp.currentRenderTime = renderTime
+    interp.delayMs = delayMs
     this.list.length = 0
     for (const [id, buf] of this.buffers) {
       let o = this.out.get(id)

@@ -81,3 +81,38 @@ describe('Interpolator', () => {
     expect(ip.sample(5000)[0]!.pos[0]).toBe(0)
   })
 })
+
+import { InterpDelay } from './interpolation'
+
+describe('InterpDelay', () => {
+  it('mẫu đầu đặt thẳng INTERP_DELAY_MS + trễ một chiều', () => {
+    const d = new InterpDelay()
+    expect(d.update(80)).toBe(D + 80)
+  })
+
+  it('chưa đo được (0) thì dùng INTERP_DELAY_MS, rồi nhận giá trị thật ngay ở mẫu đầu', () => {
+    const d = new InterpDelay()
+    expect(d.update(0)).toBe(D)
+    expect(d.update(60)).toBe(D + 60)
+  })
+
+  it('đổi dần ≤1ms/frame cả hai chiều', () => {
+    const d = new InterpDelay()
+    d.update(50)
+    expect(d.update(100)).toBe(D + 51)
+    for (let i = 0; i < 100; i++) d.update(100)
+    expect(d.value).toBe(D + 100)
+    expect(d.update(20)).toBe(D + 99)
+  })
+
+  it('chặn trễ một chiều quá lớn', () => {
+    expect(new InterpDelay().update(5000)).toBe(D + 250)
+  })
+
+  it('sample dùng delay truyền vào', () => {
+    const ip = new Interpolator()
+    ip.push(1000, [np(2, 0)]); ip.push(1050, [np(2, 10)])
+    expect(ip.sample(1025 + 180, 180)[0]!.pos[0]).toBeCloseTo(5)
+    expect(interp.delayMs).toBe(180)
+  })
+})

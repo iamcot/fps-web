@@ -1,6 +1,7 @@
 import type { PlayerState } from '@fps/shared'
 import type { PingStats } from './net/ping'
 import { clock } from './net/clock'
+import { interp } from './net/interpolation'
 import type { SnapshotStore } from './net/snapshots'
 
 export function initDebugOverlay(
@@ -29,7 +30,7 @@ export function initDebugOverlay(
       `pos  ${state.pos.map(v => v.toFixed(2)).join('  ')}`,
       `yaw  ${state.yaw.toFixed(3)}   pitch ${state.pitch.toFixed(3)}`,
       ...(snap?.()?.serverTime ? [`snapshot: serverNow − serverTime = ${(clock.serverNow() - snap()!.serverTime).toFixed(0)} ms   #${snap()!.count}`] : []),
-      ...(net ? [`RTT  ${net.rttMs.toFixed(0)} ms   pong sai thứ tự ${net.outOfOrder}`, `serverNow ${clock.serverNow().toFixed(0)}   offset ${clock.offset.toFixed(1)}${clock.synced ? '' : ' (chưa sync)'}`] : []),
+      ...(net ? [`RTT  ${net.rttMs.toFixed(0)} ms   pong sai thứ tự ${net.outOfOrder}`, `interp delay ${interp.delayMs.toFixed(0)} ms (trễ 1 chiều ${clock.oneWayMs.toFixed(0)})`, `serverNow ${clock.serverNow().toFixed(0)}   offset ${clock.offset.toFixed(1)}${clock.synced ? '' : ' (chưa sync)'}`] : []),
     ].join('\n')
   }
 }

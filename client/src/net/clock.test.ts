@@ -57,3 +57,14 @@ describe('ClockSync', () => {
     expect(c.offset).toBeCloseTo(o + 500, 6)
   })
 })
+
+describe('oneWayMs', () => {
+  it('= RTT trung bình / 2, 0 khi chưa có mẫu', () => {
+    let now = 0
+    const c = new ClockSync(() => now)
+    expect(c.oneWayMs).toBe(0)
+    now = 100; c.addSample(0, 50)       // rtt 100
+    now = 400; c.addSample(200, 300)    // rtt 200
+    expect(c.oneWayMs).toBe(75)
+  })
+})

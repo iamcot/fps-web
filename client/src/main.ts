@@ -14,7 +14,7 @@ import { startPing, type PingStats } from './net/ping'
 import { clock } from './net/clock'
 import { attachSnapshots, type SnapshotStore } from './net/snapshots'
 import { createPlayersRenderer } from './render/players'
-import { Interpolator } from './net/interpolation'
+import { Interpolator, InterpDelay } from './net/interpolation'
 import { MsgType } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
@@ -128,6 +128,7 @@ const netStats: PingStats = { rttMs: 0, outOfOrder: 0 }
 let snapStore: SnapshotStore | null = null
 const playersRenderer = createPlayersRenderer(scene)
 const interpolator = new Interpolator()
+const interpDelay = new InterpDelay()
 showLobby().then(session => {
   if (!session) return
   startPing(session.transport, netStats)
@@ -196,8 +197,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     renderer.clearDepth()
     renderer.render(vm.scene, vm.cam)
 
-    // Người khác: vẽ trễ INTERP_DELAY_MS bằng nội suy; chưa vào phòng thì danh sách rỗng
-    if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow()))
+    // Người khác: vẽ trễ (INTERP_DELAY_MS + trễ một chiều) bằng nội suy; chưa vào phòng thì danh sách rỗng
+    if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)))
     clock.tick()
     updateDebug(state, fps)
   }, (state, cmd, nowMs) => {
