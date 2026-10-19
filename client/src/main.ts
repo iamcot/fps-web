@@ -87,6 +87,12 @@ const rec = makeRecoilState()
 const shotDir: [number, number, number] = [0, 0, 0]
 const eyeTmp:  [number, number, number] = [0, 0, 0]
 let simMs = 0
+let lastBtns = 0
+const MOVE_KEYS = Btn.Forward | Btn.Back | Btn.Left | Btn.Right
+// Tốc độ dùng cho spread: nhả hết phím di chuyển thì tính là đứng yên dù quán tính còn
+// ~0.3s (ma sát giảm dần theo hàm mũ); đang trượt vẫn tính là di chuyển
+const spreadSpeed = (speed: number, slideTimer: number) =>
+  (lastBtns & MOVE_KEYS) || slideTimer > 0 ? speed : 0
 
 document.addEventListener('keydown', (e) => {
   const m = /^Digit([1-4])$/.exec(e.code)
@@ -147,7 +153,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     const speed = Math.hypot(state.vel[0], state.vel[2])
     vm.setMotion(speed, state.grounded)
     vm.setReload(ws.reloadEndMs > 0 ? 1 - (ws.reloadEndMs - simMs) / def.reloadMs : -1)
-    hud.setSpread(spreadFor(def, state.grounded, speed, state.crouching), dt * 1000)
+    hud.setSpread(spreadFor(def, state.grounded, spreadSpeed(speed, state.slideTimer), state.crouching), dt * 1000)
     hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0)
 
     updateTargets(targets, dt)
@@ -163,6 +169,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   }, (state, cmd, nowMs) => {
     // Mỗi tick mô phỏng: logic súng + bước chân
     simMs = nowMs
+    lastBtns = cmd.buttons
     const locked = isLocked()
     const def    = WEAPONS[ws.current]!
     const speed  = Math.hypot(state.vel[0], state.vel[2])
@@ -170,7 +177,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     const ev = stepWeapon(ws, nowMs, locked && !!(cmd.buttons & Btn.Fire), locked && !!(cmd.buttons & Btn.Reload))
     if (ev === 'fired') {
       computeShot(shotDir, rec, def, PLAYER_ID, ws.shotSeq - 1, cmd.yaw, cmd.pitch,
-        spreadFor(def, state.grounded, speed, state.crouching))
+        spreadFor(def, state.grounded, spreadSpeed(speed, state.slideTimer), state.crouching))
       vm.onFire()
       hud.kickSpread(def.recoilPitchDeg * 2)   // tâm giãn theo độ giật của súng (hiển thị)
       play(`fire${def.id}` as 'fire0', 0.8, 0.97 + Math.random() * 0.06)
