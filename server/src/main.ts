@@ -4,11 +4,13 @@ import { WebSocketServer } from 'ws'
 import { TICK_RATE, MsgType, loadMap, defaultMovement, type MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
 import { wrapWebSocket } from './transport'
+import { startHeartbeat } from './heartbeat'
 import { TickLoop } from './tickLoop'
 import { enqueueCmds, stepRoom, sendSnapshots } from './simulation'
 import { RoomManager, sanitizeName, sanitizeRoom, type Player, type Room } from './room'
 
 const PORT = 8081
+const stamp = () => new Date().toTimeString().slice(0, 8)
 
 const mapFile = JSON.parse(
   readFileSync(new URL('../../assets/maps/deathmatch.json', import.meta.url), 'utf8'),
@@ -48,6 +50,7 @@ const server = createServer((_req, res) => {
 })
 
 const wss = new WebSocketServer({ server })
+startHeartbeat(wss)
 
 wss.on('connection', ws => {
   const transport = wrapWebSocket(ws)
@@ -72,14 +75,14 @@ wss.on('connection', ws => {
         if (room?.players.has(joined.id)) joined.world = w
         else w.dispose()
       })
-      console.log(`[room ${roomId}] #${player.id} "${name}" vào (${room.players.size} người)`)
+      console.log(`${stamp()} [room ${roomId}] #${player.id} "${name}" vào (${room.players.size} người)`)
     }
   })
 
   transport.onClose(() => {
     if (!room || !player) return
     room.leave(player.id)
-    console.log(`[room ${room.id}] #${player.id} "${player.name}" rời (${room.players.size} người)`)
+    console.log(`${stamp()} [room ${room.id}] #${player.id} "${player.name}" rời (${room.players.size} người)`)
   })
 })
 
