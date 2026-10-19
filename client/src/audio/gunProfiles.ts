@@ -22,8 +22,9 @@ export interface ThumpDef {   // lớp bass tổng hợp
 export type ReloadSynth = 'magout' | 'magin' | 'bolt' | 'shells' | 'insert'
 export interface ReloadStep { file: string; at: number; synth: ReloadSynth; emptyOnly?: boolean }
 export type ReloadSoundDef =
-  // whole: một file nạp trọn vẹn (tháo + lắp băng) phát một lần lúc bắt đầu nạp, thay cho các step
-  | { kind: 'mag'; steps: ReloadStep[]; whole?: { file: string; gainDb: number } }
+  // whole: một file nạp trọn vẹn phát một lần thay cho các step; startFrac = tỉ lệ thời gian nạp mới phát
+  // (súng dài chờ animation hạ súng xong)
+  | { kind: 'mag'; steps: ReloadStep[]; whole?: { file: string; gainDb: number; startFrac: number } }
   | {
       kind: 'perRound'
       open: ReloadStep; eject: ReloadStep; close: ReloadStep
@@ -42,6 +43,7 @@ export interface GunSoundProfile {
   dryfire: { file?: string; kind: 'rifle' | 'pistol' }
   draw: string
   maxVoices: number
+  lowAmmoWarning?: boolean              // tiếng "tink" sắp hết đạn; mặc định bật
 }
 
 const rifleReload = (boltFile: string): ReloadSoundDef => ({
@@ -81,13 +83,13 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -8, startHz: 130, endHz: 60, durationMs: 70 },
     eq: { lowShelfHz: 200, lowShelfDb: 3, highShelfHz: 4500, highShelfDb: 2 },
     shell: 'rifle', shellDelayMs: 420,
-    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3 }, steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.3 }, steps: [
       { file: 'reload_magout', at: 0.15, synth: 'magout' },
       { file: 'reload_magin',  at: 0.55, synth: 'magin' },
       { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
     ] },
     dryfire: { kind: 'rifle' },
-    draw: 'draw', maxVoices: 8,
+    draw: 'draw', maxVoices: 8, lowAmmoWarning: false,
   },
   1: { // M16 – mỏng, sắc, gọn
     folder: 'm16',
@@ -99,13 +101,13 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -16, startHz: 180, endHz: 100, durationMs: 35 },
     eq: { lowShelfHz: 150, lowShelfDb: -4, highShelfHz: 2500, highShelfDb: 7 },
     shell: 'rifle', shellDelayMs: 400,
-    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3 }, steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0.3 }, steps: [
       { file: 'reload_magout', at: 0.15, synth: 'magout' },
       { file: 'reload_magin',  at: 0.55, synth: 'magin' },
       { file: 'reload_bolt',   at: 0.85, synth: 'bolt', emptyOnly: true },
     ] },
     dryfire: { kind: 'rifle' },
-    draw: 'draw', maxVoices: 8,
+    draw: 'draw', maxVoices: 8, lowAmmoWarning: false,
   },
   2: { // Colt – bốp ngắn, khô
     folder: 'colt',
@@ -117,7 +119,7 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     thump: { gainDb: -12, startHz: 170, endHz: 85, durationMs: 45 },
     eq: { lowShelfHz: 250, lowShelfDb: -1, highShelfHz: 4000, highShelfDb: 3 },
     shell: 'pistol', shellDelayMs: 380,
-    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3 }, steps: [
+    reload: { kind: 'mag', whole: { file: 'reload_mag', gainDb: -3, startFrac: 0 }, steps: [
       { file: 'reload_magout', at: 0.2,  synth: 'magout' },
       { file: 'reload_magin',  at: 0.6,  synth: 'magin' },
       { file: 'reload_slide',  at: 0.85, synth: 'bolt', emptyOnly: true },
@@ -125,14 +127,14 @@ export const GUN_SOUNDS: Record<number, GunSoundProfile> = {
     dryfire: { kind: 'pistol' },
     draw: 'draw', maxVoices: 4,
   },
-  3: { // Rulô – đoàng trầm, vang dài
+  3: { // Rulô – gần giống Colt, vang hơn một chút
     folder: 'rulo',
     layers: {
-      body: { files: ['shot_01','shot_02','shot_03'], gainDb: 1, pitch: 0.86, pitchRand: 0.02, gainRandDb: 1, delayMs: 0 },
-      tail: { files: ['tail_01'],                     gainDb: 0, pitch: 0.90, pitchRand: 0.02, gainRandDb: 1, delayMs: 70, synthTailHz: 2400 },
+      body: { files: ['shot_01','shot_02','shot_03'], gainDb: -1, pitch: 1.0, pitchRand: 0.03, gainRandDb: 1, delayMs: 0 },
+      tail: { files: ['tail_01'],                     gainDb: -4, pitch: 1.0, pitchRand: 0.02, gainRandDb: 1, delayMs: 35, synthDecayMs: 550 },
     },
-    thump: { gainDb: -5, startHz: 100, endHz: 45, durationMs: 120 },
-    eq: { lowShelfHz: 120, lowShelfDb: 3, highShelfHz: 3500, highShelfDb: 3 },
+    thump: { gainDb: -10, startHz: 160, endHz: 80, durationMs: 60 },
+    eq: { lowShelfHz: 250, lowShelfDb: -1, highShelfHz: 4000, highShelfDb: 3 },
     shell: null, shellDelayMs: 0,
     reload: { kind: 'perRound',
       open:   { file: 'reload_open',   at: 0.08, synth: 'magout' },

@@ -176,7 +176,7 @@ export function playShot(id: number, ammoLeft: number): void {
 
   // if (p.shell) playShell(g, p.shell, g.gunGroup, now + p.shellDelayMs / 1000)
   if (p.cockFile) playCock(g, p, bus.low, now + 0.6 * def.fireIntervalMs / 1000)
-  if (settings.lowAmmoWarning && lowAmmoActive(ammoLeft, def.magSize)) playLowAmmo(g, ammoLeft, def.magSize, now)
+  if (settings.lowAmmoWarning && p.lowAmmoWarning !== false && lowAmmoActive(ammoLeft, def.magSize)) playLowAmmo(g, ammoLeft, def.magSize, now)
 }
 
 // ── Bắn của người khác (từ ShotFx, phase 4) ───────────────────────────────────
@@ -223,6 +223,8 @@ function playCock(g: AudioGraph, p: GunSoundProfile, dest: AudioNode, when: numb
 }
 
 // ── Hết đạn / sắp hết (A.7) ───────────────────────────────────────────────────
+const DRY_GAP = 0.09   // s giữa hai tiếng "cạch cạch"
+
 export function playDry(id: number): void {
   const g = getGraph()
   const p = GUN_SOUNDS[id]
@@ -231,23 +233,28 @@ export function playDry(id: number): void {
   const buf =
     (p.dryfire.file ? getBuffer(gunKey(p.folder, p.dryfire.file)) : undefined) ??
     getBuffer(commonKey(`dryfire_${p.dryfire.kind}`))
-  if (buf) { playBuffer(g, buf, g.master, 1, 0, now); return }
-  synthDry(g, p.dryfire.kind, g.master, now)
+  for (let i = 0; i < 2; i++) {
+    const t = now + i * DRY_GAP
+    if (buf) playBuffer(g, buf, g.master, 1 + i * 0.04, i * -3, t)
+    else synthDry(g, p.dryfire.kind, g.master, t, i)
+  }
 }
 
-/** Búa đập vào buồng đạn rỗng: "tách" gắt + chuông kim loại ngắn (cho tiếng trong) + cú thụp nhỏ của thân súng. */
-export function synthDry(g: AudioGraph, kind: 'rifle' | 'pistol', dest: AudioNode, when: number): void {
+/** Búa đập vào buồng đạn rỗng: "tách" gắt + chuông kim loại ngắn (cho tiếng trong). `n` = lần thứ mấy (lần 2 nhỏ và cao hơn chút). */
+export function synthDry(g: AudioGraph, kind: 'rifle' | 'pistol', dest: AudioNode, when: number, n = 0): void {
   const c = g.ctx
+  const up = n === 0 ? 1 : 1.06
+  const db = n === 0 ? 0 : -3
   if (kind === 'rifle') {
-    noise(c, dest, { filter: 'bandpass', freq: 3000, q: 3, gainDb: -10, decayMs: 70, when })
-    tone(c, dest, { type: 'sine', freq: 1800, gainDb: -15, decayMs: 110, when })
-    tone(c, dest, { type: 'sine', freq: 4300, gainDb: -21, decayMs: 70, when })
-    tone(c, dest, { type: 'sine', freq: 160, freqEnd: 100, gainDb: -14, decayMs: 80, when })
+    noise(c, dest, { filter: 'bandpass', freq: 4200 * up, q: 3, gainDb: -10 + db, decayMs: 55, when })
+    tone(c, dest, { type: 'sine', freq: 2600 * up, gainDb: -15 + db, decayMs: 90, when })
+    tone(c, dest, { type: 'sine', freq: 6200 * up, gainDb: -21 + db, decayMs: 55, when })
+    tone(c, dest, { type: 'sine', freq: 220, freqEnd: 140, gainDb: -18 + db, decayMs: 50, when })
   } else {
-    noise(c, dest, { filter: 'bandpass', freq: 4200, q: 3, gainDb: -10, decayMs: 55, when })
-    tone(c, dest, { type: 'sine', freq: 2600, gainDb: -15, decayMs: 90, when })
-    tone(c, dest, { type: 'sine', freq: 6100, gainDb: -21, decayMs: 55, when })
-    tone(c, dest, { type: 'sine', freq: 240, freqEnd: 150, gainDb: -16, decayMs: 60, when })
+    noise(c, dest, { filter: 'bandpass', freq: 5600 * up, q: 3, gainDb: -10 + db, decayMs: 45, when })
+    tone(c, dest, { type: 'sine', freq: 3400 * up, gainDb: -15 + db, decayMs: 75, when })
+    tone(c, dest, { type: 'sine', freq: 7800 * up, gainDb: -21 + db, decayMs: 45, when })
+    tone(c, dest, { type: 'sine', freq: 300, freqEnd: 200, gainDb: -20 + db, decayMs: 45, when })
   }
 }
 
@@ -365,9 +372,9 @@ export function startReload(id: number, ammoAtStart: number, durationMs: number,
   const whole = p.reload.kind === 'mag' ? p.reload.whole : undefined
   const wholeBuf = whole ? getBuffer(commonKey(whole.file)) : undefined
   if (whole && wholeBuf) {
-    // Một file nạp trọn vẹn phát ngay lúc bắt đầu; file dài hơn thời gian nạp thì tăng tốc (tối đa ×1.3) cho kịp
-    const rate = Math.min(1.3, Math.max(1, wholeBuf.duration / (durationMs / 1000)))
-    playBuffer(g, wholeBuf, bus, rate, whole.gainDb, g.ctx.currentTime)
+    // Phát sau startFrac (chờ animation hạ súng); file dài hơn phần thời gian còn lại thì tăng tốc (tối đa ×1.3)
+    const rate = Math.min(1.3, Math.max(1, wholeBuf.duration / ((durationMs * (1 - whole.startFrac)) / 1000)))
+    timers.push(window.setTimeout(() => playBuffer(g, wholeBuf, bus, rate, whole.gainDb, g.ctx.currentTime), whole.startFrac * durationMs))
   } else for (const s of reloadSchedule(p, def.magSize, ammoAtStart)) {
     timers.push(window.setTimeout(() => playReloadStep(g, p, s.file, s.synth, bus, s.rate), s.atFrac * durationMs))
   }
