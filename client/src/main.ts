@@ -170,6 +170,7 @@ sessionP.then(session => {
       playHit(msg.headshot ? 'head' : 'body')
     } else if (msg.t === MsgType.ShotFx) {
       tracers.add(msg.origin, msg.dir, msg.dist)
+      playersRenderer.muzzleFlash(msg.shooterId)
       playShotOther(msg.weapon, msg.origin)
     } else if (msg.t === MsgType.DebugShot) {
       debugShots.add(msg.origin, msg.dir, msg.boxes)

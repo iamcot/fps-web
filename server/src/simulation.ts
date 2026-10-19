@@ -87,7 +87,7 @@ export function sendSnapshots(room: Room, tick: number, serverTime: number): voi
   const players: NetPlayer[] = []
   for (const p of room.players.values()) {
     const flags = (p.alive ? 0 : NetFlag.Dead) | (p.alive && serverTime < p.invulnUntil ? NetFlag.Invuln : 0)
-    players.push(stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team))
+    players.push(stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current))
   }
   for (const p of room.players.values()) {
     p.transport.send({ t: MsgType.Snapshot, tick, serverTime, ack: p.lastProcessedSeq, players, wpn: p.weapon })

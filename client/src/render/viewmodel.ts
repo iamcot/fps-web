@@ -21,7 +21,7 @@ const RELOAD_DOWN_END = 0.4; // hạ xong ở 40% thời gian reload
 const RELOAD_UP_START = 0.8; // bắt đầu đưa lên ở 80%
 // Vị trí đầu nòng (hệ gunGroup) khi model không có node 'muzzle' — bước nén glb xoá mất empty
 // của colt/rouleau. Đo từ bbox + đỉnh gần mũi nòng của chính file glb đã nén (theo id súng).
-const MUZZLE_FALLBACK: THREE.Vector3[] = [
+export const MUZZLE_FALLBACK: THREE.Vector3[] = [
   new THREE.Vector3(0, 0.096, -0.63), // AK47 (trùng node muzzle)
   new THREE.Vector3(0, 0.111, -0.628), // M16 (trùng node muzzle)
   new THREE.Vector3(0, 0.093, -0.244), // COLT
@@ -29,7 +29,7 @@ const MUZZLE_FALLBACK: THREE.Vector3[] = [
 ];
 const FLASH_SIZE = 0.14;
 
-function makeFlashTexture(): THREE.Texture {
+export function makeFlashTexture(): THREE.Texture {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const g = c.getContext("2d")!;

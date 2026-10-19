@@ -9,6 +9,7 @@ interface Entry {
   yaw: number
   pitch: number
   flags: number
+  weapon: number
 }
 
 // Trạng thái đã nội suy, tái sử dụng mỗi frame (không cấp phát)
@@ -18,6 +19,7 @@ export interface InterpPlayer {
   yaw: number
   pitch: number
   flags: number
+  weapon: number
   stale: boolean   // snapshot cuối đã cũ hơn STALE_MS so với renderTime
 }
 
@@ -61,7 +63,7 @@ export class Interpolator {
       if (!buf) { buf = []; this.buffers.set(p.id, buf) }
       const last = buf[buf.length - 1]
       if (last && serverTime <= last.serverTime) continue
-      buf.push({ serverTime, pos: [p.pos[0], p.pos[1], p.pos[2]], yaw: p.yaw, pitch: p.pitch, flags: p.flags })
+      buf.push({ serverTime, pos: [p.pos[0], p.pos[1], p.pos[2]], yaw: p.yaw, pitch: p.pitch, flags: p.flags, weapon: p.weapon })
       while (buf.length > 2 && buf[0]!.serverTime < serverTime - BUFFER_MS) buf.shift()
     }
     for (const id of this.buffers.keys()) {
@@ -77,7 +79,7 @@ export class Interpolator {
     this.list.length = 0
     for (const [id, buf] of this.buffers) {
       let o = this.out.get(id)
-      if (!o) { o = { id, pos: [0, 0, 0], yaw: 0, pitch: 0, flags: 0, stale: false }; this.out.set(id, o) }
+      if (!o) { o = { id, pos: [0, 0, 0], yaw: 0, pitch: 0, flags: 0, weapon: 0, stale: false }; this.out.set(id, o) }
       this.fill(o, buf, renderTime)
       this.list.push(o)
     }
@@ -107,10 +109,11 @@ export class Interpolator {
     o.yaw = lerpAngle(a.yaw, b.yaw, t)
     o.pitch = lerp(a.pitch, b.pitch, t)
     o.flags = a.flags   // cờ ngồi/trượt: lấy của a
+    o.weapon = a.weapon
   }
 
   private copy(o: InterpPlayer, e: Entry): void {
     o.pos[0] = e.pos[0]; o.pos[1] = e.pos[1]; o.pos[2] = e.pos[2]
-    o.yaw = e.yaw; o.pitch = e.pitch; o.flags = e.flags
+    o.yaw = e.yaw; o.pitch = e.pitch; o.flags = e.flags; o.weapon = e.weapon
   }
 }

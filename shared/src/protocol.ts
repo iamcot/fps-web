@@ -92,6 +92,7 @@ export interface NetPlayer {
   slideCooldown: number
   hp: number
   team: TeamId
+  weapon: number   // súng đang cầm (để vẽ súng trên tay người khác)
 }
 
 export interface SnapshotMsg {
@@ -214,7 +215,7 @@ export function isValidCmd(c: unknown): c is InputCmd {
   )
 }
 
-export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0, team: TeamId = 'A'): NetPlayer {
+export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0, team: TeamId = 'A', weapon = 0): NetPlayer {
   return {
     id,
     pos: [s.pos[0], s.pos[1], s.pos[2]],
@@ -222,7 +223,7 @@ export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0,
     yaw: s.yaw, pitch: s.pitch,
     flags: (s.grounded ? NetFlag.Grounded : 0) | (s.crouching ? NetFlag.Crouching : 0) | (s.slideTimer > 0 ? NetFlag.Sliding : 0) | extraFlags,
     slideTimer: s.slideTimer, slideCooldown: s.slideCooldown,
-    hp, team,
+    hp, team, weapon,
   }
 }
 

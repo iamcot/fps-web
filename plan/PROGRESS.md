@@ -58,4 +58,6 @@
 - [x] 5.4 Đổi bên + vào giữa trận — Room.sideSwapped đảo mỗi trận; người vào giữa trận auto vào đội ít người, spawn ở căn cứ đội, bất tử SPAWN_INVULN_MS; người rời: điểm đội giữ nguyên (điểm là của đội). Còn thiếu: bài kiểm tra tay 4–6 người 2 trận liên tiếp của người dùng
 
 ## Phase 6 – Làm đẹp
-- [ ] (làm sau, task chọn lẻ)
+- [x] 6.1 Model khối hộp Cớm & Cướp — render/players.ts dựng bằng BoxGeometry (gốc ở chân, mặt −Z): đầu 0.35×0.35×0.3 đúng vùng head hitbox (y 1.45–1.8), thân 0.8–1.45, chân 0–0.8; Cớm thân xanh + mũ kê-pi (hộp dẹt, vành, dải vàng); Cướp thân đen sọc trắng, khăn che mặt + buộc trán, túi tiền sau lưng. Ngồi: scale Y theo crouchHeight/standHeight như hitbox; chết ẩn; bất tử nhấp nháy; đổi đội thì dựng lại. Tay phải/trái đưa ra trước (cố định, animation ở 6.2) — tay/súng vươn ra ngoài hitbox, bắn vào tay không trúng. Kiểm bằng ảnh render thật (Chromium); chưa chạy F7 so với headshot trên game
+- [x] 6.3 Súng trên tay người khác — NetPlayer.weapon (shared, thêm theo plan 'đổi theo weapon trong NetPlayer'), Interpolator mang weapon; players.ts nạp glb 4 súng một lần, mỗi người clone gắn ở tay phải, đổi theo weapon; lửa đầu nòng 60ms khi nhận ShotFx (playersRenderer.muzzleFlash(shooterId)), vị trí nòng dùng MUZZLE_FALLBACK của viewmodel (đã export). Súng chưa theo pitch (6.2)
+- [ ] 6.2, 6.4–6.7 (làm sau, task chọn lẻ)
