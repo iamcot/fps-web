@@ -132,6 +132,9 @@ Quy tắc phải giữ khi chỉnh map:
 | `05-phase4-netcode-shoot.md` ⚠️ | Bắn online, lag compensation |
 | `06-phase5-tdm.md` | Luật Team Deathmatch |
 | `07-phase6-polish.md` | Làm đẹp (chọn lẻ) |
+| `08-task-gun-audio.md` | Bộ súng + âm thanh từng súng |
+| `09-hud-shop-economy.md` ⚠️ | HUD mới, 4 ô vũ khí, cửa hàng, kinh tế |
+| `tools-blend-to-glb.md` | Chuyển model .blend sang .glb |
 
 ## Định nghĩa "xong" bản đầu tiên
 
