@@ -14,6 +14,7 @@ import { startPing, type PingStats } from './net/ping'
 import { clock } from './net/clock'
 import { attachSnapshots, type SnapshotStore } from './net/snapshots'
 import { createPlayersRenderer } from './render/players'
+import { Interpolator } from './net/interpolation'
 import { MsgType } from '@fps/shared'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
@@ -126,15 +127,16 @@ const spawn = loadedMap.spawns.A[0] ?? { pos: [0, 2, 0] as [number,number,number
 const netStats: PingStats = { rttMs: 0, outOfOrder: 0 }
 let snapStore: SnapshotStore | null = null
 const playersRenderer = createPlayersRenderer(scene)
+const interpolator = new Interpolator()
 showLobby().then(session => {
   if (!session) return
   startPing(session.transport, netStats)
-  snapStore = attachSnapshots(session.transport, session.yourId, s => playersRenderer.update(s.players, s.yourId))
+  snapStore = attachSnapshots(session.transport, session.yourId, s => interpolator.push(s.serverTime, s.players, s.yourId))
   setNetHooks({
     onCmd: cmd => session.transport.send({ t: MsgType.Inputs, cmds: [cmd] }),
     authoritative: () => snapStore?.self ?? null,
   })
-  session.transport.onClose(() => { setNetHooks(null); playersRenderer.clear() })
+  session.transport.onClose(() => { setNetHooks(null); snapStore = null; interpolator.push(0, []); playersRenderer.clear() })
 })
 const updateDebug = initDebugOverlay(netStats, () => snapStore)
 initTuningPanel(cfg)
@@ -194,6 +196,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     renderer.clearDepth()
     renderer.render(vm.scene, vm.cam)
 
+    // Người khác: vẽ trễ INTERP_DELAY_MS bằng nội suy; chưa vào phòng thì danh sách rỗng
+    if (snapStore) playersRenderer.update(interpolator.sample(clock.serverNow()))
     clock.tick()
     updateDebug(state, fps)
   }, (state, cmd, nowMs) => {
