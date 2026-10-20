@@ -33,6 +33,7 @@ import { createPoseEditor } from './render/poseEditor'
 import { createBloodFx } from './render/bloodFx'
 import { createGrenades } from './render/grenades'
 import { createGrenadeTrajectory } from './render/grenadeTrajectory'
+import { createExplosionFx } from './render/explosionFx'
 import { createTargets, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
@@ -190,14 +191,16 @@ const playersRenderer = createPlayersRenderer(scene, {
   myTeam: () => sessionRef?.teams.get(sessionRef.yourId),
   characterSet: () => sessionRef?.characterSet ?? '',
 })
+const explosionFx = createExplosionFx(scene, () => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
 const grenades = createGrenades(scene, {
   world: () => worldRef,
+  onExplode: pos => explosionFx.explode(pos, [camera.position.x, camera.position.y, camera.position.z]),
   localFuse: () => !sessionRef,   // offline không có server: tự nổ khi hết ngòi
   releaseDelayMs: (id, mode) => playersRenderer.grenadeReleaseDelayMs(id, mode),
 })
 const nadeTrajectory = createGrenadeTrajectory(scene)
 const nadeAimState = { pos: [0, 0, 0] as [number, number, number], vel: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0 }
-if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __nadeTraj: nadeTrajectory })   // debug: script kiểm tra từ trình duyệt
+if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __nadeTraj: nadeTrajectory, __explosionFx: explosionFx })   // debug: script kiểm tra từ trình duyệt
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
@@ -434,6 +437,9 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     recView.yaw += (rec.yaw - recView.yaw) * recK
     camera.rotation.y += recView.yaw
     camera.rotation.x += recView.pitch
+    explosionFx.update(dt)   // chỉ camera chính rung (viewmodel có camera riêng nên không bị rung mạnh)
+    camera.position.x += explosionFx.shake.x; camera.position.y += explosionFx.shake.y
+    camera.rotation.z += explosionFx.shake.rot
     updateListener(camera.position.x, camera.position.y, camera.position.z, camera.rotation.y, camera.rotation.x)
 
     const def   = WEAPONS[ws.current]!
