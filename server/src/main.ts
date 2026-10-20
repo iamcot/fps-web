@@ -1,5 +1,5 @@
 import { createServer } from 'http'
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 import { WebSocketServer } from 'ws'
 import { TICK_RATE, MsgType, isCharacterSet, DEFAULT_CHARACTER_SET, MatchPhase, MATCH, loadMap, defaultMovement, type MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
@@ -24,7 +24,13 @@ const rules = { ...MATCH }
 if (Number(process.env.FPS_MATCH_MS) > 0) rules.durationMs = Number(process.env.FPS_MATCH_MS)
 if (Number(process.env.FPS_KILL_LIMIT) > 0) rules.killLimit = Number(process.env.FPS_KILL_LIMIT)
 if (Number(process.env.FPS_END_MS) > 0) rules.endScreenMs = Number(process.env.FPS_END_MS)
-const rooms = new RoomManager(map, undefined, rules)
+const rooms = new RoomManager(map, undefined, rules, 'deathmatch')
+// Mọi map trong assets/maps/*.json chọn được khi tạo phòng (client hiện chỉ dựng được map deathmatch — xem plan/PROGRESS)
+for (const f of readdirSync(new URL('../../assets/maps/', import.meta.url))) {
+  if (!f.endsWith('.json') || f === 'deathmatch.json') continue
+  const mf = JSON.parse(readFileSync(new URL(`../../assets/maps/${f}`, import.meta.url), 'utf8')) as MapFile
+  rooms.registerMap(f.slice(0, -5), mf.name, loadMap(mf))
+}
 setInterval(() => rooms.sweep(), 5000)
 
 // Vòng lặp 60Hz: mô phỏng rồi gửi snapshot (mỗi SNAPSHOT_EVERY_TICKS tick)
@@ -76,20 +82,25 @@ wss.on('connection', ws => {
     } else if (msg.t === MsgType.Buy) {
       if (room && player && typeof msg.key === 'string') handleBuy(room, player, msg.key)
     } else if (msg.t === MsgType.ChooseTeam) {
-      // Chỉ đổi đội khi chưa vào trận (WAITING); còn lại giữ đội hiện tại
+      // Đổi đội bất cứ lúc nào nếu luật cân bằng (maxTeamDiff, maxPerTeam) cho phép; không thì giữ đội cũ
       if (!room || !player) return
       const pref = msg.team === 'A' || msg.team === 'B' ? msg.team : 'auto'
-      const team = room.phase === MatchPhase.Waiting ? room.assignTeam(pref, player) : null
+      const team = room.assignTeam(pref, player)
       if (team && team !== player.team) { room.setTeam(player, team); room.resetEconomy(player); room.respawn(player) }
       else transport.send({ t: MsgType.TeamAssigned, id: player.id, team: player.team })
+    } else if (msg.t === MsgType.ListRooms) {
+      transport.send({ t: MsgType.RoomList, rooms: rooms.list(), maps: rooms.mapList() })
     } else if (msg.t === MsgType.Join) {
       if (player) return   // mỗi kết nối chỉ join một lần
       const name = sanitizeName(msg.name)
       const roomId = sanitizeRoom(msg.room)
-      if (!name || !roomId) return
+      if (!name || !roomId) { transport.send({ t: MsgType.JoinRejected, reason: 'bad' }); return }
+      const exists = rooms.rooms.has(roomId)
+      if (msg.create === true && exists) { transport.send({ t: MsgType.JoinRejected, reason: 'exists' }); return }
+      if (msg.create === false && !exists) { transport.send({ t: MsgType.JoinRejected, reason: 'missing' }); return }
       const pref = msg.team === 'A' || msg.team === 'B' ? msg.team : 'auto'
-      const res = rooms.tryJoin(roomId, name, transport, loop.tick, pref, isCharacterSet(msg.characterSet) ? msg.characterSet : DEFAULT_CHARACTER_SET)
-      if (!res) { console.log(`${stamp()} [room ${roomId}] "${name}" bị từ chối: phòng đầy`); ws.close(1008, 'room full'); return }
+      const res = rooms.tryJoin(roomId, name, transport, loop.tick, pref, isCharacterSet(msg.characterSet) ? msg.characterSet : DEFAULT_CHARACTER_SET, typeof msg.mapId === 'string' ? msg.mapId : undefined)
+      if (!res) { console.log(`${stamp()} [room ${roomId}] "${name}" bị từ chối: phòng đầy`); transport.send({ t: MsgType.JoinRejected, reason: 'full' }); return }
       ;({ room, player } = res)
       const joined = player
       createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => {

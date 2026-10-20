@@ -2,12 +2,12 @@ import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
   stepWeaponCmd, shotSpread, computeShotDirs, MAX_PELLETS, recoverRecoil,
-  CATEGORY_SLOT, DEFAULT_SLOT, ECONOMY, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
+  CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
-import { initInput, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
+import { initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
 import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setSpeedMul, setDead, setMatchPhase } from './loop'
@@ -25,6 +25,7 @@ import { createTracers } from './render/tracers'
 import { createDebugShots } from './render/debugShots'
 import { createKillfeed, createDeathScreen, createHurtIndicator, createBountyBanner } from './hudNet'
 import { createShop } from './shop'
+import { createTopButtons, createConfirmPrompt, createToast } from './hudButtons'
 import { createMatchHud, createScoreboard } from './hudMatch'
 import { MsgType, MatchPhase, NetFlag, type TeamId } from '@fps/shared'
 import { initTuningPanel } from './tuning'
@@ -177,6 +178,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyQ' && prevSlot >= 0) requestSlot(prevSlot)
   if (e.code === 'KeyB') shop.toggle()
+  if (e.code === 'Backquote') { e.preventDefault(); askSwitchTeam() }
   if (e.code === 'F4' && debugLines) { debugLines.visible = !debugLines.visible; spawnMarkers.visible = debugLines.visible; e.preventDefault() }
 })
 
@@ -245,6 +247,11 @@ const shop = createShop({
 const matchHud = createMatchHud()
 const scoreboard = createScoreboard()
 let tabHeld = false
+let scoreToggle = false   // nút "Xem thành tích" bật/tắt bảng điểm
+let topButtons: ReturnType<typeof createTopButtons> | null = null
+let askSwitchTeam: () => void = () => {}
+const teamPrompt = createConfirmPrompt()
+const toast = createToast()
 document.addEventListener('keydown', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = true } })
 document.addEventListener('keyup', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = false } })
 window.addEventListener('blur', () => { tabHeld = false })
@@ -252,7 +259,30 @@ let lastHp = 100
 const selfDebug = { id: 0, pos: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, flags: 0, weapon: 0 }   // F10
 const sessionP = showLobby()
 sessionP.then(session => {
-  if (!session) return
+  if (!session) {
+    setOverlayDim(false)
+    topButtons = createTopButtons({ onScores: () => { scoreToggle = !scoreToggle; topButtons?.setScoresActive(scoreToggle) }, onSwitch: () => {} }, false)
+    return
+  }
+  topButtons = createTopButtons({
+    onScores: () => { scoreToggle = !scoreToggle; topButtons?.setScoresActive(scoreToggle) },
+    onSwitch: () => askSwitchTeam(),
+  }, true)
+  let lastTeam = session.teams.get(session.yourId)
+  let pendingSwitch = false
+  askSwitchTeam = () => {
+    const mine = session.teams.get(session.yourId)
+    if (!mine || teamPrompt.isOpen) return
+    const other = mine === 'A' ? 'B' : 'A'
+    teamPrompt.open(`Đổi sang phe ${TEAMS[other].name}?`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.ChooseTeam, team: other }) })
+  }
+  session.transport.onMessage(msg => {
+    if (msg.t !== MsgType.TeamAssigned || msg.id !== session.yourId) return
+    const changed = lastTeam !== undefined && lastTeam !== msg.team
+    if (pendingSwitch) { pendingSwitch = false; toast(changed ? `Đã sang phe ${TEAMS[msg.team].name}` : 'Không đổi được: phe kia đã đông hơn') }
+    else if (changed) toast(`Bạn được chuyển sang phe ${TEAMS[msg.team].name} để cân bằng`)
+    lastTeam = msg.team
+  })
   playerId = session.yourId
   sessionRef = session
   startPing(session.transport, netStats)
@@ -544,7 +574,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     debugShots.update(dt * 1000)
     deathScreen.tick()
     matchHud.tick(clock.serverNow())
-    scoreboard.show(tabHeld || (snapStore !== null && matchHud.phase === MatchPhase.Ended))
+    scoreboard.show(tabHeld || scoreToggle || (snapStore !== null && matchHud.phase === MatchPhase.Ended))
     hurtIndicator.tick(dt * 1000)
     clock.tick()
     updateDebug(state, fps)

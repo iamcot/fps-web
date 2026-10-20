@@ -24,6 +24,12 @@ _overlay.style.cssText =
 _overlay.textContent = 'Click để chơi'
 document.body.appendChild(_overlay)
 
+/** Offline cho phép bỏ lớp tối của màn "Click để chơi" để dễ nhìn khi chỉnh tay/súng */
+export function setOverlayDim(dim: boolean): void {
+  _overlay.style.background = dim ? 'rgba(0,0,0,0.55)' : 'transparent'
+  _overlay.style.textShadow = dim ? '' : '0 0 6px #000, 0 0 3px #000'
+}
+
 function _setLocked(v: boolean) {
   _locked = v
   _overlay.style.display = v ? 'none' : 'flex'

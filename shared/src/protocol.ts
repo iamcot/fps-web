@@ -16,6 +16,7 @@ export const MsgType = {
   SetDebug: 4,
   ChooseTeam: 5,
   Buy: 6,            // plan ghi t:5 nhưng 5 là ChooseTeam
+  ListRooms: 7,      // xin danh sách phòng + map (trước khi Join)
   // Server → Client
   Welcome: 101,
   Pong: 102,
@@ -36,6 +37,8 @@ export const MsgType = {
   GrenadeSpawn: 117,   // plan 12 ghi 116–118 nhưng 116 đã là MoneyEvent
   GrenadeExplode: 118,
   GrenadeAnim: 119,
+  RoomList: 120,       // trả lời ListRooms
+  JoinRejected: 121,   // Join không được (phòng đầy / đã tồn tại / không có)
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -58,7 +61,12 @@ export interface JoinMsg {
   room: string
   team?: TeamId | 'auto'   // đội muốn vào; mặc định auto
   characterSet?: string    // bộ nhân vật; chỉ có tác dụng khi người này tạo phòng mới (sai/thiếu → mặc định)
+  create?: boolean         // true: tạo phòng mới (lỗi nếu tên đã có); false: chỉ vào phòng có sẵn; thiếu: vào, chưa có thì tạo
+  mapId?: string           // map của phòng mới (thiếu/sai → map đầu tiên)
 }
+
+// Xin danh sách phòng đang có
+export interface ListRoomsMsg { t: typeof MsgType.ListRooms }
 
 // Đổi đội (server áp luật cân bằng, trả lời bằng TeamAssigned)
 export interface ChooseTeamMsg {
@@ -79,6 +87,20 @@ export interface SetDebugMsg {
 }
 
 // Server → Client
+export interface RoomInfo {
+  id: string                 // tên phòng
+  mapId: string
+  characterSet: CharacterSetId
+  players: number
+  maxPlayers: number
+  teamA: number
+  teamB: number
+}
+export interface MapInfo { id: string; name: string }
+export interface RoomListMsg { t: typeof MsgType.RoomList; rooms: RoomInfo[]; maps: MapInfo[] }
+export type JoinRejectReason = 'full' | 'exists' | 'missing' | 'bad'
+export interface JoinRejectedMsg { t: typeof MsgType.JoinRejected; reason: JoinRejectReason }
+
 export interface WelcomeMsg {
   t: typeof MsgType.Welcome
   yourId: number
@@ -262,8 +284,8 @@ export interface PongMsg {
 }
 
 export type AnyMsg =
-  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg
+  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg | ListRoomsMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)

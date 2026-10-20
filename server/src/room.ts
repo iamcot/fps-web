@@ -1,8 +1,9 @@
-import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, ECONOMY, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, addMoney, defaultLoadout, killReward, loadoutWeaponIds, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId } from '@fps/shared'
+import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, ECONOMY, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, addMoney, defaultLoadout, killReward, loadoutWeaponIds, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 import type { RoomGrenade } from './grenades'
 import { dropOnDeath } from './grenades'
+import { runKillRules } from './teamRules'
 
 export const EMPTY_ROOM_TTL_MS = 60_000
 export const MAX_NAME_LEN = 16
@@ -44,6 +45,7 @@ export interface Player {
 }
 
 export class Room {
+  mapId = ''   // id map trong RoomManager.maps (RoomManager đặt khi tạo)
   readonly players = new Map<number, Player>()
   emptySince: number | null
   readonly history = new LagHistory()
@@ -78,14 +80,14 @@ export class Room {
     return n
   }
 
-  // Luật chọn đội: tự động → đội ít người hơn (bằng nhau thì ngẫu nhiên); chọn đội đông hơn đội kia thì bị chuyển sang đội kia.
+  // Luật chọn đội: tự động → đội ít người hơn (bằng nhau thì ngẫu nhiên); chọn đội làm chênh lệch quá rules.maxTeamDiff thì bị chuyển sang đội kia.
   // Đội đầy (maxPerTeam) cũng chuyển; cả hai đầy → null (phòng đầy). `except` = người đang đổi đội (không tính vào đội cũ).
   assignTeam(pref: TeamId | 'auto', except: Player | null = null): TeamId | null {
     let a = this.teamCount('A'), b = this.teamCount('B')
     if (except) { if (except.team === 'A') a--; else b-- }
     const count = (t: TeamId) => (t === 'A' ? a : b)
     let team: TeamId = pref === 'auto' ? (a === b ? (this.random() < 0.5 ? 'A' : 'B') : a < b ? 'A' : 'B') : pref
-    if (count(team) > count(otherTeam(team))) team = otherTeam(team)
+    if (count(team) + 1 - count(otherTeam(team)) > this.rules.maxTeamDiff) team = otherTeam(team)
     if (count(team) >= this.rules.maxPerTeam) team = otherTeam(team)
     return count(team) >= this.rules.maxPerTeam ? null : team
   }
@@ -196,8 +198,10 @@ export class Room {
 
   // Chốt người chết cuối tick: hp ≤ 0 → chết, báo cả phòng. Gọi sau khi mọi người đã bước.
   finalizeDeaths(): void {
+    let anyDeath = false
     for (const p of this.players.values()) {
       if (!p.alive || p.hp > 0) continue
+      anyDeath = true
       dropOnDeath(this, p)   // đang rút chốt: ready → lựu đạn rơi tại chỗ, pulling → huỷ
       p.alive = false
       p.hp = 0
@@ -223,6 +227,7 @@ export class Room {
         o.transport.send({ t: MsgType.Kill, killerId: p.killerId, victimId: p.id, weapon: p.killWeapon, headshot: p.killHeadshot, reward, victimStreak })
       }
     }
+    if (anyDeath) runKillRules(this)
   }
 
   // Hồi sinh người đã chết đủ lâu
@@ -277,25 +282,43 @@ export class Room {
 
 export class RoomManager {
   readonly rooms = new Map<string, Room>()
+  /** Các map chọn được khi tạo phòng; map đầu tiên là mặc định */
+  readonly maps = new Map<string, { name: string; map: LoadedMap }>()
 
-  constructor(private map: LoadedMap, private now: () => number = () => performance.now(), private rules: MatchRules = MATCH) {}
+  constructor(private map: LoadedMap, private now: () => number = () => performance.now(), private rules: MatchRules = MATCH, private defaultMapId = 'default') {
+    this.maps.set(defaultMapId, { name: map.name, map })
+  }
+
+  registerMap(id: string, name: string, map: LoadedMap): void { this.maps.set(id, { name, map }) }
 
   // Vào phòng chưa có thì tạo mới. tryJoin trả null khi phòng đầy
-  join(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET): { room: Room; player: Player } {
-    const res = this.tryJoin(roomId, name, transport, tick, team, characterSet)
+  join(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET, mapId?: string): { room: Room; player: Player } {
+    const res = this.tryJoin(roomId, name, transport, tick, team, characterSet, mapId)
     if (!res) throw new Error('phòng đầy')
     return res
   }
 
-  tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET): { room: Room; player: Player } | null {
+  tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET, mapId?: string): { room: Room; player: Player } | null {
     let room = this.rooms.get(roomId)
     if (!room) {
-      room = new Room(roomId, this.map, this.now, Math.random, this.rules, characterSet)
+      const id = mapId !== undefined && this.maps.has(mapId) ? mapId : this.defaultMapId
+      room = new Room(roomId, this.maps.get(id)!.map, this.now, Math.random, this.rules, characterSet)
+      room.mapId = id
       this.rooms.set(roomId, room)
     }
     const player = room.join(name, transport, tick, this.now(), team)
     return player ? { room, player } : null
   }
+
+  list(): RoomInfo[] {
+    const out: RoomInfo[] = []
+    for (const r of this.rooms.values()) {
+      out.push({ id: r.id, mapId: r.mapId, characterSet: r.characterSet, players: r.players.size, maxPlayers: this.rules.maxPerTeam * 2, teamA: r.teamCount('A'), teamB: r.teamCount('B') })
+    }
+    return out
+  }
+
+  mapList(): MapInfo[] { return [...this.maps].map(([id, m]) => ({ id, name: m.name })) }
 
   // Xoá phòng trống quá 60 giây; gọi định kỳ
   sweep(): void {

@@ -10,6 +10,7 @@ export function otherTeam(t: TeamId): TeamId { return t === 'A' ? 'B' : 'A' }
 
 export interface MatchRules {
   maxPerTeam: number
+  maxTeamDiff: number   // chênh lệch số người tối đa giữa 2 đội khi chọn/đổi đội
   minPlayersToStart: number
   countdownMs: number
   durationMs: number
@@ -20,6 +21,7 @@ export interface MatchRules {
 
 export const MATCH: MatchRules = {
   maxPerTeam: 5,
+  maxTeamDiff: 2,
   minPlayersToStart: 2,
   countdownMs: 5000,
   durationMs: 10 * 60 * 1000,

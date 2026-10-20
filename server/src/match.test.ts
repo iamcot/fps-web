@@ -39,10 +39,10 @@ function run(room: Room, to: number) {
 }
 
 describe('chia đội (5.1)', () => {
-  it('3 người đều chọn A: không thể cả 3 vào A khi B có 0', () => {
+  it('3 người đều chọn A: A hơn B tối đa 2 (maxTeamDiff) nên người thứ 3 sang B', () => {
     const rm = new RoomManager(map, () => 0, rules)
     const teams = [mk(rm, '1', 'A'), mk(rm, '2', 'A'), mk(rm, '3', 'A')].map(x => x.p.team)
-    expect(teams).toEqual(['A', 'B', 'A'])
+    expect(teams).toEqual(['A', 'A', 'B'])
   })
 
   it('auto vào đội ít người hơn', () => {
