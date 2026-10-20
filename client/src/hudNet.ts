@@ -1,5 +1,7 @@
 // HUD phần mạng (4.5): killfeed, màn hình chết, viền đỏ khi bị bắn. DOM thuần, không cấp phát theo frame.
 
+import { weaponIcon } from './weaponIcon'
+
 const KILLFEED_MAX = 5
 const KILLFEED_LIFE_MS = 5000
 const HURT_FADE_MS = 700
@@ -32,7 +34,9 @@ export function createKillfeed() {
       line.style.cssText =
         'background:rgba(0,0,0,0.55);padding:2px 8px;margin-bottom:3px;' +
         (killerIsMe ? 'border-right:3px solid #ff5555;' : victimIsMe ? 'border-right:3px solid #ffaa33;' : '')
-      line.textContent = `${killer} [${weapon}] ${headshot ? '🎯 ' : ''}${victim}`
+      if (weapon === 'M67') {   // lựu đạn: icon thay tên súng
+        line.append(`${killer} `, weaponIcon('m67', weapon, 'width:28px;height:18px;vertical-align:middle'), ` ${headshot ? '🎯 ' : ''}${victim}`)
+      } else line.textContent = `${killer} [${weapon}] ${headshot ? '🎯 ' : ''}${victim}`
       if (killerIsMe && reward > 0) {   // tiền thưởng chỉ ở dòng do mình hạ
         const r = document.createElement('span')
         r.textContent = ` +$${reward}`

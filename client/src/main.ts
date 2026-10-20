@@ -32,6 +32,7 @@ import { createViewmodel } from './render/viewmodel'
 import { createPoseEditor } from './render/poseEditor'
 import { createBloodFx } from './render/bloodFx'
 import { createGrenades } from './render/grenades'
+import { createGrenadeWarning } from './hudGrenadeWarn'
 import { createGrenadeTrajectory } from './render/grenadeTrajectory'
 import { createExplosionFx } from './render/explosionFx'
 import { createTargets, updateTargets, flashTarget } from './targets'
@@ -163,7 +164,8 @@ function cycleSlot(dir: number): void {
     if ((ws.slots[s] ?? -1) >= 0) { requestSlot(s); return }
   }
 }
-const slotKeysBuf: (string | null)[] = [null, null, null, null]
+const slotKeysBuf: (string | null)[] = [null, null, null, null, null]
+const slotCountsBuf: (number | null)[] = [null, null, null, null, null]
 
 document.addEventListener('keydown', (e) => {
   if (e.repeat) return
@@ -202,6 +204,7 @@ const grenades = createGrenades(scene, {
   releaseDelayMs: (id, mode) => playersRenderer.grenadeReleaseDelayMs(id, mode),
 })
 const nadeTrajectory = createGrenadeTrajectory(scene)
+const nadeWarn = createGrenadeWarning()
 const nadeAimState = { pos: [0, 0, 0] as [number, number, number], vel: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0 }
 if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __nadeTraj: nadeTrajectory, __explosionFx: explosionFx })   // debug: script kiểm tra từ trình duyệt
 const interpolator = new Interpolator()
@@ -481,7 +484,13 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     if (vm.targetWeapon !== ws.current && vm.switchWeapon(ws.current)) { cancelReload(); playDraw(ws.current) }
     if (ws.slot !== seenSlot) { prevSlot = seenSlot; seenSlot = ws.slot }
     for (let i = 0; i < SLOT_COUNT; i++) { const id = ws.slots[i]!; slotKeysBuf[i] = id >= 0 ? WEAPONS[id]!.key : null }
-    hud.bottom.setSlots(slotKeysBuf, ws.slot)
+    {   // cảnh báo lựu đạn địch/của mình gần (bỏ qua đồng đội)
+      const myId = sessionRef?.yourId ?? -1, myT = sessionRef?.teams.get(myId)
+      nadeWarn.update(dt, camera.position, yaw, grenades.list(), g => g.pos,
+        g => dead || (g.ownerId !== myId && !!myT && sessionRef?.teams.get(g.ownerId) === myT))
+    }
+    slotCountsBuf[GRENADE_SLOT] = slotKeysBuf[GRENADE_SLOT] ? (ws.ammo[GRENADE_ID] ?? 0) : null
+    hud.bottom.setSlots(slotKeysBuf, ws.slot, slotCountsBuf)
     shop.tick()
 
     vm.setMotion(speed, state.grounded)
@@ -492,7 +501,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       vm.setGrenade(n.phase === 'idle' ? 'idle' : n.phase === 'pulling' ? 'pulling' : 'ready', n.mode, pull, (ws.ammo[GRENADE_ID] ?? 0) > 0)
     }
     hud.setSpread(shotSpread(def, state, (lastBtns & MOVE_KEYS) | (aiming ? Btn.Aim : 0)), dt * 1000)   // cùng công thức với lúc bắn
-    hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee)
+    hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee, !!def.consumable)
 
     updateTargets(targets, dt)
     const myTeamNow = sessionRef?.teams.get(sessionRef.yourId) ?? 'A'

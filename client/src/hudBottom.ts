@@ -25,6 +25,7 @@ const STYLE = `
 .hb-slot img,.hb-slot span{max-width:100%;max-height:100%;width:100%}
 .hb-slot.empty{opacity:.35}
 .hb-slot.active{border-width:3px;background:rgba(255,255,255,.15);transform:translateY(-4px)}
+.hb-slot .n{position:absolute;right:calc(6px*var(--hud-s));top:calc(3px*var(--hud-s));font:bold 14px sans-serif}
 .hb-slot .k{position:absolute;left:calc(6px*var(--hud-s));bottom:calc(3px*var(--hud-s));font:bold 12px sans-serif}
 .hb-right{right:var(--hud-side);bottom:var(--hud-bottom);text-align:right}
 .hb-ammo{font-weight:800;font-size:var(--ammo-size);line-height:1}
@@ -108,8 +109,8 @@ export function createBottomHud() {
       hpRow.classList.toggle('low', v > 0 && v < 30)
     },
     /** keys: key súng ở 4 ô (null = trống); active = ô đang cầm */
-    setSlots(keys: readonly (string | null)[], active: number): void {
-      const k = keys.join(',') + '|' + active
+    setSlots(keys: readonly (string | null)[], active: number, counts?: readonly (number | null)[]): void {
+      const k = keys.join(',') + '|' + active + '|' + (counts ? counts.join(',') : '')
       if (k === slotKey) return
       slotKey = k
       for (let i = 0; i < SLOT_COUNT; i++) {
@@ -118,6 +119,12 @@ export function createBottomHud() {
         el.classList.toggle('empty', key === null)
         el.classList.toggle('active', i === active && key !== null)
         el.querySelector('img,span:not(.k)')?.remove()
+        el.querySelector('.n')?.remove()
+        const cnt = counts?.[i]
+        if (key && cnt != null) {
+          const n = document.createElement('div'); n.className = 'n'; n.textContent = `×${cnt}`
+          el.appendChild(n)
+        }
         if (key) {
           const def = WEAPON_BY_KEY.get(key)
           el.insertBefore(weaponIcon(key, def?.name ?? key), el.firstChild)
@@ -125,12 +132,12 @@ export function createBottomHud() {
         }
       }
     },
-    setAmmo(name: string, cur: number, mag: number, reloading: boolean, melee = false): void {
-      const key = `${name}|${cur}|${mag}|${reloading}|${melee}`
+    setAmmo(name: string, cur: number, mag: number, reloading: boolean, melee = false, consumable = false): void {
+      const key = `${name}|${cur}|${mag}|${reloading}|${melee}|${consumable}`
       if (key === ammoKey) return
       ammoKey = key
-      ammoEl.textContent = melee ? '—' : reloading ? 'RELOAD' : `${cur} / ${mag}`
-      ammoEl.classList.toggle('low', !melee && !reloading && mag > 0 && cur <= mag * 0.25)
+      ammoEl.textContent = consumable ? `×${cur}` : melee ? '—' : reloading ? 'RELOAD' : `${cur} / ${mag}`
+      ammoEl.classList.toggle('low', !melee && !consumable && !reloading && mag > 0 && cur <= mag * 0.25)
       wnameEl.textContent = name
     },
     tick(dtMs: number): void {

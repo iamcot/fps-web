@@ -1,5 +1,5 @@
 // Giỏ hàng + menu cửa hàng (H.7). Chỉ hiển thị và gửi lệnh Buy; tiền/loadout/vùng mua do server quyết định.
-import { CATEGORY_LABEL, CATEGORY_SLOT, ECONOMY, WEAPONS, quoteBuy, type Loadout, type OwnedWeapon, type WeaponCategory } from '@fps/shared'
+import { CATEGORY_LABEL, CATEGORY_SLOT, ECONOMY, GRENADE, WEAPONS, quoteBuy, type Loadout, type OwnedWeapon, type WeaponCategory } from '@fps/shared'
 import { WEAPON_LABEL, weaponIcon } from './weaponIcon'
 
 export interface ShopDeps {
@@ -11,7 +11,7 @@ export interface ShopDeps {
   sounds: { ok(): void; fail(): void }
 }
 
-const GROUPS: WeaponCategory[] = ['pistol', 'mid', 'long']
+const GROUPS: WeaponCategory[] = ['pistol', 'mid', 'long', 'grenade']
 
 const STYLE = `
 .shop-cart{position:fixed;left:24px;top:50%;transform:translateY(-50%);z-index:26;display:flex;align-items:center;gap:6px;color:#fff;
@@ -93,7 +93,8 @@ export function createShop(deps: ShopDeps) {
   foot.className = 'shop-line'
   const footTxt = document.createElement('div')
   footTxt.className = 'shop-foot'
-  footTxt.textContent = `Mỗi dòng súng chỉ mang được 1 loại. Mua trùng dòng sẽ tự động bán súng đang có với giá ${Math.round(ECONOMY.sellRatio * 100)}%.`
+  footTxt.textContent = `Mỗi dòng súng chỉ mang được 1 loại. Mua trùng dòng sẽ tự động bán súng đang có với giá ${Math.round(ECONOMY.sellRatio * 100)}%.\nLựu đạn mang tối đa ${GRENADE.maxCarry} quả, không bán lại.`
+  footTxt.style.whiteSpace = 'pre-line'
   panel.append(foot, footTxt)
 
   let open = false
@@ -111,7 +112,7 @@ export function createShop(deps: ShopDeps) {
   function refresh(): void {
     const money = deps.money()
     const lo = asLoadout()
-    const key = `${money}|${lo.slots.map(w => (w ? w.key + w.paid : '-')).join(',')}`
+    const key = `${money}|${lo.slots.map(w => (w ? w.key + w.paid + ':' + (w.count ?? 0) : '-')).join(',')}`
     if (key === drawKey) return
     drawKey = key
     moneyEl.textContent = `$${money}`
@@ -120,12 +121,14 @@ export function createShop(deps: ShopDeps) {
       const def = WEAPONS.find(w => w.key === r.key)!
       const old = lo.slots[CATEGORY_SLOT[def.category]] ?? null
       const owned = !q.ok && q.reason === 'already_owned'
-      r.pr.textContent = owned ? 'Đang dùng' : `$${def.price}`
+      const full = !q.ok && q.reason === 'max_carry'
+      const cnt = def.consumable ? (old?.count ?? 0) : 0
+      r.pr.textContent = owned ? 'Đang dùng' : full ? `Đã đủ (${cnt}/${GRENADE.maxCarry})` : def.consumable && cnt > 0 ? `${cnt}/${GRENADE.maxCarry} · $${def.price}` : `$${def.price}`
       r.pr.classList.toggle('bad', !q.ok && q.reason === 'not_enough_money')
       r.el.classList.toggle('dim', !q.ok)
       r.el.classList.toggle('owned', owned)
       let sub = ''
-      if (old && !owned) {
+      if (old && !owned && !def.consumable) {
         const oldName = WEAPON_LABEL[old.key] ?? old.key
         const refund = q.refund
         sub = refund > 0
