@@ -39,7 +39,7 @@ function buildHitmarker() {
 // ── Bullet holes ──────────────────────────────────────────────────────────────
 const BH_MAT    = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 })
 const BH_GEO    = new THREE.CircleGeometry(0.05, 12)   // 10cm radius
-const MAX_HOLES = 50
+const MAX_HOLES = 120
 
 function buildBulletHoles(scene: THREE.Scene) {
   const holes: THREE.Mesh[] = []
@@ -69,6 +69,7 @@ function buildBulletHoles(scene: THREE.Scene) {
         scene.remove(holes.shift()!)
       }
     },
+    clear() { for (const h of holes) scene.remove(h); holes.length = 0 },
   }
 }
 
@@ -139,6 +140,7 @@ function buildCrosshair() {
 export interface HUDHandle {
   showHitmarker(headshot: boolean): void
   addBulletHole(hitPos: [number, number, number], normal: [number, number, number]): void
+  clearBulletHoles(): void
   tick(dtMs: number): void
   setSpread(spreadDeg: number, dtMs: number, coneDeg?: number, dotOnly?: boolean): void
   setCrosshairFade(adsT: number): void
@@ -159,6 +161,7 @@ export function initHUD(scene: THREE.Scene): HUDHandle {
   return {
     showHitmarker: (hs) => hm.show(hs),
     addBulletHole: (p, n) => bh.add(p, n),
+    clearBulletHoles: () => bh.clear(),
     tick:          (ms)  => { hm.tick(ms); st.tick(ms) },
     setSpread:     (d, ms, cone, dot) => ch.tick(d, ms, cone, dot),
     setCrosshairFade: (t) => ch.setFade(t),

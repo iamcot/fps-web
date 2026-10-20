@@ -37,7 +37,7 @@ export function createPoseEditor(vm: ViewmodelHandle, weaponId: () => number, eq
     m.renderOrder = 20; m.visible = false
     vm.scene.add(m); dots.set(name, m)
   }
-  dot('hand_r', 0xff3030); dot('hand_l', 0x3080ff); dot('mag', 0xffe030)
+  dot('sight', 0x30ff90); dot('hand_r', 0xff3030); dot('hand_l', 0x3080ff); dot('mag', 0xffe030)
   dot('shoulderR', 0xffffff); dot('shoulderL', 0xffffff); dot('elbowR', 0xc040ff); dot('elbowL', 0xc040ff)
   const _v = new THREE.Vector3()
 
@@ -97,6 +97,10 @@ export function createPoseEditor(vm: ViewmodelHandle, weaponId: () => number, eq
       if (!w.first.gunPos) w.first.gunPos = [0.14, -0.16, -0.36]
       vecRows(body, 'gunPos', () => w.first.gunPos!, -1, 1)
       vecRows(body, 'gunRotDeg', () => w.first.gunRotDeg, -90, 90, 0.5)
+      body.append(el('div', 'margin-top:6px;color:#8af', 'Ngắm (giữ chuột phải; chấm xanh = đầu ruồi)'))
+      numRow(body, 'adsEyeDist', () => w.first.adsEyeDist ?? 0.45, v => { w.first.adsEyeDist = v }, 0.05, 0.8, 0.005)
+      if (!w.first.adsRotDeg) w.first.adsRotDeg = [0, 0, 0]
+      vecRows(body, 'adsRotDeg', () => w.first.adsRotDeg!, -30, 30, 0.25)
       numRow(body, 'scale', () => w.first.scale, v => { w.first.scale = v }, 0.3, 2, 0.01)
       vecRows(body, 'shoulderR', () => poses.first.shoulderR, -1, 1)
       vecRows(body, 'shoulderL', () => poses.first.shoulderL, -1, 1)
@@ -235,6 +239,7 @@ export function createPoseEditor(vm: ViewmodelHandle, weaponId: () => number, eq
       if (!open) return
       const d = vm.debug, id = vm.currentWeapon, M = d.gunGroup.matrix
       const put = (name: string, v: THREE.Vector3, on = true) => { const m = dots.get(name)!; m.position.copy(v); m.visible = on }
+      put('sight', _v.copy(d.sight ?? _v.set(0, 0, 0)).applyMatrix4(M), !!d.sight)
       put('hand_r', getAnchor(id, 'hand_r', _v).applyMatrix4(M))
       put('hand_l', getAnchor(id, 'hand_l', _v).applyMatrix4(M))
       put('mag', getAnchor(id, 'mag', _v).applyMatrix4(M))

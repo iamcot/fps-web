@@ -270,7 +270,7 @@ export function initAudioTuning(): void {
 
   function renderMisc() {
     slider(body, 'volume', () => settings.volume, v => { settings.volume = v; saveSettings() }, [0, 1, 0.05])
-    for (const [key, label] of [['lowAmmoWarning', 'Cảnh báo sắp hết đạn'], ['heartbeat', 'Tim đập khi máu thấp']] as const) {
+    for (const [key, label] of [['lowAmmoWarning', 'Cảnh báo sắp hết đạn'], ['heartbeat', 'Tim đập khi máu thấp'], ['dynamicCrosshair', 'Tâm ngắm động (giãn theo độ toé)']] as const) {
       const row = document.createElement('label'); row.style.cssText = 'display:block;margin:4px 0'
       const c = document.createElement('input'); c.type = 'checkbox'; c.checked = settings[key]
       c.addEventListener('change', () => { settings[key] = c.checked; saveSettings(); if (key === 'heartbeat') setHealthForAudio(100) })

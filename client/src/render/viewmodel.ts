@@ -257,6 +257,8 @@ export interface ViewmodelDebug {
   freezeReload: number;
   /** Tô đỏ tay không với tới súng */
   showReach: boolean;
+  /** Điểm ngắm (đầu ruồi) của súng đang cầm, trong không gian của gunGroup (nhân gunGroup.matrix ra không gian camera); null nếu chưa đo được */
+  sight: THREE.Vector3 | null;
 }
 
 export function createViewmodel(aspect: number): ViewmodelHandle {
@@ -313,7 +315,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     magHeld = { mesh, parent: mesh.parent, weapon: currentWeapon, pos: mesh.position.clone(), quat: mesh.quaternion.clone(), scale: mesh.scale.clone() };
     (fpActive() ? fp.leftHand()! : armL.handMesh).attach(mesh);
   }
-  const dbg: ViewmodelDebug = { gunGroup, armR, armL, shoulderR, shoulderL, targetR, targetL, validR: false, validL: false, freezeReload: -1, showReach: false };
+  const dbg: ViewmodelDebug = { gunGroup, armR, armL, shoulderR, shoulderL, targetR, targetL, validR: false, validL: false, freezeReload: -1, showReach: false, sight: null };
   onPosesChange(() => { cam.fov = poses.first.fov; cam.updateProjectionMatrix(); });
 
   // Trạng thái
@@ -526,10 +528,12 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     const base = basePos(currentWeapon);
     const bx = base.x, by = base.y, bz = base.z;
     const sight = sights.get(currentWeapon);
+    dbg.sight = sight ?? null;
     const adsX = sight ? -sight.x : 0;
     const adsY = sight ? -sight.y - (ADS_DROP[currentWeapon] ?? 0) : by + 0.2;
-    const adsZ = sight ? -ADS_DIST - sight.z : bz;
-    const bob = 1 - a * (1 - ADS_BOB);
+    const adsZ = sight ? -(pose.adsEyeDist ?? ADS_DIST) - sight.z : bz;
+    const bob = 1 - a * (1 - ADS_BOB);   // lắc khi đi giảm 85% lúc ngắm
+    const kickMul = 1 - 0.5 * a;          // giật hình (lùi/ngóc súng) giảm 50% lúc ngắm
     const nadeCfg = currentWeapon === GRENADE_ID ? pose.grenade : undefined;
     const nadeOut = nadeCfg ? nadeAnim.update(dt * 1000) : null;
     if (nadeOut && nadeCfg) {
@@ -545,13 +549,13 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       gunGroup.position.set(
         bx + (adsX - bx) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob,
         by + (adsY - by) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r,
-        bz + (adsZ - bz) * a + KICK_BACK * kick,
+        bz + (adsZ - bz) * a + KICK_BACK * kick * kickMul,
       );
       const hip = 1 - a;   // góc đặt súng của poses.json mất dần khi ngắm (thân súng thẳng)
       gunGroup.rotation.set(
-        pose.gunRotDeg[0] * DEG * hip + KICK_PITCH * kick - RELOAD_TILT * r + tiltPitch,
-        pose.gunRotDeg[1] * DEG * hip,
-        pose.gunRotDeg[2] * DEG * hip + tiltRoll,
+        pose.gunRotDeg[0] * DEG * hip + (pose.adsRotDeg?.[0] ?? 0) * DEG * a + KICK_PITCH * kick * kickMul - RELOAD_TILT * r + tiltPitch,
+        pose.gunRotDeg[1] * DEG * hip + (pose.adsRotDeg?.[1] ?? 0) * DEG * a,
+        pose.gunRotDeg[2] * DEG * hip + (pose.adsRotDeg?.[2] ?? 0) * DEG * a + tiltRoll,
       );
       gunGroup.scale.setScalar(pose.scale);
     }

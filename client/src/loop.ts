@@ -31,7 +31,7 @@ export function setMatchPhase(v: MatchPhase): void { _phase = v }
 
 function _buildCmd(): InputCmd {
   let buttons = sampleButtons() & phaseButtonMask(_phase, !_dead)   // chết / đếm ngược / hết trận: server cũng bỏ nút này
-  if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload)   // chưa khoá chuột thì không bắn/nạp
+  if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload | Btn.Aim)   // chưa khoá chuột thì không bắn/nạp/ngắm
   return { seq: _seq++, buttons, yaw, pitch, weapon: _weapon }
 }
 

@@ -1,4 +1,4 @@
-import type { MovementConfig } from '@fps/shared'
+import { WEAPONS, type MovementConfig, type SpreadDef } from '@fps/shared'
 
 type FieldRange = [min: number, max: number, step: number]
 
@@ -34,8 +34,27 @@ export function initTuningPanel(cfg: MovementConfig): void {
 
   const title = document.createElement('div')
   title.style.cssText = 'font-weight:bold;margin-bottom:6px;color:#ff0'
-  title.textContent = 'MovementConfig  [F6 đóng]'
+  title.textContent = 'Chỉnh thông số  [F6 đóng]'
   panel.appendChild(title)
+  const tabs = document.createElement('div')
+  tabs.style.cssText = 'display:flex;gap:4px;margin-bottom:6px'
+  const moveBox = document.createElement('div')
+  const spreadBox = document.createElement('div')
+  spreadBox.style.display = 'none'
+  const tabBtn = (label: string, box: HTMLElement): HTMLButtonElement => {
+    const b = document.createElement('button')
+    b.textContent = label
+    b.style.cssText = 'flex:1;padding:3px;background:#333;color:#fff;border:1px solid #888;cursor:pointer;font:11px monospace'
+    b.addEventListener('click', () => {
+      for (const [bb, bx] of [[tabM, moveBox], [tabS, spreadBox]] as const) { bx.style.display = bx === box ? '' : 'none'; bb.style.background = bx === box ? '#555' : '#333' }
+    })
+    return b
+  }
+  const tabM = tabBtn('Movement', moveBox), tabS = tabBtn('Spread', spreadBox)
+  tabM.style.background = '#555'
+  tabs.append(tabM, tabS)
+  panel.append(tabs, moveBox, spreadBox)
+  buildSpreadTab(spreadBox)
 
   const labels: Partial<Record<keyof MovementConfig, HTMLSpanElement>> = {}
 
@@ -67,7 +86,7 @@ export function initTuningPanel(cfg: MovementConfig): void {
     })
 
     row.append(lbl, slider, val)
-    panel.appendChild(row)
+    moveBox.appendChild(row)
   }
 
   const copyBtn = document.createElement('button')
@@ -82,7 +101,7 @@ export function initTuningPanel(cfg: MovementConfig): void {
       setTimeout(() => { copyBtn.textContent = 'Copy JSON' }, 1500)
     })
   })
-  panel.appendChild(copyBtn)
+  moveBox.appendChild(copyBtn)
 
   let visible = false
   document.addEventListener('keydown', e => {
@@ -92,7 +111,7 @@ export function initTuningPanel(cfg: MovementConfig): void {
       // Đồng bộ slider nếu cfg bị thay đổi từ ngoài
       if (visible) {
         for (const key of Object.keys(RANGES) as (keyof MovementConfig)[]) {
-          const inputs = panel.querySelectorAll<HTMLInputElement>('input[type=range]')
+          const inputs = moveBox.querySelectorAll<HTMLInputElement>('input[type=range]')
           const idx = (Object.keys(RANGES) as string[]).indexOf(key)
           if (inputs[idx]) {
             inputs[idx].value = String(cfg[key])
@@ -103,4 +122,69 @@ export function initTuningPanel(cfg: MovementConfig): void {
       e.preventDefault()
     }
   })
+}
+
+// ── Tab Spread (plan 14 S.4): chỉnh SpreadDef + recoilPitchDeg của từng súng ngay trong game (chỉ client; server giữ số gốc) ──
+const SPREAD_RANGES: Record<keyof SpreadDef, FieldRange> = {
+  standDeg:              [0, 6,   0.01],
+  crouchDeg:             [0, 6,   0.01],
+  moveDeg:               [0, 6,   0.05],
+  accurateSpeed:         [0, 8,   0.25],
+  airDeg:                [0, 14,  0.1 ],
+  bloomPerShotDeg:       [0, 2,   0.01],
+  bloomMaxDeg:           [0, 6,   0.05],
+  bloomRecoverDegPerSec: [0, 30,  0.5 ],
+  bloomRecoverDelayMs:   [0, 1000, 10 ],
+  pelletConeDeg:         [0, 12,  0.1 ],
+  unscopedDeg:           [0, 16,  0.1 ],
+}
+
+function buildSpreadTab(box: HTMLElement): void {
+  const sel = document.createElement('select')
+  sel.style.cssText = 'width:100%;margin-bottom:6px;background:#222;color:#fff;font:12px monospace'
+  const guns = WEAPONS.filter(w => !w.melee && !w.consumable)
+  for (const w of guns) sel.add(new Option(w.name, String(w.id)))
+  const rows = document.createElement('div')
+  const copyBtn = document.createElement('button')
+  copyBtn.textContent = 'Copy JSON súng này'
+  copyBtn.style.cssText = 'margin-top:8px;width:100%;padding:4px;background:#333;color:#fff;border:1px solid #888;cursor:pointer;font:12px monospace'
+  box.append(sel, rows, copyBtn)
+
+  const cur = () => WEAPONS[Number(sel.value)]!
+  function addRow(label: string, range: FieldRange, get: () => number, set: (n: number) => void): void {
+    const row = document.createElement('div')
+    row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:2px'
+    const lbl = document.createElement('span')
+    lbl.style.cssText = 'width:120px;flex-shrink:0;font-size:10px'
+    lbl.textContent = label
+    const val = document.createElement('span')
+    val.style.cssText = 'width:44px;text-align:right;font-size:10px;color:#0ff'
+    val.textContent = get().toFixed(2)
+    const slider = document.createElement('input')
+    slider.type = 'range'; slider.min = String(range[0]); slider.max = String(range[1]); slider.step = String(range[2]); slider.value = String(get())
+    slider.style.cssText = 'flex:1;cursor:pointer'
+    slider.addEventListener('input', () => { const n = parseFloat(slider.value); set(n); val.textContent = n.toFixed(2) })
+    row.append(lbl, slider, val)
+    rows.appendChild(row)
+  }
+  function render(): void {
+    rows.textContent = ''
+    const w = cur()
+    for (const k of Object.keys(SPREAD_RANGES) as (keyof SpreadDef)[]) {
+      if (w.spread[k] === undefined) continue
+      addRow(k, SPREAD_RANGES[k], () => w.spread[k]!, n => { w.spread[k] = n })
+    }
+    addRow('recoilPitchDeg', [0, 6, 0.01], () => w.recoilPitchDeg, n => { w.recoilPitchDeg = n })
+    if (w.ads) addRow('ads.spreadMult', [0, 1.5, 0.01], () => w.ads!.spreadMult, n => { w.ads!.spreadMult = n })
+  }
+  sel.addEventListener('change', render)
+  copyBtn.addEventListener('click', () => {
+    const w = cur()
+    const json = JSON.stringify({ key: w.key, spread: w.spread, recoilPitchDeg: w.recoilPitchDeg, ...(w.ads ? { adsSpreadMult: w.ads.spreadMult } : {}) }, null, 2)
+    navigator.clipboard.writeText(json).then(() => {
+      copyBtn.textContent = 'Đã copy!'
+      setTimeout(() => { copyBtn.textContent = 'Copy JSON súng này' }, 1500)
+    })
+  })
+  render()
 }

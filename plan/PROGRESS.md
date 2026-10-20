@@ -156,12 +156,20 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - Tay FP phình to/chĩa lên (lỗi chỉ gặp trên Chrome ẩn danh): `FpArms.add()` đo xương khi root đã bị `place()` xoay/scale cho phe tải trước. Tái hiện bằng cách làm chậm tải `robber_fparms.glb` rồi đổi sang phe Cướp. Giờ đo với root ở trạng thái gốc rồi khôi phục.
 - Sinh Tử: client đồng bộ sống/chết theo cờ Dead của snapshot (không kẹt ở chế độ xem).
 
-## 14 – Độ toé mới + ADS (tuỳ chọn)
-- [ ] S.1 Spread theo tốc độ + bloom (shared, có test)
-- [ ] S.2 Chỉnh độ giật súng tự động
-- [ ] S.3 Tâm ngắm động khớp độ toé thật
-- [ ] S.4 Bảng chỉnh Spread + bia tập bắn
-- [ ] S.5 Kiểm tra đồng bộ online
-- [ ] D.1 (Tuỳ chọn) Logic ADS
-- [ ] D.2 (Tuỳ chọn) Viewmodel + camera khi ngắm
-- [ ] D.3 (Tuỳ chọn) Người khác thấy mình ngắm
+## 14 – Độ toé mới + ADS
+- [x] S.1 Spread theo tốc độ + bloom (shared/src/spread.ts, test spread.test.ts)
+- [x] S.2 Chỉnh độ giật súng tự động (AK 0.95, M16 0.56, SMG 0.45)
+- [x] S.3 Tâm ngắm động khớp độ toé thật (khoảng hở tối thiểu 3px, làm mượt 30ms, vòng shotgun, sniper không ngắm = chấm, setting F8 "Tâm ngắm động")
+- [x] S.4 Bảng chỉnh Spread (F6 tab Spread) + dòng spread trong F3 + `?dummies=1` có 3 bảng tập bắn 10/20/40m (Shift+R xoá vết đạn)
+- [x] S.5 Đồng bộ online: tỉ lệ "súng lệch server" ở F3 bằng bản trước plan 14 (cùng ~3%, khi RTT cao bị swiftshader làm giật); chưa chạy bài 3 tab / 5 phút
+- [x] D.1 ADS trong movement (`PlayerState.adsT`, `stepMovement(..., ads, adsWant)`, test determinism)
+- [x] D.2 Viewmodel + camera khi ngắm (FOV theo adsT, sens theo FOV, tâm HUD mờ, F9 có `adsEyeDist` / `adsRotDeg` + chấm xanh đầu ruồi)
+- [x] D.3 Người khác thấy mình ngắm (`NetPlayer.adsT`, súng lên má ở góc 3, `adsGunPos/adsGunRotDeg` trong poses.json, mặc định dịch [-0.06, 0.1, 0.03])
+
+Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
+- Đã có sẵn `Btn.Aim`, ADS cho AK/M16/Sniper và đầu ruồi đo tự động từ model (`measureSight`) → giữ cách đó, KHÔNG làm điểm neo `sight` trong `gun_tool.py`. `AdsDef` đổi từ `{fovs, scope}` thành `{spreadMult, moveMult, fovMult, inMs, outMs, scope}`; bỏ `aimSpreadDeg`, `spreadFor`, `shotSpread`, `MOVE_SPREAD_SPEED`, `SCOPE_MOVE_MUL` (sniper ngắm chậm ×0.5 nay là `moveMult` + adsT).
+- Sniper: `spread.unscopedDeg = 8` cố định khi không ngắm, `lerp` sang công thức thường theo adsT; `accurateSpeed 1` (không phải 3) vì ngắm là đi chậm.
+- Bỏ lăn chuột đổi mức zoom (mọi súng chỉ 1 mức zoom); lăn chuột luôn đổi súng.
+- `WeaponState` thêm `bloomDeg[]`, `lastShotMs[]` (theo id súng, để mỗi súng giữ bloom riêng), `shotBloomDeg` (bloom đã dùng cho phát vừa bắn; cập nhật trong `tryFire` nên reconcile súng replay đúng), `switchEndMs` (không ngắm trong lúc khoá đổi súng).
+- `computeSpreadDeg(p, ws, def, cfg, nowMs, forShot)` có thêm cờ `forShot`; `spreadParts` tách từng phần cho F3.
+- Pistol/SMG/Shotgun nay có `ads` (số theo plan). Shotgun: spread chỉ dịch tâm chùm, nón cố định `pelletConeDeg 4.5`.

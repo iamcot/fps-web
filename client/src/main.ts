@@ -1,10 +1,10 @@
 import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
-  stepWeaponCmd, computeSpreadDeg, adsMoveFor, adsWanted, computeShotDirs, MAX_PELLETS, recoverRecoil,
+  stepWeaponCmd, computeSpreadDeg, spreadParts, adsMoveFor, adsWanted, computeShotDirs, MAX_PELLETS, recoverRecoil,
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
-import type { MapFile } from '@fps/shared'
+import type { MapFile, SpreadParts } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
@@ -37,11 +37,11 @@ import { createGrenades } from './render/grenades'
 import { createGrenadeWarning } from './hudGrenadeWarn'
 import { createGrenadeTrajectory } from './render/grenadeTrajectory'
 import { createExplosionFx } from './render/explosionFx'
-import { createTargets, updateTargets, flashTarget } from './targets'
+import { createTargets, createBoards, rayBoards, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
 import {
-  initAudio, updateListener, playShot, playDry, playDraw, startReload, cancelReload,
+  initAudio, updateListener, settings as audioSettings, playShot, playDry, playDraw, startReload, cancelReload,
   playHit, playHurt, setHealthForAudio, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS, playBuyOk, playBuyFail,
   playPin, playSpoon, playThrowSwish, playBounce, playExplode, playRoundStart, playRoundWin, playRoundLose, playTick,
 } from './audio'
@@ -274,7 +274,7 @@ document.addEventListener('keydown', e => { if (e.code === 'Tab') { e.preventDef
 document.addEventListener('keyup', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = false } })
 window.addEventListener('blur', () => { tabHeld = false })
 let lastHp = 100
-const selfDebug = { id: 0, pos: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, flags: 0, weapon: 0 }   // F10
+const selfDebug = { id: 0, pos: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, flags: 0, weapon: 0, adsT: 0 }   // F10
 const sessionP = showLobby()
 sessionP.then(session => {
   if (!session) {
@@ -453,7 +453,12 @@ sessionP.then(session => {
     interpolator.push(0, []); playersRenderer.clear(); ghosts.clear(); grenades.clear()
   })
 })
-const updateDebug = initDebugOverlay(netStats, () => snapStore, () => prediction)
+const dbgParts: SpreadParts = { base: 0, move: 0, air: 0, bloom: 0, mult: 1, total: 0 }
+const updateDebug = initDebugOverlay(netStats, () => snapStore, () => prediction, () => {
+  const d = WEAPONS[ws.current]!
+  const p = spreadParts(dbgParts, currentState(), ws, d, cfg, simMs)
+  return [`spread ${p.total.toFixed(2)}° = base ${p.base.toFixed(2)} + move ${p.move.toFixed(2)} + air ${p.air.toFixed(2)} + bloom ${p.bloom.toFixed(2)}${p.mult !== 1 ? ` × ads ${p.mult.toFixed(2)}` : ''}`]
+})
 initTuningPanel(cfg)
 
 let debugLines: THREE.LineSegments | null = null
@@ -488,7 +493,10 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   })
 
   // Bia + HUD
-  const targets = new URLSearchParams(location.search).has('dummies') ? createTargets(scene) : []   // hình nhân luyện bắn: chỉ khi mở ?dummies=1
+  const dummies = new URLSearchParams(location.search).has('dummies')
+  const targets = dummies ? createTargets(scene) : []   // hình nhân luyện bắn: chỉ khi mở ?dummies=1
+  const boards = dummies ? createBoards(scene) : []   // bảng tập bắn 10/20/40m; Shift+R xoá vết đạn
+  if (dummies) document.addEventListener('keydown', e => { if (e.code === 'KeyR' && e.shiftKey) hudRef?.clearBulletHoles() })
   const hud     = initHUD(scene)
   hudRef = hud
 
@@ -542,6 +550,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     const scoped = !!ads?.scope && adsT > 0.9
     scopeOverlay.setVisible(scoped)
     hud.setCrosshairVisible(!scoped && spectatingId === -2)
+    hud.setCrosshairDynamic(audioSettings.dynamicCrosshair)
     hud.setCrosshairFade(adsT)   // ngắm hẳn thì tâm HUD mờ hết (nhìn qua khe ngắm/đầu ruồi)
     hud.setCrosshairFov(camera.fov)
 
@@ -614,6 +623,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       selfDebug.id = playerId; selfDebug.pos = state.pos; selfDebug.yaw = state.yaw; selfDebug.pitch = state.pitch
       selfDebug.flags = (state.grounded ? NetFlag.Grounded : 0) | (state.crouching ? NetFlag.Crouching : 0) | (state.slideTimer > 0 ? NetFlag.Sliding : 0)
       selfDebug.weapon = ws.current
+      selfDebug.adsT = state.adsT
       playersRenderer.update([...others.filter(o => o.id !== playerId), selfDebug], -1)
     } else if (snapStore) {
       lastSampled = interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs))
@@ -659,8 +669,11 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
           hitCenter[0] = eyeTmp[0] + shotDirs[k]![0] * result.dist; hitCenter[1] = eyeTmp[1] + shotDirs[k]![1] * result.dist; hitCenter[2] = eyeTmp[2] + shotDirs[k]![2] * result.dist
           blood.spawn(hitCenter, shotDirs[k]!, result.part === 'head')
           if (result.part === 'head') hitHead = true; else hitBody = true
-        } else if (result?.kind === 'wall' && !def.melee) {
-          hud.addBulletHole(result.hitPos, result.normal)
+        } else if (!def.melee) {
+          const wallDist = result?.kind === 'wall' ? result.dist : def.range
+          const bh = boards.length ? rayBoards(eyeTmp, shotDirs[k]!, boards, wallDist) : null
+          if (bh) hud.addBulletHole(bh.point, bh.normal)
+          else if (result?.kind === 'wall') hud.addBulletHole(result.hitPos, result.normal)
         }
       }
       if (hitHead || hitBody) {   // một hitmarker + một tiếng cho cả phát

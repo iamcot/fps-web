@@ -10,6 +10,7 @@ export function initDebugOverlay(
   net?: PingStats,
   snap?: () => SnapshotStore | null,
   pred?: () => Prediction | null,
+  extra?: () => string[],   // dòng thêm (spread…)
 ): (state: PlayerState, fps: number) => void {
   const el = document.createElement('pre')
   el.style.cssText =
@@ -29,7 +30,8 @@ export function initDebugOverlay(
       `FPS        ${fps.toFixed(0)}`,
       `Tốc độ    ${hspd.toFixed(2)} m/s`,
       `grounded  ${state.grounded}`,
-      `slideTimer ${state.slideTimer.toFixed(3)}`,
+      `slideTimer ${state.slideTimer.toFixed(3)}   adsT ${state.adsT.toFixed(2)}`,
+      ...(extra ? extra() : []),
       `pos  ${state.pos.map(v => v.toFixed(2)).join('  ')}`,
       `yaw  ${state.yaw.toFixed(3)}   pitch ${state.pitch.toFixed(3)}`,
       ...(pred?.() ? [`pending ${pred()!.pending.length}   sai số reconcile ${pred()!.lastError.toFixed(3)} m   max 5s ${pred()!.maxError().toFixed(3)} m`] : []),

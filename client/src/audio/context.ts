@@ -8,10 +8,11 @@ export interface AudioSettings {
   volume: number
   lowAmmoWarning: boolean
   heartbeat: boolean
+  dynamicCrosshair: boolean   // tâm ngắm giãn theo độ toé thật (tắt: khoảng hở cố định)
 }
 
 const LS_KEY = 'fps_audio'
-export const settings: AudioSettings = { volume: 1, lowAmmoWarning: true, heartbeat: true }
+export const settings: AudioSettings = { volume: 1, lowAmmoWarning: true, heartbeat: true, dynamicCrosshair: true }
 try {
   Object.assign(settings, JSON.parse(localStorage.getItem(LS_KEY) ?? '{}'))
 } catch { /* localStorage hỏng/không có: dùng mặc định */ }

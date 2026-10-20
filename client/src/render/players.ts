@@ -1,11 +1,11 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
-import { defaultMovement, ECONOMY, NetFlag, TEAMS, type TeamId } from '@fps/shared'
+import { defaultMovement, ECONOMY, NetFlag, TEAMS, WEAPONS, type TeamId } from '@fps/shared'
 import { makeBlobShadow } from './blobShadow'
 import { MUZZLE_FALLBACK, makeFlashTexture, adjustModel } from './viewmodel'
 import { BlockArm } from './blockArm'
-import { poses, weaponPose, getAnchor, scanModelAnchors, colorOf } from './poses'
+import { poses, weaponPose, getAnchor, scanModelAnchors, colorOf, type Vec3, type WeaponPose } from './poses'
 import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
 import { makeSkeletalRig, requestCharacters, skeletalEnabled, skeletalReady } from './characterRig'
 import { GRENADE_ID } from '@fps/shared'
@@ -13,7 +13,7 @@ import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './charact
 import { createDeathFx } from './characters/deathFx'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
-interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number }
+interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number; adsT?: number }
 
 export interface TeamInfo {
   teamOf(id: number): TeamId | undefined
@@ -187,13 +187,25 @@ function setHold(a: Actor, two: boolean): void {
   parent.add(a.flash)
 }
 
+// Súng ở holder: tư thế thường, hoặc (người đó đang ngắm) trượt dần sang adsGunPos/adsGunRotDeg: lên cao, sát má.
+// poses.json không có adsGunPos thì dùng ADS_THIRD_SHIFT cộng vào tư thế thường
+const ADS_THIRD_SHIFT: Vec3 = [-0.06, 0.1, 0.03]
+function placeHolder(a: Actor, weapon: number, wp: WeaponPose['third'], adsT: number): void {
+  const k = WEAPONS[weapon]?.ads ? smoothstep01((adsT - 0.3) / 0.4) : 0
+  const gp = wp.adsGunPos ?? null, gr = wp.adsGunRotDeg ?? wp.gunRotDeg
+  const px = gp ? gp[0] : wp.gunPos[0] + ADS_THIRD_SHIFT[0], py = gp ? gp[1] : wp.gunPos[1] + ADS_THIRD_SHIFT[1], pz = gp ? gp[2] : wp.gunPos[2] + ADS_THIRD_SHIFT[2]
+  a.holder.position.set(wp.gunPos[0] + (px - wp.gunPos[0]) * k, wp.gunPos[1] + (py - wp.gunPos[1]) * k, wp.gunPos[2] + (pz - wp.gunPos[2]) * k)
+  a.holder.rotation.copy(_eul.set(
+    (wp.gunRotDeg[0] + (gr[0] - wp.gunRotDeg[0]) * k) * DEG, (wp.gunRotDeg[1] + (gr[1] - wp.gunRotDeg[1]) * k) * DEG, (wp.gunRotDeg[2] + (gr[2] - wp.gunRotDeg[2]) * k) * DEG, 'XYZ'))
+}
+function smoothstep01(x: number): number { const t = x < 0 ? 0 : x > 1 ? 1 : x; return t * t * (3 - 2 * t) }
+
 // Đặt súng ở holder theo poses.json rồi giải IK hai tay vào hai điểm neo. Mọi toạ độ trong hệ `rig.upper`.
-function solveArms(a: Actor, weapon: number, pitch: number): void {
+function solveArms(a: Actor, weapon: number, pitch: number, adsT: number): void {
   const t = poses.third, wp = weaponPose(weapon).third
   a.aimPivot.position.set(t.aimPivot[0], t.aimPivot[1] - HIP_Y, t.aimPivot[2])
   a.aimPivot.rotation.x = pitch * HEAD_PITCH
-  a.holder.position.set(wp.gunPos[0], wp.gunPos[1], wp.gunPos[2])
-  a.holder.rotation.copy(_eul.set(wp.gunRotDeg[0] * DEG, wp.gunRotDeg[1] * DEG, wp.gunRotDeg[2] * DEG, 'XYZ'))
+  placeHolder(a, weapon, wp, adsT)
   a.aimPivot.updateMatrix(); a.holder.updateMatrix()
   _m.multiplyMatrices(a.aimPivot.matrix, a.holder.matrix)
   const arm = (side: 'R' | 'L') => {
@@ -211,10 +223,9 @@ const _gq = new THREE.Quaternion()
 const _rq = new THREE.Quaternion()
 const _sh = new THREE.Vector3()
 // Nhân vật có xương: đặt súng ở holder rồi IK hai bàn tay thật vào hai điểm neo, gập ngón. Mọi toạ độ thế giới.
-function solveSkelArms(a: Actor, weapon: number): void {
+function solveSkelArms(a: Actor, weapon: number, adsT: number): void {
   const sk = a.rig.skel!, wp = weaponPose(weapon).third, c = poses.character
-  a.holder.position.set(wp.gunPos[0], wp.gunPos[1], wp.gunPos[2])
-  a.holder.rotation.copy(_eul.set(wp.gunRotDeg[0] * DEG, wp.gunRotDeg[1] * DEG, wp.gunRotDeg[2] * DEG, 'XYZ'))
+  placeHolder(a, weapon, wp, adsT)
   a.holder.updateWorldMatrix(true, false)
   a.holder.getWorldQuaternion(_gq)
   sk.root.getWorldQuaternion(_rq)
@@ -423,13 +434,13 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
         frame.pistol = !two
         sk.animate(frame)
         sk.placeAim()
-        if (two) solveSkelArms(a, weapon)
+        if (two) solveSkelArms(a, weapon, p.adsT ?? 0)
         else sk.refreshGunAnchor()
         if (weapon === GRENADE_ID && a.gun) nadeHand(a)
         sk.setOpacity((p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1)
       } else {
         sk.animate(frame)
-        if (sk.ikWeight > 0 && a.twoHand) { sk.placeAim(); solveSkelArms(a, weapon) }   // IK mờ dần về tư thế animation
+        if (sk.ikWeight > 0 && a.twoHand) { sk.placeAim(); solveSkelArms(a, weapon, 0) }   // IK mờ dần về tư thế animation
       }
       rig.root.visible = sk.corpseVisible
       dressWanted(p, a, h)
@@ -454,7 +465,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     const two = weaponPose(weapon).third.hold === 'twoHand' && !!a.gun
     setHold(a, two)
     if (two && !dead) {
-      solveArms(a, weapon, p.pitch ?? 0)
+      solveArms(a, weapon, p.pitch ?? 0, p.adsT ?? 0)
       a.armR!.setVisible(true); a.armL!.setVisible(true)
     }
     dressWanted(p, a, h)

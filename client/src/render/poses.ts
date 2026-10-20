@@ -22,8 +22,8 @@ export interface GrenadeFirst {
 }
 export interface WeaponPose {
   anchors: Partial<Record<AnchorName, Vec3>>
-  third: { hold: Hold; gunPos: Vec3; gunRotDeg: Vec3; throwStartS?: number; releaseS?: number; throwRate?: number }   // 3 trường cuối: clip ném (giây vào clip lúc bắt đầu / lúc tay thả, tốc độ phát)
-  first: { hold: Hold; gunPos?: Vec3; gunRotDeg: Vec3; scale: number; grenade?: GrenadeFirst }
+  third: { hold: Hold; gunPos: Vec3; gunRotDeg: Vec3; adsGunPos?: Vec3; adsGunRotDeg?: Vec3; throwStartS?: number; releaseS?: number; throwRate?: number }   // 3 trường cuối: clip ném (giây vào clip lúc bắt đầu / lúc tay thả, tốc độ phát)
+  first: { hold: Hold; gunPos?: Vec3; gunRotDeg: Vec3; scale: number; adsEyeDist?: number; adsRotDeg?: Vec3; grenade?: GrenadeFirst }   // adsEyeDist: đầu ruồi cách mắt bấy nhiêu m khi ngắm; adsRotDeg: xoay thêm khi ngắm hẳn
 }
 export interface ReloadKey { t: number; to: 'hand_l' | 'mag'; offset?: Vec3 }
 export type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky'
