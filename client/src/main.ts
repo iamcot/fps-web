@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
   stepWeaponCmd, shotSpread, computeShotDirs, MAX_PELLETS, recoverRecoil,
-  CATEGORY_SLOT, DEFAULT_SLOT, ECONOMY, SLOT_COUNT, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, weaponByKey,
+  CATEGORY_SLOT, DEFAULT_SLOT, ECONOMY, SLOT_COUNT, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
@@ -31,6 +31,7 @@ import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
 import { createPoseEditor } from './render/poseEditor'
 import { createBloodFx } from './render/bloodFx'
+import { createGrenades } from './render/grenades'
 import { createTargets, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
@@ -133,6 +134,7 @@ function offlineSlots(): number[] {
   return slots
 }
 const ws  = makeWeaponState(offlineSlots())
+if ((ws.slots[GRENADE_SLOT] ?? -1) >= 0) ws.ammo[GRENADE_ID] = 2   // offline ?loadout=m67: có 2 quả để thử ném
 vm.snapTo(ws.current)
 const rec = makeRecoilState()
 const shotDirs: [number, number, number][] = Array.from({ length: MAX_PELLETS }, () => [0, 0, 0] as [number, number, number])
@@ -187,7 +189,11 @@ const playersRenderer = createPlayersRenderer(scene, {
   myTeam: () => sessionRef?.teams.get(sessionRef.yourId),
   characterSet: () => sessionRef?.characterSet ?? '',
 })
-if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer })   // debug: script kiểm tra từ trình duyệt
+const grenades = createGrenades(scene, {
+  world: () => worldRef,
+  localFuse: () => !sessionRef,   // offline không có server: tự nổ khi hết ngòi
+})
+if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera })   // debug: script kiểm tra từ trình duyệt
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
@@ -290,6 +296,12 @@ sessionP.then(session => {
         setDead(true)
         deathScreen.show(name(msg.killerId), RESPAWN_DELAY_MS - clock.oneWayMs)
       }
+    } else if (msg.t === MsgType.GrenadeSpawn) {
+      // serverTime của tick 0 suy từ snapshot (serverTime = start + tick·TICK_MS); chưa có snapshot thì dùng giờ server ước lượng
+      const origin = snapStore && snapStore.serverTime > 0 ? snapStore.serverTime - snapStore.tick * 1000 / TICK_RATE : clock.serverNow() - msg.spawnTick * 1000 / TICK_RATE
+      grenades.onSpawn(msg, origin, session.yourId, session.teams.get(msg.ownerId) ?? 'A')
+    } else if (msg.t === MsgType.GrenadeExplode) {
+      grenades.onExplode(msg)
     } else if (msg.t === MsgType.Respawn && msg.id === session.yourId) {
       // Hồi sinh: teleport (không làm mượt), đạn đầy, nhìn theo hướng spawn
       dead = false
@@ -307,6 +319,7 @@ sessionP.then(session => {
       setWantedWeapon(DEFAULT_SLOT)
       for (const w of WEAPONS) ws.ammo[w.id] = w.magSize
       ws.reloadEndMs = 0; ws.nextFireMs = 0; ws.triggerHeld = false
+      ws.nade.phase = 'idle'; ws.nade.quick = false; ws.quickHeld = false; ws.switchBackAtMs = 0
       cancelReload()
     } else if (msg.t === MsgType.MatchState) {
       matchHud.setMatch(msg.phase, msg.phaseEndsAt, msg.scoreA, msg.scoreB, msg.sideSwapped)
@@ -318,7 +331,7 @@ sessionP.then(session => {
     } else if (msg.t === MsgType.BuyResult) {
       shop.onBuyResult(msg.ok, msg.key)
       const def = weaponByKey(msg.key)
-      if (msg.ok && def) setWantedWeapon(CATEGORY_SLOT[def.category])   // server đã cho cầm súng vừa mua: cmd tiếp theo mang đúng ô
+      if (msg.ok && def && !def.consumable) setWantedWeapon(CATEGORY_SLOT[def.category])   // server đã cho cầm súng vừa mua: cmd tiếp theo mang đúng ô (lựu đạn thì không tự cầm)
     } else if (msg.t === MsgType.MoneyEvent) {
       if (msg.reason === 'kill' || msg.reason === 'bounty') hudRef?.bottom.floatMoney(msg.delta, msg.reason === 'bounty')
     } else if (msg.t === MsgType.Hurt) {
@@ -346,7 +359,7 @@ sessionP.then(session => {
     setNetHooks(null); snapStore = null; prediction = null
     dead = false; matchPhaseNow = MatchPhase.Playing; shop.close()
     setDead(false); deathScreen.hide(); setMatchPhase(MatchPhase.Playing); matchHud.clear(); sessionRef = null
-    interpolator.push(0, []); playersRenderer.clear(); ghosts.clear()
+    interpolator.push(0, []); playersRenderer.clear(); ghosts.clear(); grenades.clear()
   })
 })
 const updateDebug = initDebugOverlay(netStats, () => snapStore, () => prediction)
@@ -483,6 +496,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       lastSampled = interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs))
       playersRenderer.update(lastSampled)
     }
+    grenades.update(dt, interp.currentRenderTime > 0 ? interp.currentRenderTime : clock.serverNow(), netStats.rttMs)
     tracers.update(dt * 1000)
     blood.update(dt)
     debugShots.update(dt * 1000)
@@ -530,6 +544,15 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       startReload(def.id, 0, def.reloadMs)   // hết đạn: cạch rồi tự nạp
     } else if (ev === 'reloadStart') {
       startReload(def.id, ws.ammo[def.id]!, def.reloadMs)
+    }
+    if (ev === 'switched' || ev === 'pull') {
+      // Đổi súng do logic (tự về súng cũ sau khi ném, G): nhận ô hiện tại làm ô muốn để phím số/Q hoạt động tiếp
+      if (ws.slot !== wantedWeapon()) setWantedWeapon(ws.slot)
+    }
+    if (ev === 'threw') {
+      // Dự đoán ném: quả của mình bay ngay (không chờ server); server xác nhận bằng throwSeq
+      const t = throwInitial(state, ws.nade.mode, world, cfg)
+      grenades.spawnLocal(ws.throwSeq, playerId, sessionRef?.teams.get(playerId) ?? 'A', t.pos, t.vel, ws.nade.mode)
     }
     recoverRecoil(rec, def, ws, nowMs, DT)
 

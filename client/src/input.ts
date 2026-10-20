@@ -89,6 +89,7 @@ export function sampleButtons(): number {
   if (_keys['KeyD'])                                            b |= Btn.Right
   if (_keys['Space'])                                           b |= Btn.Jump
   if (_keys['KeyC'] || _keys['ControlLeft'] || _keys['ControlRight']) b |= Btn.Crouch
+  if (_keys['KeyG'])                                            b |= Btn.QuickNade
   if (_mouseLeft)                                               b |= Btn.Fire
   if (_keys['KeyR'])                                            b |= Btn.Reload
   if (_mouseRight)                                              b |= Btn.Aim
