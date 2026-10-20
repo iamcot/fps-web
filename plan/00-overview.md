@@ -138,6 +138,7 @@ Quy tắc phải giữ khi chỉnh map:
 | `11-characters.md` ⚠️ | Nhân vật có xương cho 2 phe, IK tay thật, tay viewmodel cắt từ model |
 | `12-grenade.md` ⚠️ | Lựu đạn M67: mua, rút chốt, ném, nảy, nổ |
 | `13-game-modes.md` ⚠️ | Thể thức Sinh Tử (theo ván) / Hỗn Chiến (hồi sinh), tạo phòng |
+| `14-spread-ads.md` ⚠️ | Độ toé theo tốc độ + bloom, tâm ngắm động, ADS tuỳ chọn |
 
 ## Định nghĩa "xong" bản đầu tiên
 

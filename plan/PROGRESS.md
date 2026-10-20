@@ -156,3 +156,12 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - Tay FP phình to/chĩa lên (lỗi chỉ gặp trên Chrome ẩn danh): `FpArms.add()` đo xương khi root đã bị `place()` xoay/scale cho phe tải trước. Tái hiện bằng cách làm chậm tải `robber_fparms.glb` rồi đổi sang phe Cướp. Giờ đo với root ở trạng thái gốc rồi khôi phục.
 - Sinh Tử: client đồng bộ sống/chết theo cờ Dead của snapshot (không kẹt ở chế độ xem).
 
+## 14 – Độ toé mới + ADS (tuỳ chọn)
+- [ ] S.1 Spread theo tốc độ + bloom (shared, có test)
+- [ ] S.2 Chỉnh độ giật súng tự động
+- [ ] S.3 Tâm ngắm động khớp độ toé thật
+- [ ] S.4 Bảng chỉnh Spread + bia tập bắn
+- [ ] S.5 Kiểm tra đồng bộ online
+- [ ] D.1 (Tuỳ chọn) Logic ADS
+- [ ] D.2 (Tuỳ chọn) Viewmodel + camera khi ngắm
+- [ ] D.3 (Tuỳ chọn) Người khác thấy mình ngắm
