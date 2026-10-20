@@ -52,7 +52,7 @@ const DEFAULTS = {
   first: { fov: 54, shoulderR: [0.22, -0.3, 0.12], shoulderL: [-0.2, -0.3, 0.1], poleR: [0.45, -0.5, 0.2], poleL: [-0.45, -0.5, 0.1], armsRootOffset: [0, -0.3, 0], armsRootRotDeg: [0, 0, 0], armsScale: 1.4, armsPoleR: [0.4, -0.5, 0.3], armsPoleL: [-0.4, -0.5, 0.3] },
   character: {
     crouchDrop: 0, crouchWalkDrop: 0.25, aimPivotBone: 'mixamorigSpine2', spinePitchBones: ['mixamorigSpine', 'mixamorigSpine1', 'mixamorigSpine2'],
-    spinePitchLimitDeg: 60, headPitchShare: 0.3, aimPivotOffset: [0, -0.2, 0], poleR: [0.35, -0.6, 0.3], poleL: [-0.35, -0.6, 0.1],
+    spinePitchLimitDeg: 60, headPitchShare: 0.3, aimPivotOffset: [0, 0.08, 0], poleR: [0.35, -0.6, 0.3], poleL: [-0.35, -0.6, 0.1],
     handRotOffsetDegR: [0, 0, 0], handRotOffsetDegL: [0, 0, 0], palmCenterFrac: 0.6,
     oneHandGunPos: [0, 0, 0], oneHandGunRotDeg: [0, 0, 0],
     anim: { blendTime: 0.15, idleSpeed: 0.3, walkRefSpeed: 1.6, runStartSpeed: 5, runBlendLen: 2, runRefSpeed: 5, crouchRefSpeed: 1, maxRate: 2, jumpHoldS: 0.35 },

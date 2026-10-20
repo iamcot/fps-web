@@ -104,7 +104,7 @@
     "headPitchShare": 0.3,
     "aimPivotOffset": [
       0,
-      -0.2,
+      0.08,
       0
     ],
     "poleR": [
