@@ -141,6 +141,7 @@ export interface NetPlayer {
   flags: number
   slideTimer: number
   slideCooldown: number
+  adsT: number     // mức ngắm 0..1 (reconcile dùng đúng giá trị; người khác dùng để vẽ súng lên má)
   hp: number
   team: TeamId
   weapon: number   // súng đang cầm (để vẽ súng trên tay người khác)
@@ -337,7 +338,7 @@ export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0,
     vel: [s.vel[0], s.vel[1], s.vel[2]],
     yaw: s.yaw, pitch: s.pitch,
     flags: (s.grounded ? NetFlag.Grounded : 0) | (s.crouching ? NetFlag.Crouching : 0) | (s.slideTimer > 0 ? NetFlag.Sliding : 0) | extraFlags,
-    slideTimer: s.slideTimer, slideCooldown: s.slideCooldown,
+    slideTimer: s.slideTimer, slideCooldown: s.slideCooldown, adsT: s.adsT,
     hp, team, weapon, killStreak,
   }
 }
@@ -349,7 +350,7 @@ export function netToState(n: NetPlayer): PlayerState {
     yaw: n.yaw, pitch: n.pitch,
     grounded: (n.flags & NetFlag.Grounded) !== 0,
     crouching: (n.flags & NetFlag.Crouching) !== 0,
-    slideTimer: n.slideTimer, slideCooldown: n.slideCooldown,
+    slideTimer: n.slideTimer, slideCooldown: n.slideCooldown, adsT: n.adsT ?? 0,
   }
 }
 

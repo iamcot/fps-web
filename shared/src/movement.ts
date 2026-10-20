@@ -29,7 +29,17 @@ export interface PlayerState {
   crouching: boolean
   slideTimer: number
   slideCooldown: number
+  adsT: number   // 0..1: mức ngắm (0 = hông, 1 = ngắm hẳn); ảnh hưởng tốc độ chạy nên nằm trong state của movement
 }
+
+/** Tham số ngắm của súng đang cầm, cho stepMovement */
+export interface AdsMove {
+  inMs: number
+  outMs: number
+  moveMult: number
+}
+/** Tốc độ mặc định hạ adsT khi cầm thứ không ngắm được (đổi sang pistol/dao lúc đang ngắm) */
+export const ADS_DEFAULT_OUT_MS = 100
 
 export interface MovementConfig {
   runSpeed: number
@@ -106,6 +116,8 @@ export function stepMovement(
   cfg: MovementConfig,
   dt: number,
   speedMul = 1,   // hệ số tốc độ chạy theo súng đang cầm (weaponLogic.moveSpeedMul); client và server phải truyền như nhau
+  ads: AdsMove | null = null,   // súng đang cầm có ngắm không (null = không); weaponLogic.adsMoveFor
+  adsWant = false,   // muốn ngắm (giữ Aim, không nạp/đổi súng); movement còn kiểm thêm đang đứng đất, không trượt
 ): PlayerState {
   const pos: [number, number, number] = [state.pos[0], state.pos[1], state.pos[2]]
   const vel: [number, number, number] = [state.vel[0], state.vel[1], state.vel[2]]
@@ -113,6 +125,11 @@ export function stepMovement(
   let crouching     = state.crouching
   let slideTimer    = state.slideTimer
   let slideCooldown = state.slideCooldown
+  // Ngắm được khi đứng trên đất và không trượt (kiểm trên state TRƯỚC tick); không thì adsT tự giảm
+  const aimOk = !!ads && adsWant && grounded && state.slideTimer <= 0
+  let adsT = state.adsT
+  if (aimOk) adsT = Math.min(1, adsT + dt * 1000 / ads!.inMs)
+  else adsT = Math.max(0, adsT - dt * 1000 / (ads ? ads.outMs : ADS_DEFAULT_OUT_MS))
 
   const yaw     = input.yaw
   const jumping = !!(input.buttons & Btn.Jump)
@@ -146,7 +163,7 @@ export function stepMovement(
   _wd[1] = 0
   _wd[2] = wlen > 1e-6 ? wz / wlen : 0
 
-  const wishSpeed = (crouching ? cfg.crouchSpeed : cfg.runSpeed) * speedMul
+  const wishSpeed = (crouching ? cfg.crouchSpeed : cfg.runSpeed) * speedMul * (ads ? lerp(1, ads.moveMult, adsT) : 1)
 
   // Nhả Crouch (và đứng dậy được) thì kết thúc trượt
   if (!crouching) slideTimer = 0
@@ -181,7 +198,7 @@ export function stepMovement(
   slideTimer    = Math.max(0, slideTimer    - dt)
   slideCooldown = Math.max(0, slideCooldown - dt)
 
-  return { pos, vel, yaw: input.yaw, pitch: input.pitch, grounded, crouching, slideTimer, slideCooldown }
+  return { pos, vel, yaw: input.yaw, pitch: input.pitch, grounded, crouching, slideTimer, slideCooldown, adsT }
 }
 
 export function lerpState(a: PlayerState, b: PlayerState, t: number): PlayerState {
@@ -194,6 +211,7 @@ export function lerpState(a: PlayerState, b: PlayerState, t: number): PlayerStat
     crouching: b.crouching,
     slideTimer: b.slideTimer,
     slideCooldown: b.slideCooldown,
+    adsT: b.adsT,
   }
 }
 

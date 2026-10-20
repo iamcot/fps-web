@@ -1,6 +1,6 @@
 import { DEFAULT_SLOT, DT, TICK_RATE, MatchPhase, phaseButtonMask } from '@fps/shared'
 import { stepMovement, lerpState, defaultMovement } from '@fps/shared'
-import type { PlayerState, MovementConfig, InputCmd } from '@fps/shared'
+import type { PlayerState, MovementConfig, InputCmd, AdsMove } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { Btn } from '@fps/shared'
 import { sampleButtons, yaw, pitch, isLocked } from './input'
@@ -16,8 +16,13 @@ export function setWantedWeapon(slot: number): void { _weapon = slot }
 export function wantedWeapon(): number { return _weapon }
 
 // Hệ số tốc độ theo súng đang cầm (offline); online do hook step của main truyền vào Prediction
-let _speedMul: (buttons: number) => number = () => 1
-export function setSpeedMul(fn: (buttons: number) => number): void { _speedMul = fn }
+export interface WeaponMove {
+  mul(): number                      // moveSpeedMul của súng đang cầm
+  ads(): AdsMove | null              // tham số ngắm của súng đang cầm
+  want(cmd: InputCmd): boolean       // adsWanted: giữ Aim, không nạp/đổi súng
+}
+let _weaponMove: WeaponMove = { mul: () => 1, ads: () => null, want: () => false }
+export function setWeaponMove(h: WeaponMove): void { _weaponMove = h }
 
 let _dead = false
 let _phase: MatchPhase = MatchPhase.Playing   // offline = đang chơi
@@ -60,7 +65,7 @@ export function startLoop(
         _curr = _net.step(cmd)
       } else {
         _prev = _curr
-        _curr = stepMovement(_curr, cmd, world, cfg, DT, _speedMul(cmd.buttons))
+        _curr = stepMovement(_curr, cmd, world, cfg, DT, _weaponMove.mul(), _weaponMove.ads(), _weaponMove.want(cmd))
       }
       // Thời gian mô phỏng (ms) — client và server tính giống nhau, không dùng performance.now()
       onTick?.(_curr, cmd, (_tick++) * 1000 / TICK_RATE)
@@ -89,6 +94,7 @@ export function initGameState(spawnPos: [number, number, number], spawnYaw: numb
     crouching:    false,
     slideTimer:   0,
     slideCooldown: 0,
+    adsT:         0,
   }
   _prev = _curr
 }

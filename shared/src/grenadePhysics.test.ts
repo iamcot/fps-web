@@ -12,7 +12,7 @@ import mapRaw from '../../assets/maps/deathmatch.json'
 // (khe ở z ∈ (−1, 1) nhưng đó là chân ramp; dùng khe (4,67; 6,67)), bệ thấp dưới 0,5 m, đỉnh tường cao tới ~5,25 m. Tường biên tây ở x = −31.
 const map = loadMap(mapRaw as unknown as MapFile)
 const player = (pos: [number, number, number], yaw: number, pitch: number, vel: [number, number, number] = [0, 0, 0]): PlayerState =>
-  ({ pos, vel, yaw, pitch, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0 })
+  ({ pos, vel, yaw, pitch, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0 })
 const FACE_PLUS_X = -Math.PI / 2   // yaw: forward = (−sin yaw, −cos yaw) = (+1, 0)
 const make = (pos: [number, number, number], vel: [number, number, number]): GrenadeState =>
   ({ id: 1, ownerId: 1, team: 'A', pos: [...pos] as [number, number, number], vel: [...vel] as [number, number, number], spawnTick: 0, resting: false })

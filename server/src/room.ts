@@ -134,7 +134,7 @@ export class Room {
       state: {
         pos: [sp.pos[0], sp.pos[1], sp.pos[2]], vel: [0, 0, 0],
         yaw: sp.yaw, pitch: 0,
-        grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0,
+        grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0,
       },
       inputQueue: [],
       lastProcessedSeq: -1,   // client đếm seq từ 0
@@ -271,7 +271,7 @@ export class Room {
     const best = spawn ?? this.pickSpawn(p.team, p)
     p.state = {
       pos: [best.pos[0], best.pos[1], best.pos[2]], vel: [0, 0, 0], yaw: best.yaw, pitch: 0,
-      grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0,
+      grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0,
     }
     p.alive = true
     p.hp = PLAYER_MAX_HP

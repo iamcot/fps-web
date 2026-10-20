@@ -82,7 +82,7 @@ export function updateTargets(targets: Target[], dt: number): void {
 function targetState(t: Target): PlayerState {
   return {
     pos: t.pos, vel: [0,0,0], yaw: 0, pitch: 0,
-    grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0,
+    grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0,
   }
 }
 

@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { WEAPONS, makeWeaponState, MAX_PELLETS } from './weapons'
 import {
-  stepWeapon, tryFire, computeShot, spreadFor, makeRecoilState, recoverRecoil, switchWeapon, shotSpread, computeShotDirs, damageFalloff,
+  stepWeapon, tryFire, computeShot, makeRecoilState, recoverRecoil, switchWeapon, computeShotDirs, damageFalloff,
 } from './weaponLogic'
 import { Btn } from './movement'
 import type { PlayerState } from './movement'
 import { DT } from './constants'
-import { moveSpeedMul, stepWeaponCmd, selectSlot, copyWeaponState, weaponStatesEqual } from './weaponLogic'
+import { moveSpeedMul, adsMoveFor, adsWanted, stepWeaponCmd, selectSlot, copyWeaponState, weaponStatesEqual } from './weaponLogic'
 import { weaponByKey, CATEGORY_SLOT } from './weapons'
 import { stepMovement, defaultMovement } from './movement'
 
@@ -73,19 +73,6 @@ describe('tryFire', () => {
   })
 })
 
-describe('spread', () => {
-  it('air > move > crouch > stand', () => {
-    const air = spreadFor(AK, false, 0, false)
-    const move = spreadFor(AK, true, 5, false)
-    const crouch = spreadFor(AK, true, 0, true)
-    const stand = spreadFor(AK, true, 0, false)
-    expect(air).toBeGreaterThan(move)
-    expect(move).toBeGreaterThan(stand)
-    expect(stand).toBeGreaterThan(crouch)
-    expect(spreadFor(AK, false, 5, true)).toBe(air)
-  })
-})
-
 describe('computeShot', () => {
   it('cùng playerId + shotSeq + trạng thái → cùng hướng', () => {
     const a: [number, number, number] = [0, 0, 0]
@@ -123,26 +110,31 @@ describe('computeShot', () => {
 
 describe('sniper + ngắm', () => {
   const SNIPER = WEAPONS[4]!
-  const st = (over: Partial<PlayerState> = {}) => ({ grounded: true, crouching: false, slideTimer: 0, vel: [0, 0, 0], ...over }) as PlayerState
 
   it('thông số theo plan: 1 phát/1,2s, 90 dmg, đầu ×2, scope FOV 30, một tầng', () => {
     expect(SNIPER.fireIntervalMs).toBe(1200)
     expect(SNIPER.damage).toBe(90)
     expect(SNIPER.headMult).toBe(2)
-    expect(SNIPER.ads).toEqual({ fovs: [30], scope: true })
+    expect(SNIPER.ads?.scope).toBe(true)
+    expect(SNIPER.ads?.fovMult).toBeCloseTo(0.4)
   })
-  it('không ngắm: spread rất lớn; ngắm đứng yên: gần như 0; ngắm mà di chuyển/nhảy: vẫn lớn', () => {
-    expect(shotSpread(SNIPER, st(), 0)).toBeGreaterThanOrEqual(4)
-    expect(shotSpread(SNIPER, st(), Btn.Aim)).toBeLessThan(0.1)
-    expect(shotSpread(SNIPER, st({ vel: [3, 0, 0] }), Btn.Aim | Btn.Forward)).toBeGreaterThanOrEqual(4)
-    expect(shotSpread(SNIPER, st({ grounded: false }), Btn.Aim)).toBeGreaterThanOrEqual(4)
-  })
-  it('súng trường: ngắm đứng yên chụm hơn, ngắm khi chạy không đổi; ADS không che màn hình', () => {
-    expect(shotSpread(AK, st(), Btn.Aim)).toBeLessThan(shotSpread(AK, st(), 0))
-    expect(shotSpread(AK, st({ vel: [3, 0, 0] }), Btn.Aim | Btn.Forward)).toBe(shotSpread(AK, st({ vel: [3, 0, 0] }), Btn.Forward))
-    expect(AK.ads).toEqual({ fovs: [65], scope: false })
+  it('súng trường ngắm không che màn hình; súng ngắn dao lựu đạn không ngắm; shotgun ngắm nhẹ', () => {
+    expect(AK.ads?.scope).toBe(false)
     expect(WEAPONS[1]!.ads?.scope).toBe(false)
-    expect(COLT.ads).toBeUndefined()
+    expect(WEAPONS[5]!.ads?.spreadMult).toBeGreaterThan(AK.ads!.spreadMult)
+    expect(WEAPONS[6]!.ads).toBeUndefined()
+  })
+  it('adsMoveFor/adsWanted: không ngắm khi nạp hoặc khoá đổi súng', () => {
+    const ws = makeWeaponState(AK_SLOTS)
+    expect(adsMoveFor(ws)).toEqual({ inMs: AK.ads!.inMs, outMs: AK.ads!.outMs, moveMult: AK.ads!.moveMult })
+    expect(adsWanted(ws, Btn.Aim, 0)).toBe(true)
+    expect(adsWanted(ws, 0, 0)).toBe(false)
+    ws.reloadEndMs = 500
+    expect(adsWanted(ws, Btn.Aim, 0)).toBe(false)
+    ws.reloadEndMs = 0
+    selectSlot(ws, 1, 1000)
+    expect(adsWanted(ws, Btn.Aim, 1100)).toBe(false)
+    expect(adsWanted(ws, Btn.Aim, 1000 + 300)).toBe(true)
   })
   it('sniper hồi recoil ngay sau ~120ms (không đợi hết 1,2s giữa hai phát)', () => {
     const ws = makeWeaponState(AK_SLOTS); ws.current = 4
@@ -161,16 +153,16 @@ describe('shotgun', () => {
 
   it('8 tia/phát, mỗi tia một hướng khác nhau, lặp lại được theo seed', () => {
     const a = mk(), b = mk()
-    expect(computeShotDirs(a, makeRecoilState(), SG, 7, 3, 0, 0, SG.spreadDeg.stand)).toBe(8)
-    computeShotDirs(b, makeRecoilState(), SG, 7, 3, 0, 0, SG.spreadDeg.stand)
+    expect(computeShotDirs(a, makeRecoilState(), SG, 7, 3, 0, 0, SG.spread.moveDeg)).toBe(8)
+    computeShotDirs(b, makeRecoilState(), SG, 7, 3, 0, 0, SG.spread.moveDeg)
     expect(b.slice(0, 8)).toEqual(a.slice(0, 8))
     expect(new Set(a.slice(0, 8).map(d => d.join(','))).size).toBe(8)
-    const c = mk(); computeShotDirs(c, makeRecoilState(), SG, 7, 4, 0, 0, SG.spreadDeg.stand)   // phát khác → khác
+    const c = mk(); computeShotDirs(c, makeRecoilState(), SG, 7, 4, 0, 0, SG.spread.moveDeg)   // phát khác → khác
     expect(c[0]).not.toEqual(a[0])
   })
   it('recoil chỉ cộng một lần cho cả phát, không phải 8 lần', () => {
     const rec = makeRecoilState()
-    computeShotDirs(mk(), rec, SG, 1, 0, 0, 0, SG.spreadDeg.stand)
+    computeShotDirs(mk(), rec, SG, 1, 0, 0, 0, SG.spread.moveDeg)
     expect(rec.pitch).toBeCloseTo(SG.recoilPitchDeg * Math.PI / 180, 6)
   })
   it('súng 1 tia dùng đúng computeShot cũ (cùng hướng, cùng recoil)', () => {
@@ -229,7 +221,7 @@ describe('vũ khí mới (H.1)', () => {
     expect(ev.some(x => x.e === 'dry' || x.e === 'reloadStart')).toBe(false)
     expect(KNIFE.range).toBeCloseTo(2.2)
     const out: [number, number, number] = [0, 0, 0], rec = makeRecoilState()
-    computeShot(out, rec, KNIFE, 1, 0, 0, 0, spreadFor(KNIFE, true, 8, false))
+    computeShot(out, rec, KNIFE, 1, 0, 0, 0, 0)
     expect(out).toEqual([-0, 0, -1])
     expect(rec).toEqual({ pitch: 0, yaw: 0 })
   })
@@ -239,12 +231,12 @@ describe('vũ khí mới (H.1)', () => {
     expect(stepWeapon(ws, 0, false, true)).toBe('none')
   })
 
-  it('moveSpeedMul: dao nhanh hơn AK47; sniper ngắm chậm thêm một nửa', () => {
+  it('moveSpeedMul: dao nhanh hơn AK47; sniper ngắm hẳn chậm thêm một nửa (qua adsT)', () => {
     const knife = makeWeaponState([KNIFE.id, -1, -1, -1]), ak = makeWeaponState(AK_SLOTS)
-    expect(moveSpeedMul(knife, 0)).toBeGreaterThan(moveSpeedMul(ak, 0))
+    expect(moveSpeedMul(knife)).toBeGreaterThan(moveSpeedMul(ak))
     const sn = makeWeaponState([-1, -1, -1, SNIPER.id])
-    expect(moveSpeedMul(sn, Btn.Aim)).toBeCloseTo(SNIPER.moveSpeedMul * 0.5)
-    expect(moveSpeedMul(sn, 0)).toBe(SNIPER.moveSpeedMul)
+    expect(moveSpeedMul(sn)).toBe(SNIPER.moveSpeedMul)
+    expect(adsMoveFor(sn)!.moveMult).toBe(0.5)
   })
 
   it('cmd.weapon là ô: chỉ đổi khi giá trị đổi; ô trống bị bỏ qua; cmd cũ không kéo ngược ô vừa mua', () => {
@@ -275,7 +267,7 @@ describe('vũ khí mới (H.1)', () => {
       canStand: () => true, castRay: () => null, castSphere: () => null, debugRender: () => ({ vertices: new Float32Array(0), colors: new Float32Array(0) }), dispose: () => {},
     }
     const speedAfter = (mul?: number) => {
-      let st: PlayerState = { pos: [0, 0, 0], vel: [0, 0, 0], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0 }
+      let st: PlayerState = { pos: [0, 0, 0], vel: [0, 0, 0], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0 }
       for (let i = 0; i < 180; i++) st = stepMovement(st, { seq: i, buttons: Btn.Forward, yaw: 0, pitch: 0, weapon: 0 }, flat, defaultMovement, DT, mul)
       return Math.hypot(st.vel[0], st.vel[2])
     }

@@ -12,7 +12,7 @@ const loadedMap = loadMap(mapRaw as unknown as MapFile)
 const cfg = defaultMovement
 
 function makeState(pos: [number, number, number], yaw: number): PlayerState {
-  return { pos: [...pos] as [number, number, number], vel: [0, 0, 0], yaw, pitch: 0, grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0 }
+  return { pos: [...pos] as [number, number, number], vel: [0, 0, 0], yaw, pitch: 0, grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0 }
 }
 
 describe('stepMovement', () => {
@@ -154,6 +154,55 @@ describe('tường chắn trời', () => {
     for (let i = 0; i < 600; i++) {
       s = stepMovement(s, { seq: i, buttons: Btn.Forward | Btn.Jump, yaw: 0, pitch: 0, weapon: 0 }, world, cfg, DT)
       expect(s.pos[2]).toBeGreaterThan(-20.1)
+    }
+  })
+})
+
+describe('adsT (ngắm)', () => {
+  const flat = {
+    moveCharacter: (pos: [number, number, number], d: [number, number, number]) => ({ pos: [pos[0] + d[0], Math.max(0, pos[1] + d[1]), pos[2] + d[2]] as [number, number, number], grounded: pos[1] + d[1] <= 0, hitCeiling: false }),
+    canStand: () => true, castRay: () => null, castSphere: () => null, debugRender: () => ({ vertices: new Float32Array(0), colors: new Float32Array(0) }), dispose: () => {},
+  }
+  const ADS = { inMs: 200, outMs: 100, moveMult: 0.5 }
+  const grounded = (over: Partial<PlayerState> = {}): PlayerState => ({ ...makeState([0, 0, 0], 0), grounded: true, ...over })
+  const cmd = (seq: number, buttons = 0) => ({ seq, buttons, yaw: 0, pitch: 0, weapon: 0 })
+
+  it('giữ Aim: adsT tăng tới 1 sau inMs; thả: về 0 sau outMs', () => {
+    let s = grounded()
+    for (let i = 0; i < 6; i++) s = stepMovement(s, cmd(i, Btn.Aim), flat, cfg, DT, 1, ADS, true)
+    expect(s.adsT).toBeCloseTo(6 * DT * 1000 / 200, 6)
+    for (let i = 0; i < 20; i++) s = stepMovement(s, cmd(i, Btn.Aim), flat, cfg, DT, 1, ADS, true)
+    expect(s.adsT).toBe(1)
+    for (let i = 0; i < 7; i++) s = stepMovement(s, cmd(i), flat, cfg, DT, 1, ADS, false)
+    expect(s.adsT).toBe(0)
+  })
+  it('trên không hoặc đang trượt: không vào ngắm, adsT tự giảm; súng không ngắm được (ads = null) cũng giảm', () => {
+    let s = stepMovement(grounded({ grounded: false, adsT: 1 }), cmd(0, Btn.Aim), flat, cfg, DT, 1, ADS, true)
+    expect(s.adsT).toBeLessThan(1)
+    s = stepMovement(grounded({ slideTimer: 0.3, crouching: true, adsT: 0.5 }), cmd(0, Btn.Aim | Btn.Crouch), flat, cfg, DT, 1, ADS, true)
+    expect(s.adsT).toBeLessThan(0.5)
+    s = stepMovement(grounded({ adsT: 1 }), cmd(0, Btn.Aim), flat, cfg, DT, 1, null, true)
+    expect(s.adsT).toBeLessThan(1)
+  })
+  it('ngắm hẳn chạy chậm theo moveMult', () => {
+    const speed = (ads: boolean) => {
+      let s = grounded()
+      for (let i = 0; i < 240; i++) s = stepMovement(s, cmd(i, Btn.Forward | (ads ? Btn.Aim : 0)), flat, cfg, DT, 1, ADS, ads)
+      return Math.hypot(s.vel[0], s.vel[2])
+    }
+    expect(speed(true)).toBeCloseTo(speed(false) * 0.5, 1)
+  })
+  it('determinism: Aim bật tắt ngẫu nhiên, hai bản state riêng cho kết quả giống hệt', () => {
+    const rng = mulberry32(12345)
+    let a = grounded(), b = grounded()
+    for (let i = 0; i < 600; i++) {
+      const buttons = (rng() < 0.6 ? Btn.Forward : 0) | (rng() < 0.5 ? Btn.Aim : 0) | (rng() < 0.05 ? Btn.Jump : 0)
+      const c = cmd(i, buttons)
+      const want = (buttons & Btn.Aim) !== 0 && rng() < 0.9
+      a = stepMovement(a, c, flat, cfg, DT, 0.92, ADS, want)
+      b = stepMovement(b, c, flat, cfg, DT, 0.92, ADS, want)
+      expect(a.adsT).toBe(b.adsT)
+      expect(a.pos).toEqual(b.pos)
     }
   })
 })

@@ -1,10 +1,11 @@
-import { WEAPONS, SWITCH_MS, MOVE_SPREAD_SPEED, MAX_PELLETS, GRENADE_ID, GRENADE_SLOT } from './weapons'
+import { WEAPONS, SWITCH_MS, MAX_PELLETS, GRENADE_ID, GRENADE_SLOT } from './weapons'
+import { onShotBloom } from './spread'
 import { GRENADE } from './grenade'
 import type { WeaponDef, WeaponState } from './weapons'
 import { hashSeed, mulberry32 } from './math'
 import { shootDir } from './hitbox'
 import { Btn } from './movement'
-import type { InputCmd, PlayerState } from './movement'
+import type { AdsMove, InputCmd } from './movement'
 import { TICK_RATE } from './constants'
 
 const DEG = Math.PI / 180
@@ -34,6 +35,7 @@ export function switchWeapon(ws: WeaponState, id: number, nowMs: number): boolea
   if (id === ws.current || id < 0 || id >= WEAPONS.length) return false
   ws.current = id
   ws.reloadEndMs = 0
+  ws.switchEndMs = nowMs + SWITCH_MS
   if (id !== GRENADE_ID) ws.nextFireMs = Math.max(ws.nextFireMs, nowMs + SWITCH_MS)   // lựu đạn không khoá: rút chốt (0,35s) chạy song song với tay đưa lên
   ws.nade.phase = 'idle'   // đổi súng khi đang rút chốt: huỷ (chưa ném thì còn nguyên lựu đạn)
   ws.switchBackAtMs = 0
@@ -50,13 +52,20 @@ export function selectSlot(ws: WeaponState, slot: number, nowMs: number): boolea
   return switchWeapon(ws, id, nowMs)
 }
 
-/** Hệ số tốc độ chạy theo súng đang cầm (+ ngắm scope: chậm thêm một nửa). `buttons` = nút của cmd sắp chạy. */
-export function moveSpeedMul(ws: WeaponState, buttons: number): number {
-  const def = WEAPONS[ws.current]
-  if (!def) return 1
-  return def.moveSpeedMul * (def.ads?.scope && (buttons & Btn.Aim) ? SCOPE_MOVE_MUL : 1)
+/** Hệ số tốc độ chạy theo súng đang cầm (phần ngắm đi riêng qua adsMoveFor + adsT). */
+export function moveSpeedMul(ws: WeaponState): number {
+  return WEAPONS[ws.current]?.moveSpeedMul ?? 1
 }
-export const SCOPE_MOVE_MUL = 0.5
+
+/** Tham số ngắm của súng đang cầm cho stepMovement (null = súng không ngắm được). Trả đối tượng dùng chung theo súng, không cấp phát. */
+const ADS_MOVE: (AdsMove | null)[] = WEAPONS.map(w => (w.ads ? { inMs: w.ads.inMs, outMs: w.ads.outMs, moveMult: w.ads.moveMult } : null))
+export function adsMoveFor(ws: WeaponState): AdsMove | null {
+  return ADS_MOVE[ws.current] ?? null
+}
+/** Muốn ngắm ở cmd này: giữ Aim, không đang nạp, không đang khoá đổi súng. (Đứng đất/không trượt do stepMovement kiểm.) */
+export function adsWanted(ws: WeaponState, buttons: number, nowMs: number): boolean {
+  return (buttons & Btn.Aim) !== 0 && ws.reloadEndMs === 0 && nowMs >= ws.switchEndMs
+}
 
 /**
  * Bắn nếu được. Không bắn khi: đang reload, chưa tới nextFireMs, hết đạn,
@@ -75,6 +84,7 @@ export function tryFire(ws: WeaponState, def: WeaponDef, nowMs: number, triggerD
   if (!def.melee) ws.ammo[def.id]!--
   ws.nextFireMs = nowMs + def.fireIntervalMs
   ws.shotSeq++
+  if (!def.melee) onShotBloom(ws, def, nowMs)   // lưu bloom đã dùng cho phát này (ws.shotBloomDeg) rồi cộng bloom mới
   return true
 }
 
@@ -106,14 +116,6 @@ export function stepWeapon(
     return 'dry'
   }
   return 'none'
-}
-
-/** Spread (độ) theo trạng thái: air > move > crouch > stand. */
-export function spreadFor(def: WeaponDef, grounded: boolean, speedXZ: number, crouching: boolean): number {
-  if (!grounded) return def.spreadDeg.air
-  if (speedXZ > MOVE_SPREAD_SPEED) return def.spreadDeg.move
-  if (crouching) return def.spreadDeg.crouch
-  return def.spreadDeg.stand
 }
 
 /**
@@ -160,10 +162,19 @@ export function computeShotDirs(
 ): number {
   const n = def.pellets ?? 1
   if (n === 1) { computeShot(outs[0]!, rec, def, playerId, shotSeq, yaw, pitch, spreadDeg); return 1 }
+  // Nhiều tia: spread di chuyển/trên không DỊCH TÂM chùm (một điểm ngẫu nhiên, seed riêng ở chỉ số tia cuối),
+  // còn các viên chì rải trong nón cố định pelletConeDeg quanh tâm đó
+  const cone = def.spread.pelletConeDeg ?? spreadDeg
+  let cYaw = yaw, cPitch = pitch
+  if (def.spread.pelletConeDeg !== undefined && spreadDeg > 0) {
+    const rng = mulberry32(hashSeed(playerId, shotSeq * MAX_PELLETS + (MAX_PELLETS - 1)))
+    const r = spreadDeg * DEG * Math.sqrt(rng()), phi = rng() * 2 * Math.PI
+    cYaw += r * Math.cos(phi); cPitch += r * Math.sin(phi)
+  }
   const recPitch = rec.pitch, recYaw = rec.yaw
   for (let i = 0; i < n; i++) {
     rec.pitch = recPitch; rec.yaw = recYaw   // mọi tia dùng recoil trước phát bắn
-    computeShot(outs[i]!, rec, def, playerId, shotSeq * MAX_PELLETS + i, yaw, pitch, spreadDeg)
+    computeShot(outs[i]!, rec, def, playerId, shotSeq * MAX_PELLETS + i, cYaw, cPitch, cone)
   }
   // rec đã được đặt lại trước tia cuối rồi mới cộng kick, nên kick chỉ cộng đúng một lần cho cả phát
   return n
@@ -282,6 +293,9 @@ export function copyWeaponState(dst: WeaponState, src: WeaponState): void {
   dst.nextFireMs = src.nextFireMs
   dst.shotSeq = src.shotSeq
   dst.triggerHeld = src.triggerHeld
+  for (let i = 0; i < src.bloomDeg.length; i++) { dst.bloomDeg[i] = src.bloomDeg[i]!; dst.lastShotMs[i] = src.lastShotMs[i]! }
+  dst.shotBloomDeg = src.shotBloomDeg
+  dst.switchEndMs = src.switchEndMs
 }
 
 export function weaponStatesEqual(a: WeaponState, b: WeaponState): boolean {
@@ -289,19 +303,8 @@ export function weaponStatesEqual(a: WeaponState, b: WeaponState): boolean {
   if (a.nade.phase !== b.nade.phase || a.nade.mode !== b.nade.mode || a.nade.pressSeq !== b.nade.pressSeq || a.nade.quick !== b.nade.quick ||
       a.throwSeq !== b.throwSeq || a.prevSlot !== b.prevSlot || a.switchBackAtMs !== b.switchBackAtMs || a.quickHeld !== b.quickHeld) return false
   if (a.current !== b.current || a.slot !== b.slot || a.wantSlot !== b.wantSlot || a.reloadEndMs !== b.reloadEndMs || a.nextFireMs !== b.nextFireMs ||
-      a.shotSeq !== b.shotSeq || a.triggerHeld !== b.triggerHeld) return false
+      a.shotSeq !== b.shotSeq || a.triggerHeld !== b.triggerHeld || a.shotBloomDeg !== b.shotBloomDeg || a.switchEndMs !== b.switchEndMs) return false
+  for (let i = 0; i < a.bloomDeg.length; i++) if (a.bloomDeg[i] !== b.bloomDeg[i] || a.lastShotMs[i] !== b.lastShotMs[i]) return false
   for (let i = 0; i < a.ammo.length; i++) if (a.ammo[i] !== b.ammo[i]) return false
   return true
-}
-
-const MOVE_KEYS = Btn.Forward | Btn.Back | Btn.Left | Btn.Right
-
-/**
- * Spread khi bắn, tính từ state SAU cmd và buttons của cmd đó (client và server dùng chung).
- * Nhả hết phím di chuyển thì tính là đứng yên dù quán tính còn; đang trượt vẫn tính là di chuyển.
- */
-export function shotSpread(def: WeaponDef, state: PlayerState, buttons: number): number {
-  const moving = (buttons & MOVE_KEYS) !== 0 || state.slideTimer > 0
-  if (def.aimSpreadDeg !== undefined && (buttons & Btn.Aim) && state.grounded && !moving) return def.aimSpreadDeg
-  return spreadFor(def, state.grounded, moving ? Math.hypot(state.vel[0], state.vel[2]) : 0, state.crouching)
 }

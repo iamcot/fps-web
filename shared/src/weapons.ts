@@ -29,7 +29,7 @@ export interface WeaponDef {
   magSize: number
   reloadMs: number
   range: number
-  spreadDeg: { stand: number; move: number; air: number; crouch: number }
+  spread: SpreadDef
   recoilPitchDeg: number
   recoilYawDeg: number
   recoilRecoverDegPerSec: number
@@ -38,7 +38,21 @@ export interface WeaponDef {
   pellets?: number                // số tia mỗi phát (mặc định 1). Mỗi tia có spread riêng, seed theo shotSeq + chỉ số tia
   falloff?: DamageFalloff         // sát thương giảm theo khoảng cách (mặc định: không giảm)
   consumable?: boolean    // lựu đạn: hàng tiêu hao (mua thêm tới maxCarry, không bán lại, không đạn/bắn)
-  aimSpreadDeg?: number   // spread khi ngắm + đứng yên/ngồi trên mặt đất (thay các mức stand/crouch)
+}
+
+// Độ toé (nửa góc nón, độ). Công thức: shared/src/spread.ts
+export interface SpreadDef {
+  standDeg: number        // đứng yên, chưa bloom
+  crouchDeg: number       // ngồi hoặc đang trượt
+  moveDeg: number         // cộng thêm khi chạy hết tốc (cfg.runSpeed × moveSpeedMul)
+  accurateSpeed: number   // m/s: dưới mức này không bị phạt di chuyển
+  airDeg: number          // cộng thêm khi trên không (thay cho moveDeg)
+  bloomPerShotDeg: number
+  bloomMaxDeg: number
+  bloomRecoverDegPerSec: number
+  bloomRecoverDelayMs: number   // ngừng bắn bấy nhiêu ms thì bloom mới bắt đầu hồi (phải > khoảng cách 2 phát của súng auto)
+  pelletConeDeg?: number  // shotgun: nón cố định của các viên chì quanh tâm chùm; spread di chuyển dịch tâm chùm
+  unscopedDeg?: number    // sniper: spread cố định khi không ngắm (adsT = 0); ngắm hẳn thì dùng công thức thường
 }
 
 // Sát thương nhân hệ số 1 tới fullM, giảm tuyến tính còn minMult tại endM, giữ nguyên minMult sau đó
@@ -48,9 +62,14 @@ export interface DamageFalloff {
   minMult: number
 }
 
-// Chế độ ngắm. fovs[0] = mức đầu, nếu có thêm thì lăn chuột để đổi (sâu dần). scope = che đen ngoài vòng tròn và ẩn súng
+// Chế độ ngắm (giữ chuột phải). adsT (0..1) là state của movement: tăng 1000/inMs mỗi giây khi ngắm, giảm 1000/outMs khi thả.
+// scope = che đen ngoài vòng tròn và ẩn súng khi ngắm gần hẳn
 export interface AdsDef {
-  fovs: number[]
+  spreadMult: number   // nhân vào toàn bộ spread khi ngắm hẳn (sniper: bỏ qua, dùng unscopedDeg → công thức thường)
+  moveMult: number     // nhân tốc độ chạy khi ngắm hẳn
+  fovMult: number      // nhân FOV camera chính khi ngắm hẳn
+  inMs: number
+  outMs: number
   scope: boolean
 }
 
@@ -69,12 +88,14 @@ export interface WeaponState {
   nextFireMs: number
   shotSeq: number
   triggerHeld: boolean
+  bloomDeg: number[]      // theo id súng: bloom ngay sau phát gần nhất (mỗi súng giữ bloom riêng, tự hồi theo thời gian)
+  lastShotMs: number[]    // theo id súng: thời điểm (thang seq) phát gần nhất
+  shotBloomDeg: number    // bloom đã dùng cho phát vừa bắn (trước khi cộng bloom của chính nó): viên đầu không dính bloom của nó
+  switchEndMs: number     // hết khoá đổi súng lúc này (thang seq): chưa tới thì không ngắm được
 }
 
 // Thời gian khoá bắn sau khi đổi súng (khớp animation hạ/đưa súng 2×0.15s ở viewmodel)
 export const SWITCH_MS = 300
-// Tốc độ ngang (m/s) trên mức này thì dùng spread 'move'
-export const MOVE_SPREAD_SPEED = 1
 
 // Thông số theo súng thật (sát thương trên thang máu 100):
 // - AK47: 7.62x39, ~600 phát/phút, 30 viên, giật mạnh, tản đạn lớn khi di chuyển.
@@ -85,43 +106,48 @@ export const WEAPONS: WeaponDef[] = [
   {
     id: 0, key: 'ak47', name: 'AK47', category: 'long', price: 2700, buyable: true, moveSpeedMul: 0.92, auto: true, damage: 36, headMult: 3.5, legMult: 0.75,
     fireIntervalMs: 100, magSize: 30, reloadMs: 2500, range: 180,
-    spreadDeg: { stand: 0.5, move: 2.5, air: 6, crouch: 0.3 },
-    recoilPitchDeg: 0.9, recoilYawDeg: 0.45, recoilRecoverDegPerSec: 8,
-    ads: { fovs: [65], scope: false }, aimSpreadDeg: 0.15,   // súng trường: ngắm qua đầu ruồi, zoom nhẹ, không che màn hình; ngắm đứng yên thì chụm
+    spread: { standDeg: 0.35, crouchDeg: 0.20, moveDeg: 1.0, accurateSpeed: 3, airDeg: 3.0, bloomPerShotDeg: 0.25, bloomMaxDeg: 2.0, bloomRecoverDegPerSec: 6, bloomRecoverDelayMs: 150 },
+    recoilPitchDeg: 0.95, recoilYawDeg: 0.45, recoilRecoverDegPerSec: 8,
+    ads: { spreadMult: 0.25, moveMult: 0.7, fovMult: 0.8, inMs: 180, outMs: 120, scope: false },   // súng trường: ngắm qua đầu ruồi, zoom nhẹ, không che màn hình
   },
   {
     id: 1, key: 'm16', name: 'M16', category: 'long', price: 3100, buyable: true, moveSpeedMul: 0.93, auto: true, damage: 30, headMult: 4, legMult: 0.75,
     fireIntervalMs: 80, magSize: 30, reloadMs: 2200, range: 220,
-    spreadDeg: { stand: 0.45, move: 2.3, air: 5, crouch: 0.25 },
-    recoilPitchDeg: 0.55, recoilYawDeg: 0.25, recoilRecoverDegPerSec: 10,
-    ads: { fovs: [65], scope: false }, aimSpreadDeg: 0.14,
+    spread: { standDeg: 0.25, crouchDeg: 0.15, moveDeg: 0.8, accurateSpeed: 3, airDeg: 2.5, bloomPerShotDeg: 0.18, bloomMaxDeg: 1.5, bloomRecoverDegPerSec: 7, bloomRecoverDelayMs: 150 },
+    recoilPitchDeg: 0.56, recoilYawDeg: 0.25, recoilRecoverDegPerSec: 10,
+    ads: { spreadMult: 0.25, moveMult: 0.7, fovMult: 0.8, inMs: 180, outMs: 120, scope: false },
   },
   {
     id: 2, key: 'colt', name: 'COLT', category: 'pistol', price: 300, buyable: true, moveSpeedMul: 1.0, auto: false, damage: 32, headMult: 3, legMult: 0.75,
     fireIntervalMs: 160, magSize: 7, reloadMs: 1600, range: 90,
-    spreadDeg: { stand: 0.4, move: 1.5, air: 4, crouch: 0.25 },
+    spread: { standDeg: 0.25, crouchDeg: 0.15, moveDeg: 0.6, accurateSpeed: 3, airDeg: 2.0, bloomPerShotDeg: 0.40, bloomMaxDeg: 1.6, bloomRecoverDegPerSec: 5, bloomRecoverDelayMs: 250 },
     recoilPitchDeg: 1.5, recoilYawDeg: 0.3, recoilRecoverDegPerSec: 12,
+    ads: { spreadMult: 0.4, moveMult: 0.85, fovMult: 0.88, inMs: 120, outMs: 90, scope: false },
   },
   {
     id: 3, key: 'rulo', name: 'ROULEAU', category: 'pistol', price: 700, buyable: true, moveSpeedMul: 1.0, auto: false, damage: 55, headMult: 3, legMult: 0.75,
     fireIntervalMs: 400, magSize: 6, reloadMs: 3000, range: 110,
-    spreadDeg: { stand: 0.3, move: 1.8, air: 5, crouch: 0.2 },
+    spread: { standDeg: 0.15, crouchDeg: 0.10, moveDeg: 1.0, accurateSpeed: 3, airDeg: 3.0, bloomPerShotDeg: 0.80, bloomMaxDeg: 2.4, bloomRecoverDegPerSec: 4, bloomRecoverDelayMs: 500 },
     recoilPitchDeg: 2.5, recoilYawDeg: 0.4, recoilRecoverDegPerSec: 10,
+    ads: { spreadMult: 0.4, moveMult: 0.85, fovMult: 0.88, inMs: 120, outMs: 90, scope: false },
   },
   {
     // Sniper: 1 phát/1,2s, 90 sát thương (đầu ×2 = 180), tản đạn rất lớn khi không ngắm; scope 2 mức zoom
     id: 4, key: 'sniper', name: 'SNIPER', category: 'long', price: 4750, buyable: true, moveSpeedMul: 0.85, auto: false, damage: 90, headMult: 2, legMult: 0.75,
     fireIntervalMs: 1200, magSize: 5, reloadMs: 3200, range: 400,
-    spreadDeg: { stand: 5, move: 9, air: 14, crouch: 4 },
+    // Không ngắm: unscopedDeg cố định. Ngắm hẳn: 0.05° đứng yên + moveDeg theo tốc độ + airDeg. Không bloom (mỗi phát lại kéo khoá nòng)
+    spread: { standDeg: 0.05, crouchDeg: 0.05, moveDeg: 3.0, accurateSpeed: 1, airDeg: 10, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0, unscopedDeg: 8 },
     recoilPitchDeg: 3, recoilYawDeg: 0.5, recoilRecoverDegPerSec: 15, recoilRecoverDelayMs: 120,
-    ads: { fovs: [30], scope: true }, aimSpreadDeg: 0.02,
+    ads: { spreadMult: 1, moveMult: 0.5, fovMult: 0.4, inMs: 150, outMs: 100, scope: true },
   },
   {
     // Shotgun: 8 tia/phát, mỗi tia 16 sát thương (gần: 8 tia thân = 128, đủ hạ 1 phát), giảm dần theo khoảng cách
     id: 5, key: 'shotgun', name: 'SHOTGUN', category: 'mid', price: 1100, buyable: true, moveSpeedMul: 0.95, auto: false, damage: 16, headMult: 2, legMult: 0.75,
     fireIntervalMs: 900, magSize: 6, reloadMs: 3000, range: 60,
-    spreadDeg: { stand: 4, move: 5, air: 7, crouch: 3.5 },
+    // pelletConeDeg: nón cố định của 8 viên chì; spread di chuyển/trên không chỉ dịch tâm chùm
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0.6, accurateSpeed: 3, airDeg: 2.0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0, pelletConeDeg: 4.5 },
     recoilPitchDeg: 4, recoilYawDeg: 0.6, recoilRecoverDegPerSec: 12, recoilRecoverDelayMs: 120,
+    ads: { spreadMult: 0.7, moveMult: 0.8, fovMult: 0.9, inMs: 160, outMs: 120, scope: false },
     pellets: 8, falloff: { fullM: 6, endM: 30, minMult: 0.2 },
   },
   {
@@ -129,7 +155,7 @@ export const WEAPONS: WeaponDef[] = [
     id: 6, key: 'knife', name: 'DAO', category: 'knife', price: 0, buyable: false, moveSpeedMul: 1.1, melee: true,
     auto: true, damage: 55, headMult: 2, legMult: 1,
     fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 2.2,
-    spreadDeg: { stand: 0, move: 0, air: 0, crouch: 0 },
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
     recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
   },
   {
@@ -137,8 +163,9 @@ export const WEAPONS: WeaponDef[] = [
     id: 7, key: 'smg', name: 'SMG', category: 'mid', price: 1250, buyable: true, moveSpeedMul: 1.0,
     auto: true, damage: 20, headMult: 3, legMult: 0.75,
     fireIntervalMs: 70, magSize: 30, reloadMs: 1800, range: 100,
-    spreadDeg: { stand: 0.7, move: 1.2, air: 3.5, crouch: 0.5 },
-    recoilPitchDeg: 0.4, recoilYawDeg: 0.35, recoilRecoverDegPerSec: 10,
+    spread: { standDeg: 0.60, crouchDeg: 0.40, moveDeg: 0.5, accurateSpeed: 3, airDeg: 2.5, bloomPerShotDeg: 0.15, bloomMaxDeg: 1.5, bloomRecoverDegPerSec: 8, bloomRecoverDelayMs: 120 },
+    ads: { spreadMult: 0.35, moveMult: 0.8, fovMult: 0.85, inMs: 140, outMs: 100, scope: false },
+    recoilPitchDeg: 0.45, recoilYawDeg: 0.35, recoilRecoverDegPerSec: 10,
     falloff: { fullM: 15, endM: 40, minMult: 0.6 },
   },
   {
@@ -146,7 +173,7 @@ export const WEAPONS: WeaponDef[] = [
     id: 8, key: GRENADE.key, name: 'M67', category: 'grenade', price: GRENADE.price, buyable: true, moveSpeedMul: 1.0, consumable: true,
     auto: false, damage: 0, headMult: 1, legMult: 1,
     fireIntervalMs: 0, magSize: 0, reloadMs: 0, range: 0,
-    spreadDeg: { stand: 0, move: 0, air: 0, crouch: 0 },
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
     recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
   },
 ]
@@ -180,5 +207,9 @@ export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS): Weap
     nextFireMs:  0,
     shotSeq:     0,
     triggerHeld: false,
+    bloomDeg:    WEAPONS.map(() => 0),
+    lastShotMs:  WEAPONS.map(() => 0),
+    shotBloomDeg: 0,
+    switchEndMs: 0,
   }
 }

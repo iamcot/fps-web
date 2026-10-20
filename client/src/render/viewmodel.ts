@@ -41,7 +41,6 @@ const FLASH_SIZE = 0.14;
 
 // ── Ngắm (ADS) ─────────────────────────────────────────────────────────────────
 const ADS_DIST = 0.45; // đầu ruồi cách mắt bấy nhiêu mét: xa hơn = súng/đầu ngắm nhỏ hơn
-const ADS_RATE = 14; // 1/giây: tốc độ chuyển vào/ra tư thế ngắm
 const ADS_BOB = 0.15; // lắc súng còn lại khi ngắm (so với bình thường)
 // Hạ súng thêm khi ngắm (m) để khung ngắm/tay xách không che tầm nhìn (đầu ruồi nằm dưới tâm một chút).
 // M16 có đầu ruồi cao + tay xách nên cần hạ nhiều hơn AK.
@@ -223,8 +222,8 @@ export interface ViewmodelHandle {
   setMotion(speed: number, grounded: boolean): void;
   /** Tiến độ reload 0..1, hoặc -1 nếu không reload */
   setReload(progress: number): void;
-  /** Đang giữ ngắm không (scoped: che súng khi vào scope). Chuyển mượt trong update */
-  setAim(aiming: boolean, scoped: boolean): void;
+  /** Mức ngắm 0..1 (adsT của movement: đã mượt theo inMs/outMs). Chỉ có tác dụng khi đang cầm súng ở trạng thái idle */
+  setAim(adsT: number, scoped: boolean): void;
   /** 0 (hông) … 1 (ngắm xong) */
   readonly aimAmount: number;
   /** Màu tay áo theo đội */
@@ -379,7 +378,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   let moveSpeed = 0;
   let moveGrounded = false;
   let reloadProgress = -1;
-  let aimWant = false;
+  let aimWant = 0;   // adsT từ movement
   let aimScoped = false;
   let aimT = 0;
 
@@ -464,8 +463,8 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     reloadProgress = progress;
   }
 
-  function setAim(aiming: boolean, scoped: boolean) {
-    aimWant = aiming;
+  function setAim(adsT: number, scoped: boolean) {
+    aimWant = adsT;
     aimScoped = scoped;
   }
 
@@ -522,8 +521,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     }
 
     // Ngắm: kéo súng vào giữa, thân súng thẳng trực diện, đầu ruồi trùng tâm màn hình
-    aimT += ((aimWant && phase === "idle" ? 1 : 0) - aimT) * Math.min(1, dt * ADS_RATE);
-    if (Math.abs(aimT - (aimWant ? 1 : 0)) < 1e-3) aimT = aimWant ? 1 : 0;
+    aimT = phase === "idle" ? aimWant : 0;   // adsT đã mượt sẵn (inMs/outMs), không làm mượt lần nữa
     const a = smooth(aimT);
     const base = basePos(currentWeapon);
     const bx = base.x, by = base.y, bz = base.z;

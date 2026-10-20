@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
-  stepWeaponCmd, shotSpread, computeShotDirs, MAX_PELLETS, recoverRecoil,
+  stepWeaponCmd, computeSpreadDeg, adsMoveFor, adsWanted, computeShotDirs, MAX_PELLETS, recoverRecoil,
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
@@ -10,7 +10,7 @@ import { buildMapMesh } from './render/mapMesh'
 import { initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
-import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setSpeedMul, setDead, setMatchPhase } from './loop'
+import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby, BACK_KEY, type Session } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
@@ -84,7 +84,6 @@ const sky = createSky(scene, sun.position)
 const BASE_FOV = 75
 const RECOIL_VIEW_TAU = 0.045   // s: độ mượt khi camera nhấc lên theo recoil
 const recView = { pitch: 0, yaw: 0 }
-const FOV_EASE = 16   // 1/giây: tốc độ zoom vào/ra
 const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.1, 300)
 camera.rotation.order = 'YXZ'
 
@@ -146,9 +145,7 @@ const rec = makeRecoilState()
 const shotDirs: [number, number, number][] = Array.from({ length: MAX_PELLETS }, () => [0, 0, 0] as [number, number, number])
 const eyeTmp:  [number, number, number] = [0, 0, 0]
 let simMs = 0
-let lastBtns = 0
-const MOVE_KEYS = Btn.Forward | Btn.Back | Btn.Left | Btn.Right
-setSpeedMul(buttons => moveSpeedMul(ws, buttons))   // offline; online truyền qua hook step của Prediction
+setWeaponMove({ mul: () => moveSpeedMul(ws), ads: () => adsMoveFor(ws), want: cmd => adsWanted(ws, cmd.buttons, cmd.seq * 1000 / TICK_RATE) })   // offline; online truyền qua hook step của Prediction
 
 // Đổi súng theo ô (H.4): cmd.weapon = ô; logic súng đổi ở tick kế tiếp (client và server như nhau), viewmodel đi theo ws.current
 let dead = false
@@ -208,7 +205,7 @@ const grenades = createGrenades(scene, {
 })
 const nadeTrajectory = createGrenadeTrajectory(scene)
 const nadeWarn = createGrenadeWarning()
-const nadeAimState = { pos: [0, 0, 0] as [number, number, number], vel: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0 }
+const nadeAimState = { pos: [0, 0, 0] as [number, number, number], vel: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0 }
 if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __nadeTraj: nadeTrajectory, __explosionFx: explosionFx })   // debug: script kiểm tra từ trình duyệt
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
@@ -389,7 +386,7 @@ sessionP.then(session => {
       spectator.reset(); spectatingId = -2
       prediction?.teleport({
         pos: [msg.pos[0], msg.pos[1], msg.pos[2]], vel: [0, 0, 0], yaw: msg.yaw, pitch: 0,
-        grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0,
+        grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0,
       })
       setLook(msg.yaw, 0)
       // Chết thì mất súng đã mua: về bộ mặc định của đội, cầm súng dài (server cũng vậy, snapshot kế tiếp sẽ khớp lại)
@@ -484,7 +481,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       step: cmd => {
         if (cmd.buttons & Btn.Fire) cmd.fireRenderTime = interp.currentRenderTime   // 4.3: server tua hitbox về đây
         session.transport.send({ t: MsgType.Inputs, cmds: [cmd] })
-        return pred.step(cmd, moveSpeedMul(ws, cmd.buttons))   // tốc độ theo súng đang cầm trước cmd này, như server
+        return pred.step(cmd, moveSpeedMul(ws), adsMoveFor(ws), adsWanted(ws, cmd.buttons, cmd.seq * 1000 / TICK_RATE))   // tốc độ theo súng đang cầm trước cmd này, như server
       },
       visualOffset: () => pred.decayOffset(),
     })
@@ -496,7 +493,6 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   hudRef = hud
 
   let eyeY   = cfg.eyeStand
-  let zoomLevel = 0
   const scopeOverlay = createScope()
   let lastMs = performance.now()
 
@@ -530,28 +526,23 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     const def   = WEAPONS[ws.current]!
     const speed = Math.hypot(state.vel[0], state.vel[2])
 
-    // Ngắm: giữ chuột phải (súng có `ads`), không ngắm khi đang nạp / đổi súng / đã chết. Lăn chuột đổi mức zoom (sniper)
+    // Ngắm: adsT (state của movement, client và server như nhau) kéo FOV, viewmodel và tâm ngắm. Con lăn luôn đổi ô súng
     const ads = def.ads
-    const aiming = !!ads && vm.currentWeapon === ws.current && ws.reloadEndMs === 0 && lastHp > 0 && isLocked() &&
-      (sampleButtons() & Btn.Aim) !== 0
+    const adsT = ads && vm.currentWeapon === ws.current ? state.adsT : 0
     const wheel = consumeWheel()
-    if (!aiming) zoomLevel = 0
-    if (wheel !== 0) {
-      // Con lăn: đang ngắm súng nhiều mức zoom thì đổi zoom, còn lại đổi sang ô kế tiếp/trước có súng
-      if (aiming && ads!.fovs.length > 1) zoomLevel = Math.max(0, Math.min(ads!.fovs.length - 1, zoomLevel - Math.sign(wheel)))
-      else cycleSlot(Math.sign(wheel))
-    }
-    const fovTarget = aiming ? ads!.fovs[Math.min(zoomLevel, ads!.fovs.length - 1)]! : BASE_FOV
+    if (wheel !== 0) cycleSlot(Math.sign(wheel))
+    const fovTarget = ads ? BASE_FOV * (1 + (ads.fovMult - 1) * adsT) : BASE_FOV
     if (Math.abs(camera.fov - fovTarget) > 0.01) {
-      camera.fov += (fovTarget - camera.fov) * Math.min(1, dt * FOV_EASE)
+      camera.fov = fovTarget
       camera.updateProjectionMatrix()
     }
     // Zoom càng sâu chuột càng chậm (cùng góc quay trên màn hình)
     setSensScale(Math.tan(camera.fov * Math.PI / 360) / Math.tan(BASE_FOV * Math.PI / 360))
-    vm.setAim(aiming, !!ads?.scope)
-    const scoped = !!ads?.scope && aiming && vm.aimAmount > 0.9
+    vm.setAim(adsT, !!ads?.scope)
+    const scoped = !!ads?.scope && adsT > 0.9
     scopeOverlay.setVisible(scoped)
-    hud.setCrosshairVisible(!scoped && spectatingId === -2)   // súng trường ngắm vẫn giữ tâm; chỉ scope mới ẩn
+    hud.setCrosshairVisible(!scoped && spectatingId === -2)
+    hud.setCrosshairFade(adsT)   // ngắm hẳn thì tâm HUD mờ hết (nhìn qua khe ngắm/đầu ruồi)
     hud.setCrosshairFov(camera.fov)
 
     // Viewmodel đi theo súng đang cầm của logic (ws.current), dù đổi do phím, con lăn, mua hay hồi sinh
@@ -574,7 +565,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       const pull = n.phase === 'ready' ? 1 : n.phase === 'pulling' ? Math.min(1, Math.max(0, (simMs - n.pressSeq * 1000 / TICK_RATE) / GRENADE.pinPullMs)) : 0
       vm.setGrenade(n.phase === 'idle' ? 'idle' : n.phase === 'pulling' ? 'pulling' : 'ready', n.mode, pull, (ws.ammo[GRENADE_ID] ?? 0) > 0)
     }
-    hud.setSpread(shotSpread(def, state, (lastBtns & MOVE_KEYS) | (aiming ? Btn.Aim : 0)), dt * 1000)   // cùng công thức với lúc bắn
+    hud.setSpread(computeSpreadDeg(state, ws, def, cfg, simMs), dt * 1000, def.spread.pelletConeDeg ?? 0, def.spread.unscopedDeg !== undefined && adsT < 0.5)   // cùng hàm với lúc bắn (bloom hiện tại)
     hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee, !!def.consumable)
 
     updateTargets(targets, dt)
@@ -648,16 +639,14 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
   }, (state, cmd, nowMs) => {
     // Mỗi tick mô phỏng: logic súng + bước chân
     simMs = nowMs
-    lastBtns = cmd.buttons
     const def    = WEAPONS[ws.current]!
     const speed  = Math.hypot(state.vel[0], state.vel[2])
 
     const ev = stepWeaponCmd(ws, cmd)
     if (ev === 'fired') {
-      const pellets = computeShotDirs(shotDirs, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, shotSpread(def, state, cmd.buttons))
+      const pellets = computeShotDirs(shotDirs, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, computeSpreadDeg(state, ws, def, cfg, nowMs, true))
       vm.onFire(def.melee)
       lastFireDir[0] = shotDirs[0]![0]; lastFireDir[1] = shotDirs[0]![1]; lastFireDir[2] = shotDirs[0]![2]   // cho điểm máu khi HitConfirm về
-      hud.kickSpread(def.recoilPitchDeg * 2)   // tâm giãn theo độ giật của súng (hiển thị)
       playShot(def.id, ws.ammo[def.id]!)
 
       eyeTmp[0] = state.pos[0]; eyeTmp[1] = state.pos[1] + eyeY; eyeTmp[2] = state.pos[2]

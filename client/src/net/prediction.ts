@@ -1,4 +1,4 @@
-import { DT, copyWeaponState, makeWeaponState, moveSpeedMul, stepMovement, stepWeaponCmd, type InputCmd, type MovementConfig, type PlayerState, type WeaponState } from '@fps/shared'
+import { DT, TICK_RATE, adsMoveFor, adsWanted, copyWeaponState, makeWeaponState, moveSpeedMul, stepMovement, stepWeaponCmd, type AdsMove, type InputCmd, type MovementConfig, type PlayerState, type WeaponState } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 
 const MAX_PENDING = 240          // 4 giây cmd chưa được ack; quá thì bỏ cái cũ nhất
@@ -34,8 +34,8 @@ export class Prediction {
 
   // Chạy một tick dự đoán. Gọi sau khi cmd được tạo; trả về state mới.
   // speedMul = hệ số tốc độ theo súng đang cầm TRƯỚC cmd này (moveSpeedMul của WeaponState hiện tại)
-  step(cmd: InputCmd, speedMul = 1): PlayerState {
-    const next = stepMovement(this.predicted, cmd, this.world, this.cfg, DT, speedMul)
+  step(cmd: InputCmd, speedMul = 1, ads: AdsMove | null = null, adsWant = false): PlayerState {
+    const next = stepMovement(this.predicted, cmd, this.world, this.cfg, DT, speedMul, ads, adsWant)
     this.predicted = next
     this.pending.push({ cmd, stateAfter: next })
     if (this.pending.length > MAX_PENDING) this.pending.shift()
@@ -71,7 +71,9 @@ export class Prediction {
     const ws = this.wsScratch
     if (wpn) copyWeaponState(ws, wpn)
     for (const p of this.pending) {
-      s = stepMovement(s, p.cmd, this.world, this.cfg, DT, wpn ? moveSpeedMul(ws, p.cmd.buttons) : 1)
+      s = wpn
+        ? stepMovement(s, p.cmd, this.world, this.cfg, DT, moveSpeedMul(ws), adsMoveFor(ws), adsWanted(ws, p.cmd.buttons, p.cmd.seq * 1000 / TICK_RATE))
+        : stepMovement(s, p.cmd, this.world, this.cfg, DT, 1)
       if (wpn) stepWeaponCmd(ws, p.cmd)
       p.stateAfter = s
     }

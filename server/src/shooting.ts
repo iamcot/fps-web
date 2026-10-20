@@ -1,5 +1,5 @@
 import {
-  MAX_PELLETS, MAX_REWIND_MS, MsgType, WEAPONS, computeShotDirs, damageFalloff, hitboxesFor, rayAabb, shotSpread,
+  MAX_PELLETS, MAX_REWIND_MS, MsgType, WEAPONS, TICK_RATE, computeShotDirs, computeSpreadDeg, damageFalloff, hitboxesFor, rayAabb,
   type HitBox, type ShotFxMsg, type InputCmd, type MovementConfig, type PlayerState,
 } from '@fps/shared'
 import type { Player, Room } from './room'
@@ -27,7 +27,7 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, cfg: Mov
   const def = WEAPONS[ws.current]!
   const s = shooter.state
 
-  const pellets = computeShotDirs(dirs, shooter.recoil, def, shooter.id, ws.shotSeq - 1, cmd.yaw, cmd.pitch, shotSpread(def, s, cmd.buttons))
+  const pellets = computeShotDirs(dirs, shooter.recoil, def, shooter.id, ws.shotSeq - 1, cmd.yaw, cmd.pitch, computeSpreadDeg(s, ws, def, cfg, cmd.seq * 1000 / TICK_RATE, true))
   eye[0] = s.pos[0]; eye[1] = s.pos[1] + (s.crouching ? cfg.eyeCrouch : cfg.eyeStand); eye[2] = s.pos[2]
 
   const t = rewindTime(cmd.fireRenderTime, room.serverNow)

@@ -53,7 +53,7 @@ describe('NetPlayer', () => {
   it('state → net → state giữ đủ mọi trường', () => {
     const s: PlayerState = {
       pos: [1, 2, 3], vel: [4, 5, 6], yaw: 0.7, pitch: -0.2,
-      grounded: true, crouching: true, slideTimer: 0.3, slideCooldown: 0.9,
+      grounded: true, crouching: true, slideTimer: 0.3, slideCooldown: 0.9, adsT: 0,
     }
     const n = stateToNet(7, s)
     expect(n.id).toBe(7)

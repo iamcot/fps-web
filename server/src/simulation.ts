@@ -1,6 +1,6 @@
 import {
   Btn, DT, MatchPhase, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE, VOID_Y,
-  WEAPONS, isValidCmd, phaseButtonMask, moveSpeedMul, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
+  WEAPONS, isValidCmd, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
 import type { Player, Room } from './room'
@@ -44,7 +44,7 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
       eff.buttons = cmd.buttons & mask; eff.fireRenderTime = cmd.fireRenderTime
     }
     // Tốc độ theo súng đang cầm TRƯỚC cmd này (đổi súng ở cuối tick); client dự đoán và replay cùng thứ tự
-    p.state = stepMovement(p.state, eff, p.world, cfg, DT, moveSpeedMul(p.weapon, eff.buttons))
+    p.state = stepMovement(p.state, eff, p.world, cfg, DT, moveSpeedMul(p.weapon), adsMoveFor(p.weapon), adsWanted(p.weapon, eff.buttons, cmd.seq * 1000 / TICK_RATE))
     p.lastProcessedSeq = cmd.seq
     p.lastCmd = cmd
     // Chạy cả khi chết (nút đã bị mask nên không bắn được): wantSlot/hoàn tất nạp khớp với dự đoán của client
@@ -78,7 +78,7 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
   idle.buttons = last ? last.buttons & HELD_MASK & phaseButtonMask(room?.phase ?? MatchPhase.Playing, p.alive) : 0
   idle.yaw = last ? last.yaw : p.state.yaw
   idle.pitch = last ? last.pitch : p.state.pitch
-  p.state = stepMovement(p.state, idle, p.world, cfg, DT, moveSpeedMul(p.weapon, idle.buttons))
+  p.state = stepMovement(p.state, idle, p.world, cfg, DT, moveSpeedMul(p.weapon), adsMoveFor(p.weapon), false)
 }
 
 // serverTime = thời điểm của tick này; lịch sử hitbox ghi theo mốc này sau khi mọi người đã bước

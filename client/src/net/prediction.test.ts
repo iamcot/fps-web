@@ -15,7 +15,7 @@ const flat: CollisionWorld = {
 }
 const start = (): PlayerState => ({
   pos: [0, 0, 0], vel: [0, 0, 0], yaw: 0, pitch: 0,
-  grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0,
+  grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0,
 })
 const cmd = (seq: number, buttons = Btn.Forward | Btn.Right): InputCmd => ({ seq, buttons, yaw: 0.3, pitch: 0, weapon: 3 })
 const cfg = defaultMovement

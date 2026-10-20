@@ -72,13 +72,11 @@ function buildBulletHoles(scene: THREE.Scene) {
   }
 }
 
-// ── Tâm ngắm 4 vạch (giãn theo spread) + máu + đạn ─────────────────────────────
+// ── Tâm ngắm 4 vạch (khoảng hở = độ toé thật của súng) + máu + đạn ──────────────
 const CROSS_LEN   = 10   // px
-const CROSS_MIN_GAP = 1  // px (thấp để súng chính xác như M16 vẫn thấy tâm chụm/giãn khi đứng-ngồi-ngắm)
-const GAP_EXPAND_MS  = 30   // hằng thời gian khi tâm giãn
-const GAP_SHRINK_MS  = 15   // co về nhanh hơn (gần như tức thì như lúc nhảy)
-const BLOOM_DECAY_MS = 100  // độ giãn thêm sau mỗi phát bắn tan dần
-const BLOOM_MAX_DEG  = 6
+const CROSS_MIN_GAP = 3  // px: khoảng hở tối thiểu để tâm không dính lại khi spread ≈ 0
+const CROSS_FIXED_GAP = 6   // px khi tắt "tâm ngắm động"
+const GAP_TAU_MS  = 30   // làm mượt hiển thị (không ảnh hưởng đạn)
 
 function buildCrosshair() {
   const root = document.createElement('div')
@@ -93,11 +91,16 @@ function buildCrosshair() {
     root.appendChild(b)
     bars.push(b)
   }
+  const dot = document.createElement('div')   // sniper không ngắm: chỉ một chấm (bắn không ngắm là may rủi)
+  dot.style.cssText = 'position:absolute;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#7CFF7C;box-shadow:0 0 2px #000;display:none'
+  const ring = document.createElement('div')   // shotgun: vòng mờ cho nón của chùm chì
+  ring.style.cssText = 'position:absolute;border:1px solid rgba(124,255,124,0.45);border-radius:50%;display:none;box-sizing:border-box'
+  root.append(dot, ring)
   document.body.appendChild(root)
 
   let gap = CROSS_MIN_GAP
   let fovDeg = 75   // FOV dọc hiện tại của camera chính (đổi khi zoom ngắm)
-  let bloom = 0   // độ (chỉ hiển thị), cộng thêm vào spread mỗi phát bắn
+  let dynamic = true
   function place(g: number) {
     // 0 trái, 1 phải, 2 trên, 3 dưới
     bars[0]!.style.transform = `translate(${-g - CROSS_LEN}px,-1px)`
@@ -106,19 +109,28 @@ function buildCrosshair() {
     bars[3]!.style.transform = `translate(-1px,${g}px)`
   }
   place(gap)
+  // độ (nửa góc nón) → pixel, theo FOV dọc hiện tại của camera chính
+  const degToPx = (deg: number) => Math.tan(deg * Math.PI / 180) / Math.tan(fovDeg * Math.PI / 360) * (window.innerHeight / 2)
+  let ringShown = false, dotShown = false, barsShown = true
   return {
     setFov(deg: number) { fovDeg = deg },
     setVisible(v: boolean) { root.style.display = v ? '' : 'none' },
-    /** spreadDeg: nửa góc nón; đổi sang pixel theo FOV dọc của camera chính */
-    kick(deg: number) { bloom = Math.min(BLOOM_MAX_DEG, bloom + deg) },
-    tick(spreadDeg: number, dtMs: number) {
-      bloom *= Math.exp(-dtMs / BLOOM_DECAY_MS)
-      if (bloom < 1e-3) bloom = 0
-      const px = Math.tan((spreadDeg + bloom) * Math.PI / 180) / Math.tan(fovDeg * Math.PI / 360) * (window.innerHeight / 2)
-      const target = Math.max(CROSS_MIN_GAP, px)
-      const tau = target > gap ? GAP_EXPAND_MS : GAP_SHRINK_MS
-      gap += (target - gap) * (1 - Math.exp(-dtMs / tau))
+    setFade(t: number) { root.style.opacity = String(1 - Math.min(1, Math.max(0, t))) },
+    setDynamic(v: boolean) { dynamic = v },
+    /** spreadDeg: nửa góc nón hiện tại; coneDeg > 0 (shotgun) vẽ thêm vòng cho nón chùm; dotOnly: ẩn 4 vạch, chỉ chấm */
+    tick(spreadDeg: number, dtMs: number, coneDeg = 0, dotOnly = false) {
+      const target = dynamic ? Math.max(CROSS_MIN_GAP, degToPx(spreadDeg)) : CROSS_FIXED_GAP
+      gap += (target - gap) * (1 - Math.exp(-dtMs / GAP_TAU_MS))
       place(gap)
+      if (barsShown === dotOnly) { barsShown = !dotOnly; for (const b of bars) b.style.display = barsShown ? '' : 'none' }
+      if (dotShown !== dotOnly) { dotShown = dotOnly; dot.style.display = dotOnly ? '' : 'none' }
+      const wantRing = coneDeg > 0 && dynamic
+      if (wantRing !== ringShown) { ringShown = wantRing; ring.style.display = wantRing ? '' : 'none' }
+      if (wantRing) {
+        const r = degToPx(coneDeg + spreadDeg)
+        ring.style.width = ring.style.height = `${2 * r}px`
+        ring.style.left = ring.style.top = `${-r}px`
+      }
     },
   }
 }
@@ -128,8 +140,9 @@ export interface HUDHandle {
   showHitmarker(headshot: boolean): void
   addBulletHole(hitPos: [number, number, number], normal: [number, number, number]): void
   tick(dtMs: number): void
-  setSpread(spreadDeg: number, dtMs: number): void
-  kickSpread(deg: number): void
+  setSpread(spreadDeg: number, dtMs: number, coneDeg?: number, dotOnly?: boolean): void
+  setCrosshairFade(adsT: number): void
+  setCrosshairDynamic(on: boolean): void
   setCrosshairVisible(v: boolean): void
   setCrosshairFov(deg: number): void
   setHealth(v: number): void
@@ -147,8 +160,9 @@ export function initHUD(scene: THREE.Scene): HUDHandle {
     showHitmarker: (hs) => hm.show(hs),
     addBulletHole: (p, n) => bh.add(p, n),
     tick:          (ms)  => { hm.tick(ms); st.tick(ms) },
-    setSpread:     (d, ms) => ch.tick(d, ms),
-    kickSpread:    (d)   => ch.kick(d),
+    setSpread:     (d, ms, cone, dot) => ch.tick(d, ms, cone, dot),
+    setCrosshairFade: (t) => ch.setFade(t),
+    setCrosshairDynamic: (on) => ch.setDynamic(on),
     setCrosshairVisible: (v) => ch.setVisible(v),
     setCrosshairFov: (d) => ch.setFov(d),
     setHealth:     (v)   => st.setHealth(v),
