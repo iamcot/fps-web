@@ -132,7 +132,7 @@ export function showLobby(): Promise<Session | null> {
           const transport = maybeNetsim(raw)
           const direct = new URLSearchParams(location.search).get('room')
           if (direct) {   // ?room=xxx: vào thẳng (dev / test 2 tab), không qua danh sách
-            joinRoom(transport, { name, room: direct, team: saved.team as TeamId | 'auto', characterSet: saved.characters }).then(done, e2 => { err.textContent = String(e2.message) })
+            joinRoom(transport, { name, room: direct, team: saved.team as TeamId | 'auto' }).then(done, e2 => { err.textContent = String(e2.message) })
           } else listStep(transport)
         }, () => { err.textContent = 'Không kết nối được server' })
       })
@@ -168,7 +168,7 @@ export function showLobby(): Promise<Session | null> {
       const enter = (opts: JoinOpts) => {
         if (busy) return
         busy = true; err.textContent = 'Đang vào phòng…'
-        try { localStorage.setItem(STORE_KEY, JSON.stringify({ name: saved.name, team: opts.team, characters: opts.characterSet ?? saved.characters })) } catch { /* bỏ qua */ }
+        try { localStorage.setItem(STORE_KEY, JSON.stringify({ name: saved.name, team: opts.team, characters: DEFAULT_CHARACTER_SET })) } catch { /* bỏ qua */ }
         joinRoom(transport, opts).then(s => { clearInterval(poll); done(s) }, fail)
       }
 
@@ -191,7 +191,7 @@ export function showLobby(): Promise<Session | null> {
           const full = r.players >= r.maxPlayers
           const join = mk('button', BTN, full ? 'Đầy' : 'Vào phòng'); join.disabled = full
           if (full) join.style.opacity = '.5'
-          join.addEventListener('click', () => enter({ name: saved.name, room: r.id, team: sel.value as TeamId | 'auto', characterSet: saved.characters, create: false }))
+          join.addEventListener('click', () => enter({ name: saved.name, room: r.id, team: sel.value as TeamId | 'auto', create: false }))
           row.append(sel, join)
           card.append(name, cnt, info, row)
           grid.appendChild(card)
@@ -205,7 +205,7 @@ export function showLobby(): Promise<Session | null> {
       const mapSel = mk('select', INPUT)
       const charSel = mk('select', INPUT)
       charSel.innerHTML = CHARACTER_SETS.map(id => `<option value="${id}">Nhân vật: ${getCharacterSet(id).label}</option>`).join('')
-      charSel.value = (CHARACTER_SETS as readonly string[]).includes(saved.characters) ? saved.characters : DEFAULT_CHARACTER_SET
+      charSel.value = DEFAULT_CHARACTER_SET   // luôn mặc định nhân vật người (Cớm & Cướp)
       const teamSel = teamSelect(saved.team)
       const btns = mk('div', 'display:flex;gap:8px')
       const ok = mk('button', BTN, 'Tạo phòng')
