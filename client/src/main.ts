@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
   stepWeaponCmd, shotSpread, computeShotDirs, MAX_PELLETS, recoverRecoil,
-  CATEGORY_SLOT, DEFAULT_SLOT, ECONOMY, SLOT_COUNT, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
+  CATEGORY_SLOT, DEFAULT_SLOT, ECONOMY, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
@@ -32,6 +32,7 @@ import { createViewmodel } from './render/viewmodel'
 import { createPoseEditor } from './render/poseEditor'
 import { createBloodFx } from './render/bloodFx'
 import { createGrenades } from './render/grenades'
+import { createGrenadeTrajectory } from './render/grenadeTrajectory'
 import { createTargets, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
@@ -193,7 +194,9 @@ const grenades = createGrenades(scene, {
   world: () => worldRef,
   localFuse: () => !sessionRef,   // offline không có server: tự nổ khi hết ngòi
 })
-if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera })   // debug: script kiểm tra từ trình duyệt
+const nadeTrajectory = createGrenadeTrajectory(scene)
+const nadeAimState = { pos: [0, 0, 0] as [number, number, number], vel: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0 }
+if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __nadeTraj: nadeTrajectory })   // debug: script kiểm tra từ trình duyệt
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
@@ -465,7 +468,12 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     shop.tick()
 
     vm.setMotion(speed, state.grounded)
-    vm.setReload(ws.reloadEndMs > 0 ? 1 - (ws.reloadEndMs - simMs) / def.reloadMs : -1)
+    vm.setReload(ws.reloadEndMs > 0 && def.reloadMs > 0 ? 1 - (ws.reloadEndMs - simMs) / def.reloadMs : -1)
+    {   // lựu đạn: pha + tiến độ rút chốt cho viewmodel
+      const n = ws.nade
+      const pull = n.phase === 'ready' ? 1 : n.phase === 'pulling' ? Math.min(1, Math.max(0, (simMs - n.pressSeq * 1000 / TICK_RATE) / GRENADE.pinPullMs)) : 0
+      vm.setGrenade(n.phase === 'idle' ? 'idle' : n.phase === 'pulling' ? 'pulling' : 'ready', n.mode, pull, (ws.ammo[GRENADE_ID] ?? 0) > 0)
+    }
     hud.setSpread(shotSpread(def, state, (lastBtns & MOVE_KEYS) | (aiming ? Btn.Aim : 0)), dt * 1000)   // cùng công thức với lúc bắn
     hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee)
 
@@ -495,6 +503,13 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     } else if (snapStore) {
       lastSampled = interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs))
       playersRenderer.update(lastSampled)
+    }
+    {   // đường bay dự kiến khi giữ ở trạng thái ready (dùng đúng hàm ném thật)
+      const s = nadeAimState
+      s.pos[0] = state.pos[0]; s.pos[1] = state.pos[1]; s.pos[2] = state.pos[2]
+      s.vel[0] = state.vel[0]; s.vel[1] = state.vel[1]; s.vel[2] = state.vel[2]
+      s.yaw = yaw; s.pitch = pitch; s.crouching = state.crouching
+      nadeTrajectory.update(ws.current === GRENADE_ID && ws.nade.phase === 'ready' && !dead, worldRef, s, ws.nade.mode)
     }
     grenades.update(dt, interp.currentRenderTime > 0 ? interp.currentRenderTime : clock.serverNow(), netStats.rttMs)
     tracers.update(dt * 1000)
@@ -552,6 +567,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     if (ev === 'threw') {
       // Dự đoán ném: quả của mình bay ngay (không chờ server); server xác nhận bằng throwSeq
       const t = throwInitial(state, ws.nade.mode, world, cfg)
+      vm.onGrenadeThrow()
       grenades.spawnLocal(ws.throwSeq, playerId, sessionRef?.teams.get(playerId) ?? 'A', t.pos, t.vel, ws.nade.mode)
     }
     recoverRecoil(rec, def, ws, nowMs, DT)

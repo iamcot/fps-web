@@ -3,14 +3,27 @@ import raw from './poses.json'
 
 // Tư thế tay/súng (plan 10). Mọi số nằm trong poses.json; file này chỉ định kiểu, kiểm tra và đọc.
 export type Vec3 = [number, number, number]
-export type Hold = 'twoHand' | 'oneHand' | 'pistolSupport'
-export type AnchorName = 'hand_r' | 'hand_l' | 'mag'
+export type Hold = 'twoHand' | 'oneHand' | 'pistolSupport' | 'grenade'
+export type AnchorName = 'hand_r' | 'hand_l' | 'mag' | 'pin_pull'
 
 export interface ArmStyleCfg { upperLen: number; foreLen: number; thickness: number; handSize: number; sleeveToElbow?: boolean }
+// Lựu đạn góc 1 (plan 12, G.5). Toạ độ trong không gian camera của viewmodel (như first.gunPos); 'to' của đường tay trái:
+// 'rest' = leftRest, 'pin_pull' = anchor vòng chốt (hệ lựu đạn), offset cộng thêm trong không gian camera.
+export interface GrenadePullKey { t: number; to: 'rest' | 'pin_pull'; offset?: Vec3 }
+export interface GrenadeFirst {
+  idlePos: Vec3; idleRotDeg: Vec3
+  pullLeftHandPath: GrenadePullKey[]
+  leftRest: Vec3
+  readyPos: { strong: Vec3; lob: Vec3 }; readyRotDeg: { strong: Vec3; lob: Vec3 }
+  throwPos: { strong: Vec3; lob: Vec3 }
+  windupMs: number; throwMs: number; recoverMs: number
+  pinAttachT?: number          // mốc t của đường rút chốt khi chốt đổi sang tay trái (mặc định 0,75)
+  handRotDegR?: Vec3; handRotDegL?: Vec3   // xoay thêm bàn tay (độ) so với hướng lựu đạn
+}
 export interface WeaponPose {
   anchors: Partial<Record<AnchorName, Vec3>>
-  third: { hold: Hold; gunPos: Vec3; gunRotDeg: Vec3 }
-  first: { hold: Hold; gunPos?: Vec3; gunRotDeg: Vec3; scale: number }
+  third: { hold: Hold; gunPos: Vec3; gunRotDeg: Vec3; releaseT?: number }
+  first: { hold: Hold; gunPos?: Vec3; gunRotDeg: Vec3; scale: number; grenade?: GrenadeFirst }
 }
 export interface ReloadKey { t: number; to: 'hand_l' | 'mag'; offset?: Vec3 }
 export type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky'
@@ -32,6 +45,7 @@ export interface Poses {
   first: { fov: number; shoulderR: Vec3; shoulderL: Vec3; poleR: Vec3; poleL: Vec3; armsRootOffset: Vec3; armsRootRotDeg: Vec3; armsScale: number; armsPoleR: Vec3; armsPoleL: Vec3 }
   character: CharacterCfg
   grip: GripCfg
+  grenade: { trajectory: boolean; trajectoryMaxS: number; dotEveryS: number }
   weapons: Record<string, WeaponPose>
   reloadLeftHand: {
     keys: ReloadKey[]; magDetachT: number; magAttachT: number
@@ -40,7 +54,7 @@ export interface Poses {
 }
 
 // Thứ tự = id súng trong shared (WEAPONS)
-export const WEAPON_KEYS = ['ak47', 'm16', 'colt', 'rulo', 'sniper', 'shotgun', 'knife', 'smg'] as const
+export const WEAPON_KEYS = ['ak47', 'm16', 'colt', 'rulo', 'sniper', 'shotgun', 'knife', 'smg', 'm67'] as const
 
 const DEFAULTS = {
   style: {
@@ -62,6 +76,7 @@ const DEFAULTS = {
     L: { thumb: [15, 25, 20], index: [45, 55, 35], middle: [55, 65, 40], ring: [60, 70, 45], pinky: [65, 70, 45] },
     axis: 'x',
   },
+  grenade: { trajectory: true, trajectoryMaxS: 2, dotEveryS: 0.06 },   // đường bay dự kiến khi giữ ready
   reloadLeftHand: { keys: [], magDetachT: 0.12, magAttachT: 0.55, gunTiltDeg: { roll: 0, pitch: 0, inT: 0.1, outT: 0.85 } },
 }
 const WEAPON_DEFAULT: WeaponPose = {
@@ -142,7 +157,7 @@ if (import.meta.hot) {
 // ── Điểm neo ───────────────────────────────────────────────────────────────────
 // Ưu tiên anchor trong poses.json; không có thì lấy Empty cùng tên trong glb (nếu có); cuối cùng gốc (0,0,0).
 const glbAnchors = new Map<number, Map<AnchorName, THREE.Vector3>>()
-const ANCHOR_NAMES: AnchorName[] = ['hand_r', 'hand_l', 'mag']
+const ANCHOR_NAMES: AnchorName[] = ['hand_r', 'hand_l', 'mag', 'pin_pull']
 
 /** Gọi một lần khi model súng load xong (sau adjustModel). Toạ độ trong hệ cha của model. */
 export function scanModelAnchors(id: number, model: THREE.Object3D): void {

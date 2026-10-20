@@ -207,6 +207,11 @@
     },
     "axis": "x"
   },
+  "grenade": {
+    "trajectory": true,
+    "trajectoryMaxS": 2,
+    "dotEveryS": 0.06
+  },
   "reloadLeftHand": {
     "keys": [
       {
@@ -624,6 +629,127 @@
           -0.255,
           -0.41
         ]
+      }
+    },
+    "m67": {
+      "anchors": {
+        "hand_r": [
+          0.05,
+          0,
+          0
+        ],
+        "pin_pull": [
+          0.025,
+          0.045,
+          0
+        ]
+      },
+      "first": {
+        "hold": "grenade",
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1,
+        "grenade": {
+          "idlePos": [
+            0.16,
+            -0.18,
+            -0.38
+          ],
+          "idleRotDeg": [
+            0,
+            10,
+            0
+          ],
+          "pullLeftHandPath": [
+            {
+              "t": 0.0,
+              "to": "rest"
+            },
+            {
+              "t": 0.45,
+              "to": "pin_pull"
+            },
+            {
+              "t": 0.75,
+              "to": "pin_pull",
+              "offset": [
+                -0.1,
+                0.02,
+                0.05
+              ]
+            },
+            {
+              "t": 1.0,
+              "to": "rest",
+              "offset": [
+                -0.18,
+                -0.05,
+                -0.1
+              ]
+            }
+          ],
+          "leftRest": [
+            -0.25,
+            -0.4,
+            -0.3
+          ],
+          "readyPos": {
+            "strong": [
+              0.2,
+              -0.02,
+              -0.18
+            ],
+            "lob": [
+              0.1,
+              -0.3,
+              -0.42
+            ]
+          },
+          "readyRotDeg": {
+            "strong": [
+              -20,
+              15,
+              10
+            ],
+            "lob": [
+              30,
+              5,
+              0
+            ]
+          },
+          "throwPos": {
+            "strong": [
+              0.02,
+              -0.05,
+              -0.75
+            ],
+            "lob": [
+              0.05,
+              -0.35,
+              -0.7
+            ]
+          },
+          "windupMs": 120,
+          "throwMs": 110,
+          "recoverMs": 250
+        }
+      },
+      "third": {
+        "hold": "grenade",
+        "gunPos": [
+          0,
+          0,
+          0
+        ],
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ],
+        "releaseT": 0.4
       }
     }
   }

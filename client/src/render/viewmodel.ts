@@ -4,7 +4,9 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import type { TeamId } from "@fps/shared";
 import { BlockArm } from "./blockArm";
 import { FpArms } from "./fpArms";
-import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf } from "./poses";
+import { GrenadeAnim, pathSegment, type LogicPhase } from "./grenadeAnim";
+import { GRENADE_ID } from "@fps/shared";
+import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf, type Vec3 } from "./poses";
 
 // ── Hằng số ────────────────────────────────────────────────────────────────────
 const GUN_DEFAULT_POS = new THREE.Vector3(0.28, -0.3, -0.45);
@@ -100,6 +102,7 @@ const WEAPON_FILES = [
   "/models/shotgun.glb",
   "/models/knife_1.glb",
   "/models/submachine.glb",
+  "/models/grenades/m67.glb",   // id 8: lựu đạn (node body/spoon/pin + empty hand_r/pin_pull)
 ] as const;
 
 // ── Placeholder box (dùng khi model chưa load xong) ───────────────────────────
@@ -226,6 +229,12 @@ export interface ViewmodelHandle {
   readonly aimAmount: number;
   /** Màu tay áo theo đội */
   setTeam(team: TeamId): void;
+  /** Lựu đạn: trạng thái logic mỗi frame (pha, chế độ, tiến độ rút chốt 0..1, còn quả sau khi ném không) */
+  setGrenade(phase: LogicPhase, mode: 'strong' | 'lob', pullFrac: number, hasMore: boolean): void;
+  /** Lựu đạn vừa rời tay (logic ném): vung tay, quả trong tay biến mất */
+  onGrenadeThrow(): void;
+  /** Pha hoạt hình lựu đạn (debug) */
+  readonly grenadePhase: string;
   /** Ẩn cả súng lẫn tay (camera debug F10, chết) */
   setHidden(hidden: boolean): void;
   /** Cho bảng F9: tay + súng + trạng thái giải IK của frame vừa rồi */
@@ -370,6 +379,29 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   let aimScoped = false;
   let aimT = 0;
 
+  // ── Lựu đạn (G.5) ──────────────────────────────────────────────────────────
+  const nadeAnim = new GrenadeAnim(() => weaponPose(GRENADE_ID).first.grenade!);
+  const nadeLeft = new THREE.Vector3();          // tay trái làm mượt (rest ↔ vòng chốt)
+  let nadeLeftInit = false;
+  let pinState: "onGrenade" | "onLeftHand" | "hidden" = "onGrenade";
+  let pinHome: { parent: THREE.Object3D; pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3 } | null = null;
+  function setPin(state: "onGrenade" | "onLeftHand" | "hidden"): void {
+    if (state === pinState) return;
+    const pin = currentMesh.getObjectByName("pin");
+    if (!pin) { pinState = state; return; }
+    if (state === "onLeftHand") {
+      if (!pinHome) pinHome = { parent: pin.parent!, pos: pin.position.clone(), quat: pin.quaternion.clone(), scale: pin.scale.clone() };
+      (fp.ready ? fp.leftHand()! : armL.handMesh).attach(pin);   // attach giữ vị trí thế giới: chốt đi theo bàn tay trái
+      pin.visible = true;
+    } else {
+      if (pinHome) { pinHome.parent.add(pin); pin.position.copy(pinHome.pos); pin.quaternion.copy(pinHome.quat); pin.scale.copy(pinHome.scale); }
+      pin.visible = state === "onGrenade";
+    }
+    pinState = state;
+  }
+  function nadeEnter(): void { nadeAnim.reset(); pinHome = null; pinState = "onGrenade"; nadeLeftInit = false; currentMesh.visible = true; }
+  function nadeLeave(): void { setPin("onGrenade"); currentMesh.visible = true; }   // đổi sang súng khác: trả chốt về quả, quả hiện lại
+
   // Vị trí tay cầm súng ở hông: poses.json (first.gunPos), thiếu thì mặc định cũ
   const _base = new THREE.Vector3();
   function basePos(id: number): THREE.Vector3 {
@@ -398,6 +430,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     gunGroup.remove(currentMesh);
     currentMesh = getMesh(id);
     gunGroup.add(currentMesh);
+    if (id === GRENADE_ID) nadeEnter();
   }
 
   function onFire(melee = false) {
@@ -440,9 +473,11 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       switchOffY = (GUN_HIDDEN_Y - basePos(currentWeapon).y) * t;
       if (animT >= ANIM_HALF) {
         gunGroup.remove(currentMesh);
+        if (currentWeapon === GRENADE_ID) nadeLeave();
         currentWeapon = pendingId;
         currentMesh = getMesh(currentWeapon);
         gunGroup.add(currentMesh);
+        if (currentWeapon === GRENADE_ID) nadeEnter();
         phase = "up";
         animT = 0;
       }
@@ -493,19 +528,31 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     const adsY = sight ? -sight.y - (ADS_DROP[currentWeapon] ?? 0) : by + 0.2;
     const adsZ = sight ? -ADS_DIST - sight.z : bz;
     const bob = 1 - a * (1 - ADS_BOB);
-    gunGroup.visible = !(aimScoped && aimT > 0.6) && !hidden;
-    gunGroup.position.set(
-      bx + (adsX - bx) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob,
-      by + (adsY - by) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r,
-      bz + (adsZ - bz) * a + KICK_BACK * kick,
-    );
-    const hip = 1 - a;   // góc đặt súng của poses.json mất dần khi ngắm (thân súng thẳng)
-    gunGroup.rotation.set(
-      pose.gunRotDeg[0] * DEG * hip + KICK_PITCH * kick - RELOAD_TILT * r + tiltPitch,
-      pose.gunRotDeg[1] * DEG * hip,
-      pose.gunRotDeg[2] * DEG * hip + tiltRoll,
-    );
-    gunGroup.scale.setScalar(pose.scale);
+    const nadeCfg = currentWeapon === GRENADE_ID ? pose.grenade : undefined;
+    const nadeOut = nadeCfg ? nadeAnim.update(dt * 1000) : null;
+    if (nadeOut && nadeCfg) {
+      // Lựu đạn: vị trí/xoay theo hoạt hình rút chốt → ném (grenadeAnim); đổi súng vẫn dùng switchOffY
+      gunGroup.visible = !hidden;
+      gunGroup.position.set(nadeOut.pos[0], nadeOut.pos[1] + switchOffY, nadeOut.pos[2]);
+      gunGroup.rotation.set(nadeOut.rotDeg[0] * DEG, nadeOut.rotDeg[1] * DEG, nadeOut.rotDeg[2] * DEG);
+      gunGroup.scale.setScalar(pose.scale);
+      currentMesh.visible = nadeOut.show;
+      setPin(nadeOut.pin);
+    } else {
+      gunGroup.visible = !(aimScoped && aimT > 0.6) && !hidden;
+      gunGroup.position.set(
+        bx + (adsX - bx) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob,
+        by + (adsY - by) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r,
+        bz + (adsZ - bz) * a + KICK_BACK * kick,
+      );
+      const hip = 1 - a;   // góc đặt súng của poses.json mất dần khi ngắm (thân súng thẳng)
+      gunGroup.rotation.set(
+        pose.gunRotDeg[0] * DEG * hip + KICK_PITCH * kick - RELOAD_TILT * r + tiltPitch,
+        pose.gunRotDeg[1] * DEG * hip,
+        pose.gunRotDeg[2] * DEG * hip + tiltRoll,
+      );
+      gunGroup.scale.setScalar(pose.scale);
+    }
 
     // Tay: giải IK SAU khi mọi hiệu ứng đã áp lên súng (thứ tự này tránh tay trễ súng một frame)
     gunGroup.updateMatrix();
@@ -524,7 +571,26 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     const leftOn = showArms && pose.hold !== "oneHand";
     armL.setVisible(leftOn && !useFp);
     dbg.validL = leftOn;
-    if (leftOn) {
+    let nadeRotR: Vec3 | undefined, nadeRotL: Vec3 | undefined;
+    if (leftOn && nadeOut && nadeCfg) {
+      // Tay trái: 'rest' (ngoài màn hình) hoặc đường rút chốt tới vòng chốt (hệ lựu đạn) + offset (không gian camera); làm mượt để không giật khi đổi đích
+      const keyPoint = (k: { to: "rest" | "pin_pull"; offset?: Vec3 }, out: THREE.Vector3) => {
+        if (k.to === "rest") out.set(nadeCfg.leftRest[0], nadeCfg.leftRest[1], nadeCfg.leftRest[2]);
+        else getAnchor(currentWeapon, "pin_pull", out).applyMatrix4(M);
+        if (k.offset) out.add(_off.set(k.offset[0], k.offset[1], k.offset[2]));
+      };
+      if (nadeOut.leftS < 0) targetL.set(nadeCfg.leftRest[0], nadeCfg.leftRest[1], nadeCfg.leftRest[2]);
+      else {
+        const seg = pathSegment(nadeCfg.pullLeftHandPath, nadeOut.leftS);
+        keyPoint(seg.a, _a); keyPoint(seg.b, _b);
+        targetL.lerpVectors(_a, _b, seg.u);
+      }
+      if (!nadeLeftInit) { nadeLeft.copy(targetL); nadeLeftInit = true; }
+      nadeLeft.lerp(targetL, 1 - Math.exp(-dt / 0.05));
+      targetL.copy(nadeLeft);
+      armL.solve(shoulderL, targetL, poleL);
+      nadeRotR = nadeCfg.handRotDegR; nadeRotL = nadeCfg.handRotDegL;
+    } else if (leftOn) {
       const keys = rl.keys;
       if (rp >= 0 && keys.length >= 2) {
         let i = 0;
@@ -545,7 +611,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       fp.setVisible(showArms)
       fp.setLeftVisible(leftOn)
       fp.place()
-      fp.solve(targetR, leftOn ? targetL : null, gunGroup.quaternion)
+      fp.solve(targetR, leftOn ? targetL : null, gunGroup.quaternion, nadeRotR, nadeRotL)
     }
     updateMag(rp);
     armR.setReachedColor(dbg.showReach);
@@ -589,6 +655,9 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       armL.setColors(sleeve, skin);
       fp.setTeam(team);
     },
+    setGrenade(phase, mode, pullFrac, hasMore) { nadeAnim.setLogic(phase, mode, pullFrac, hasMore); },
+    onGrenadeThrow() { nadeAnim.onThrow(); },
+    get grenadePhase() { return nadeAnim.phase; },
     setHidden(h: boolean) { hidden = h; },
     debug: dbg,
   };

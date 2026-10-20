@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { TeamId } from '@fps/shared'
-import { poses } from './poses'
+import { poses, type Vec3 } from './poses'
 import { forcedTeam } from './characterRig'
 import { SkeletonArm, type FingerBones } from './skeletonArm'
 
@@ -13,6 +13,7 @@ const DEG = Math.PI / 180
 interface Set { obj: THREE.Group; armR: SkeletonArm; armL: SkeletonArm; mats: THREE.Material[]; mid: THREE.Vector3 }
 
 const _v = new THREE.Vector3(), _e = new THREE.Euler()
+const _hq = new THREE.Quaternion(), _hq2 = new THREE.Quaternion(), _he = new THREE.Euler()
 const _pole = new THREE.Vector3(), _sh = new THREE.Vector3()
 
 export class FpArms {
@@ -95,16 +96,18 @@ export class FpArms {
    * Giải IK sau khi súng đã đặt. gunQuat = hướng súng trong không gian camera; targetL null = tay trái không giải
    * (súng 1 tay): tay đó giữ tư thế T-pose nên được ẩn.
    */
-  solve(targetR: THREE.Vector3, targetL: THREE.Vector3 | null, gunQuat: THREE.Quaternion): void {
+  solve(targetR: THREE.Vector3, targetL: THREE.Vector3 | null, gunQuat: THREE.Quaternion, rotDegR?: Vec3, rotDegL?: Vec3): void {
     const s = this.sets.get(this.team)
     if (!s) return
     const f = poses.first
-    for (const [arm, target, pole] of [[s.armR, targetR, f.armsPoleR], [s.armL, targetL, f.armsPoleL]] as const) {
+    for (const [arm, target, pole, rot] of [[s.armR, targetR, f.armsPoleR, rotDegR], [s.armL, targetL, f.armsPoleL, rotDegL]] as const) {
       if (!target) continue
+      // lựu đạn: mỗi tay có thể xoay riêng so với hướng quả (poses: first.grenade.handRotDegR/L)
+      const q = rot ? _hq.copy(gunQuat).multiply(_hq2.setFromEuler(_he.set(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'))) : gunQuat
       arm.resetPose()   // không có mixer: tự reset để IK/ngón không cộng dồn qua các frame
       arm.upper.getWorldPosition(_sh)
       _pole.set(pole[0], pole[1], pole[2]).add(_sh)
-      arm.solve(target, gunQuat, _pole, 1)
+      arm.solve(target, q, _pole, 1)
       arm.applyGrip(1)
     }
   }

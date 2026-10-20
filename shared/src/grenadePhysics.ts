@@ -27,6 +27,7 @@ const FLOOR_NORMAL_Y = 0.7    // pháp tuyến y trên mức này = sàn (đi b�
 
 const _fwd: Vec3 = [0, 0, 0]
 const _right: Vec3 = [0, 0, 0]
+const _dir: Vec3 = [0, 0, 0]   // stepGrenade chạy mỗi tick/mỗi quả: tái sử dụng thay vì cấp phát
 
 /** Điểm xuất phát + vận tốc ban đầu khi ném. Xuất phát lệch tay phải/trước mắt; bị tường chắn thì xuất phát ngay tại mắt. */
 export function throwInitial(
@@ -70,7 +71,7 @@ export function stepGrenade(g: GrenadeState, world: CollisionWorld, dt: number):
     const move = speed * remaining
     if (move < EPS) break
     const inv = 1 / speed
-    const dir: Vec3 = [vel[0] * inv, vel[1] * inv, vel[2] * inv]
+    const dir = _dir; dir[0] = vel[0] * inv; dir[1] = vel[1] * inv; dir[2] = vel[2] * inv
     const hit = world.castSphere(pos, dir, move, GRENADE.radius)
     if (!hit) {
       pos[0] += vel[0] * remaining; pos[1] += vel[1] * remaining; pos[2] += vel[2] * remaining
