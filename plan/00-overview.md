@@ -139,6 +139,9 @@ Quy tắc phải giữ khi chỉnh map:
 | `12-grenade.md` ⚠️ | Lựu đạn M67: mua, rút chốt, ném, nảy, nổ |
 | `13-game-modes.md` ⚠️ | Thể thức Sinh Tử (theo ván) / Hỗn Chiến (hồi sinh), tạo phòng |
 | `14-spread-ads.md` ⚠️ | Độ toé theo tốc độ + bloom, tâm ngắm động, ADS tuỳ chọn |
+| `15-bots-offline.md` ⚠️ | Bot Trung bình/Khó, nav grid, nút thêm bot, đổi phe offline |
+| `16-zombie-infection.md` ⚠️ | Nền zombie (dùng chung) + thể thức Lây Nhiễm |
+| `17-zombie-defense.md` ⚠️ | Thể thức Thủ Thành: chống zombie theo đợt, boss |
 
 ## Định nghĩa "xong" bản đầu tiên
 

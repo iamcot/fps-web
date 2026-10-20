@@ -86,6 +86,7 @@ export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serv
   room.serverNow = serverTime
   room.tick = tick ?? room.tick + 1
   for (const p of room.players.values()) {
+    if (p.bot && p.world) p.bot.drive(room, p, serverTime)   // bot sinh input trước khi bước, như một client gửi cmd
     stepPlayer(p, cfg, room)
     if (p.alive && p.state.pos[1] < VOID_Y) { p.hp = 0; p.killerId = p.id; p.killWeapon = p.weapon.current; p.killHeadshot = false }   // rớt khỏi map
   }

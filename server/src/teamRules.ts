@@ -16,6 +16,7 @@ export function topScorer(room: Room, team: TeamId): Player | null {
 
 /** Đội đông hơn đội kia quá 1 người (được phép lệch tới maxTeamDiff lúc chọn đội) → chuyển người cao điểm nhất sang đội ít người */
 export const rebalanceTopScorer: TeamRule = room => {
+  if (room.offline) return   // offline: bot ở phe nào là do người chơi chọn, không tự cân bằng
   const a = room.teamCount('A'), b = room.teamCount('B')
   if (Math.abs(a - b) <= 1) return
   const big: TeamId = a > b ? 'A' : 'B'

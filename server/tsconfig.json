@@ -1,9 +1,14 @@
 {
   "extends": "../tsconfig.base.json",
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "compilerOptions": {
     "paths": {
-      "@fps/shared": ["../shared/src/index.ts"]
-    }
+      "@fps/shared": [
+        "../shared/src/index.ts"
+      ]
+    },
+    "resolveJsonModule": true
   }
 }

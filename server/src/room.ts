@@ -4,6 +4,8 @@ import { LagHistory } from './lagComp'
 import type { RoomGrenade } from './grenades'
 import { dropOnDeath } from './grenades'
 import { createMode, type MatchMode } from './modes'
+import type { BotController } from './bots/controller'
+import type { NavGrid } from './bots/nav'
 
 export const EMPTY_ROOM_TTL_MS = 60_000
 export const MAX_NAME_LEN = 16
@@ -44,6 +46,7 @@ export interface Player {
   buyTimes: number[]             // serverTime các lệnh Buy trong 1 giây gần nhất (giới hạn spam)
   inRound: boolean               // Sinh Tử: có mặt trong ván hiện tại (người vào giữa ván chỉ xem → không nhận tiền cuối ván)
   survived: boolean              // Sinh Tử: còn sống tới hết ván trước → giữ súng sang ván sau
+  bot: BotController | null      // plan 15: có = bot (transport rỗng, input do BotController sinh mỗi tick)
 }
 
 /** Hỗn Chiến theo luật của server (dùng khi phòng tạo không kèm cài đặt, và trong test) */
@@ -68,6 +71,11 @@ export class Room {
   grenades: RoomGrenade[] = []
   nextGrenadeId = 1
   private nextId = 1
+
+  // Phòng offline (plan 15): chỉ một người thật + bot. Cho phép lệnh OfflineCmd, tắt cân bằng đội tự động.
+  offline = false
+  infiniteMoney = false
+  nav: NavGrid | null = null   // lưới di chuyển cho bot (host đặt); null = bot không đi được
 
   // Trận đấu (5.2): máy trạng thái chạy trong match.ts
   phase: MatchPhase = MatchPhase.Waiting
@@ -166,6 +174,7 @@ export class Room {
       buyTimes: [],
       inRound: true,
       survived: false,
+      bot: null,
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name, characterSet: this.characterSet,
       config: this.config, players: [...this.players.values()].map(o => ({ id: o.id, name: o.name })) })
@@ -178,6 +187,7 @@ export class Room {
     for (const o of this.players.values()) if (o !== player) transport.send({ t: MsgType.TeamAssigned, id: o.id, team: o.team })
     for (const o of this.players.values()) o.transport.send({ t: MsgType.TeamAssigned, id: player.id, team })
     this.mode.onPlayerJoin(this, player)
+    if (this.offline) player.money = this.eco.maxMoney   // offline: tiền vô hạn hoặc nạp lại $16000 mỗi lần hồi sinh
     transport.send({ t: MsgType.MoneyEvent, delta: player.money, reason: 'reset' })
     return player
   }
@@ -210,7 +220,7 @@ export class Room {
 
   // Trận mới / đổi đội: tiền ban đầu, bộ mặc định của đội, chuỗi hạ 0
   resetEconomy(p: Player): void {
-    p.money = this.eco.startMoney
+    p.money = this.offline ? this.eco.maxMoney : this.eco.startMoney
     p.killStreak = 0
     p.loadout = defaultLoadout(p.team, this.eco)
     this.equip(p)
@@ -281,6 +291,10 @@ export class Room {
     const keep = keepLoadout || this.eco.keepLoadoutOnDeath
     if (!keep) p.loadout = defaultLoadout(p.team, this.eco)
     this.equip(p, keep ? p.weapon.slot : DEFAULT_SLOT)
+    if (this.offline && p.money !== this.eco.maxMoney) {   // offline: mỗi lần hồi sinh nạp lại đủ tiền
+      p.money = this.eco.maxMoney
+      p.transport.send({ t: MsgType.MoneyEvent, delta: p.money, reason: 'reset' })
+    }
     for (const o of this.players.values()) {
       o.transport.send({ t: MsgType.Respawn, id: p.id, pos: [best.pos[0], best.pos[1], best.pos[2]], yaw: best.yaw })
     }
@@ -310,18 +324,20 @@ export class RoomManager {
   }
 
   tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET, mapId?: string, options?: RoomOptions): { room: Room; player: Player } | null {
-    let room = this.rooms.get(roomId)
-    if (!room) {
-      const id = mapId !== undefined && this.maps.has(mapId) ? mapId : this.defaultMapId
-      // Cài đặt do client gửi luôn được kẹp theo SETTINGS_LIMITS; không gửi thì Hỗn Chiến theo luật mặc định của server
-      const config = options ? sanitizeRoomConfig(roomId, id, options) : defaultRoomConfig(roomId, id, this.rules)
-      const rules = roomRules(this.rules, config)
-      room = new Room(roomId, this.maps.get(id)!.map, this.now, Math.random, rules, characterSet, config)
-      room.mapId = id
-      this.rooms.set(roomId, room)
-    }
+    const room = this.rooms.get(roomId) ?? this.createRoom(roomId, characterSet, mapId, options)
     const player = room.join(name, transport, tick, this.now(), team)
     return player ? { room, player } : null
+  }
+
+  createRoom(roomId: string, characterSet: CharacterSetId = DEFAULT_CHARACTER_SET, mapId?: string, options?: RoomOptions): Room {
+    const id = mapId !== undefined && this.maps.has(mapId) ? mapId : this.defaultMapId
+    // Cài đặt do client gửi luôn được kẹp theo SETTINGS_LIMITS; không gửi thì Hỗn Chiến theo luật mặc định của server
+    const config = options ? sanitizeRoomConfig(roomId, id, options) : defaultRoomConfig(roomId, id, this.rules)
+    const rules = roomRules(this.rules, config)
+    const room = new Room(roomId, this.maps.get(id)!.map, this.now, Math.random, rules, characterSet, config)
+    room.mapId = id
+    this.rooms.set(roomId, room)
+    return room
   }
 
   list(): RoomInfo[] {

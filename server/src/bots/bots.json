@@ -1,0 +1,105 @@
+{
+  "medium": {
+    "reactionMs": [
+      300,
+      500
+    ],
+    "fovDeg": 90,
+    "hearingRadius": 25,
+    "memoryMs": 2500,
+    "aimSpeedDegPerSec": 180,
+    "aimErrorDeg": [
+      2.5,
+      5.0
+    ],
+    "aimErrorDecayPerSec": 3.0,
+    "aimJitterDeg": 0.9,
+    "trackingLagMs": 40,
+    "headChance": 0.0,
+    "fireThresholdDeg": 3.0,
+    "burst": [
+      3,
+      5
+    ],
+    "burstPauseMs": [
+      350,
+      600
+    ],
+    "recoilCompensation": 0.85,
+    "moveSpeedMul": 0.5,
+    "crouchChance": 0.25,
+    "skills": {
+      "strafe": false,
+      "cover": false,
+      "peek": false,
+      "flank": false,
+      "push": false,
+      "grenade": false
+    },
+    "buy": {
+      "long": [
+        "ak47",
+        "m16"
+      ],
+      "pistol": [
+        "colt",
+        "rulo"
+      ],
+      "mid": [],
+      "grenades": 0
+    }
+  },
+  "hard": {
+    "reactionMs": [
+      100,
+      200
+    ],
+    "fovDeg": 110,
+    "hearingRadius": 40,
+    "memoryMs": 6000,
+    "aimSpeedDegPerSec": 360,
+    "aimErrorDeg": [
+      1.0,
+      2.0
+    ],
+    "aimErrorDecayPerSec": 6.0,
+    "aimJitterDeg": 0.65,
+    "trackingLagMs": 25,
+    "headChance": 0.15,
+    "fireThresholdDeg": 1.6,
+    "burst": [
+      4,
+      7
+    ],
+    "burstPauseMs": [
+      150,
+      320
+    ],
+    "recoilCompensation": 0.9,
+    "moveSpeedMul": 1.0,
+    "crouchChance": 0.3,
+    "skills": {
+      "strafe": true,
+      "cover": true,
+      "peek": true,
+      "flank": true,
+      "push": true,
+      "grenade": true
+    },
+    "buy": {
+      "long": [
+        "ak47",
+        "m16",
+        "sniper"
+      ],
+      "pistol": [
+        "rulo"
+      ],
+      "mid": [
+        "smg",
+        "shotgun"
+      ],
+      "grenades": 1
+    }
+  }
+}

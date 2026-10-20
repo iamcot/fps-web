@@ -1,6 +1,7 @@
 import { MsgType, TEAMS, CHARACTER_SETS, DEFAULT_CHARACTER_SET, DEFAULT_SETTINGS, GAME_MODES, MODE_DESC, MODE_LABEL, SETTINGS_LIMITS, MAX_PLAYERS_LIMITS, type GameMode, type JoinRejectReason, type MapInfo, type RoomConfig, type RoomInfo, type RoomOptions, type TeamId, type Transport } from '@fps/shared'
 import { connectWebSocket, maybeNetsim } from './transport'
 import { getCharacterSet } from '../render/characters'
+import { createLocalTransport, startOfflineWorker } from './localTransport'
 
 export interface Session {
   transport: Transport
@@ -11,6 +12,8 @@ export interface Session {
   config: RoomConfig           // thể thức + cài đặt phòng (Welcome)
   roomName: string
   mapName: string
+  offline?: boolean            // phòng offline chạy trong Web Worker (plan 15): có bot, tiền vô hạn
+  worker?: Worker
 }
 
 const STORE_KEY = 'fps.lobby'
@@ -111,8 +114,23 @@ export function showLobby(): Promise<Session | null> {
   document.body.appendChild(el)
 
   return new Promise(resolve => {
-    const offline = () => { el.remove(); resolve(null) }
     const done = (s: Session) => { el.remove(); resolve(s) }
+    // Offline = một phòng chạy trên chính code server trong Web Worker (có bot). Worker lỗi thì rơi về offline cũ chỉ-client.
+    let starting = false
+    const offline = (status?: HTMLElement) => {
+      if (starting) return
+      starting = true
+      if (status) status.textContent = 'Đang khởi động offline…'
+      let worker: Worker | null = null
+      startOfflineWorker().then(w => {
+        worker = w
+        return joinRoom(createLocalTransport(w), { name: saved.name || 'Người chơi', room: 'offline', team: 'A', create: true })
+      }).then(s => done({ ...s, offline: true, worker: worker! }), err => {
+        console.warn('[offline] không chạy được worker, dùng offline chỉ-client', err)
+        worker?.terminate()
+        el.remove(); resolve(null)
+      })
+    }
 
     // ── Bước 1: tên ──────────────────────────────────────────────────────────
     function nameStep(): void {
@@ -123,8 +141,8 @@ export function showLobby(): Promise<Session | null> {
       nameIn.value = saved.name
       const go = mk('button', BTN, 'Tiếp tục'); go.type = 'submit'
       const off = mk('button', BTN, 'Chơi offline'); off.type = 'button'; off.setAttribute('data-offline', '')
-      off.addEventListener('click', offline)
       const err = mk('div', 'color:#f66;min-height:1.2em')
+      off.addEventListener('click', () => { saved.name = nameIn.value.trim() || saved.name; offline(err) })
       form.append(title, nameIn, go, off, err)
       form.addEventListener('submit', e => {
         e.preventDefault()
@@ -155,7 +173,7 @@ export function showLobby(): Promise<Session | null> {
       const wrap = mk('div', 'width:min(1000px,94vw);padding:28px 0;display:flex;flex-direction:column;gap:14px')
       const top = mk('div', 'display:flex;align-items:center;justify-content:space-between')
       top.append(mk('div', 'font-size:22px', `Phòng đang chơi — ${saved.name}`))
-      const off = mk('button', BTN, 'Chơi offline'); off.type = 'button'; off.setAttribute('data-offline', ''); off.addEventListener('click', offline)
+      const off = mk('button', BTN, 'Chơi offline'); off.type = 'button'; off.setAttribute('data-offline', ''); off.addEventListener('click', () => { clearInterval(poll); offline(err) })
       top.appendChild(off)
       const grid = mk('div', 'display:grid;grid-template-columns:repeat(3,1fr);gap:14px')
       const empty = mk('div', 'opacity:.7;padding:16px 0', 'Chưa có phòng nào. Hãy tạo phòng mới ở bên dưới.')

@@ -20,7 +20,9 @@ export function handleBuy(room: Room, p: Player, key: string): void {
   const q = quoteBuy(p.money, p.loadout, key, room.eco)
   if (!q.ok) return fail(p, key, q.reason)
   const res = applyBuy(p.money, p.loadout, key, room.eco)!
-  p.money = res.money
+  // Offline + tiền vô hạn: mua không trừ tiền (cả bot) và không báo MoneyEvent
+  const free = room.offline && room.infiniteMoney
+  p.money = free ? p.money : res.money
   p.loadout = res.loadout
 
   // Cầm luôn súng vừa mua: đạn đầy, huỷ nạp. Thời gian khoá bắn tính theo seq của cmd gần nhất (cùng thang với stepWeaponCmd)
@@ -30,7 +32,7 @@ export function handleBuy(room: Room, p: Player, key: string): void {
   if (def.consumable) {   // lựu đạn: chỉ cất vào ô 5, không tự cầm (đang cầm súng gì thì giữ nguyên)
     ws.ammo[def.id] = grenadeCount(p.loadout)
     p.transport.send({ t: MsgType.BuyResult, ok: true, key })
-    p.transport.send({ t: MsgType.MoneyEvent, delta: -q.price, reason: 'buy' })
+    if (!free) p.transport.send({ t: MsgType.MoneyEvent, delta: -q.price, reason: 'buy' })
     return
   }
   ws.slot = q.slot
@@ -42,6 +44,8 @@ export function handleBuy(room: Room, p: Player, key: string): void {
   p.recoil.pitch = 0; p.recoil.yaw = 0
 
   p.transport.send({ t: MsgType.BuyResult, ok: true, key })
-  p.transport.send({ t: MsgType.MoneyEvent, delta: -q.price, reason: 'buy' })
-  if (q.refund > 0) p.transport.send({ t: MsgType.MoneyEvent, delta: q.refund, reason: 'sell' })
+  if (!free) {
+    p.transport.send({ t: MsgType.MoneyEvent, delta: -q.price, reason: 'buy' })
+    if (q.refund > 0) p.transport.send({ t: MsgType.MoneyEvent, delta: q.refund, reason: 'sell' })
+  }
 }

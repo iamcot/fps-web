@@ -28,6 +28,8 @@ import { createShop } from './shop'
 import { createTopButtons, createConfirmPrompt, createToast, createLeaveButton, createRoomLabel, createCommandBox } from './hudButtons'
 import { createSpectator, type SpecCandidate } from './spectate'
 import { createMatchHud, createScoreboard } from './hudMatch'
+import { createOfflinePanel } from './hudOffline'
+import { createBotDebug } from './render/botDebug'
 import { MsgType, MatchPhase, NetFlag, DEFAULT_CHARACTER_SET, type TeamId } from '@fps/shared'
 import { skinOfSet } from './render/characterRig'
 import { initTuningPanel } from './tuning'
@@ -274,6 +276,35 @@ document.addEventListener('keyup', e => { if (e.code === 'Tab') { e.preventDefau
 window.addEventListener('blur', () => { tabHeld = false })
 let lastHp = 100
 const selfDebug = { id: 0, pos: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, flags: 0, weapon: 0, adsT: 0 }   // F10
+// Offline (plan 15): panel bot, phím tắt, F11. Mọi thứ đi qua OfflineCmd tới worker; tiền vô hạn hiện `∞`.
+let infiniteMoney = false
+function setupOffline(session: Session): void {
+  const send = (msg: Parameters<Session['transport']['send']>[0]) => session.transport.send(msg)
+  const panel = createOfflinePanel({
+    addBot: (difficulty, ally) => send({ t: MsgType.OfflineCmd, cmd: 'addBot', difficulty, ally }),
+    removeBot: id => send({ t: MsgType.OfflineCmd, cmd: 'removeBot', id }),
+    clearBots: () => send({ t: MsgType.OfflineCmd, cmd: 'clearBots' }),
+    swapSide: () => askSwitchTeam(),
+    setInfiniteMoney: on => send({ t: MsgType.OfflineCmd, cmd: 'infiniteMoney', on }),
+  })
+  const botDebug = createBotDebug(scene, on => send({ t: MsgType.OfflineCmd, cmd: 'botDebug', on }))
+  session.transport.onMessage(msg => {
+    if (msg.t === MsgType.OfflineState) { panel.setState(msg); botDebug.setBots(msg.bots); infiniteMoney = msg.infiniteMoney }
+    else if (msg.t === MsgType.NavDebug) botDebug.onNav(msg)
+    else if (msg.t === MsgType.BotDebug) botDebug.onBots(msg)
+    else if (msg.t === MsgType.TeamAssigned && msg.id === session.yourId) panel.setMyTeam(msg.team)
+  })
+  document.addEventListener('keydown', e => {
+    if (e.repeat || teamPrompt.isOpen) return
+    const t = e.target as HTMLElement | null
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return
+    if (e.code === 'BracketLeft') send({ t: MsgType.OfflineCmd, cmd: 'addBot', difficulty: 'medium', ally: e.shiftKey })
+    else if (e.code === 'BracketRight') send({ t: MsgType.OfflineCmd, cmd: 'addBot', difficulty: 'hard', ally: e.shiftKey })
+    else if (e.code === 'Backslash') send({ t: MsgType.OfflineCmd, cmd: 'clearBots' })
+    else if (e.code === 'F11' || e.code === 'Semicolon') { e.preventDefault(); botDebug.toggle() }   // F11: lưới di chuyển + trạng thái bot (`;` dự phòng vì trình duyệt giữ F11)
+  })
+}
+
 const sessionP = showLobby()
 sessionP.then(session => {
   if (!session) {
@@ -291,6 +322,10 @@ sessionP.then(session => {
     const mine = session.teams.get(session.yourId)
     if (!mine || teamPrompt.isOpen) return
     const other = mine === 'A' ? 'B' : 'A'
+    if (session.offline) {   // offline: đổi chỗ cả bot với người chơi (bot địch vẫn là địch, đồng đội vẫn là đồng đội)
+      teamPrompt.open(`Đổi sang phe ${TEAMS[other].name}? Bot cũng đổi phe theo.`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.OfflineCmd, cmd: 'swapSide' }) })
+      return
+    }
     teamPrompt.open(`Đổi sang phe ${TEAMS[other].name}?`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.ChooseTeam, team: other }) })
   }
   session.transport.onMessage(msg => {
@@ -303,8 +338,10 @@ sessionP.then(session => {
   playerId = session.yourId
   sessionRef = session
   matchHud.setConfig(session.config)
-  createRoomLabel(`${MODE_LABEL[session.config.settings.mode]} · ${session.mapName} · ${session.roomName}`,
-    `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast('Đã sao chép link phòng'))
+  if (session.offline) matchHud.setUnlimited(true)
+  createRoomLabel(session.offline ? `Offline · ${session.mapName} · ${MODE_LABEL[session.config.settings.mode]}` : `${MODE_LABEL[session.config.settings.mode]} · ${session.mapName} · ${session.roomName}`,
+    session.offline ? null : `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast('Đã sao chép link phòng'))
+  if (session.offline) setupOffline(session)
   if (import.meta.env.DEV) {   // lệnh debug (M.8): phím / mở ô lệnh; server bỏ qua khi chạy production
     const cmdBox = createCommandBox(cmd => session.transport.send({ t: MsgType.DebugCmd, cmd }))
     document.addEventListener('keydown', e => { if (e.code === 'Slash' && !e.repeat && !cmdBox.isOpen && !teamPrompt.isOpen) { e.preventDefault(); cmdBox.open() } })
@@ -436,6 +473,7 @@ sessionP.then(session => {
   snapStore = attachSnapshots(session.transport, session.yourId, s => {
     interpolator.push(s.serverTime, s.players, s.yourId)
     if (s.hp !== lastHp) { lastHp = s.hp; hudRef?.setHealth(s.hp); setHealthForAudio(s.hp) }
+    hudRef?.bottom.setInfiniteMoney(infiniteMoney)
     hudRef?.bottom.setMoney(s.money)
     if (matchHud.mode === 'elimination') {   // Sinh Tử: server là nguồn chân lý về sống/chết (cờ Dead trong snapshot)
       const srvDead = (s.flags & NetFlag.Dead) !== 0

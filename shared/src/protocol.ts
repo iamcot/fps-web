@@ -19,6 +19,7 @@ export const MsgType = {
   Buy: 6,            // plan ghi t:5 nhưng 5 là ChooseTeam
   ListRooms: 7,      // xin danh sách phòng + map (trước khi Join)
   DebugCmd: 8,       // lệnh debug (task M.8); server chỉ nhận khi không chạy production
+  OfflineCmd: 9,     // plan 15: điều khiển phòng offline (thêm/xoá bot, đổi phe, tiền vô hạn); chỉ phòng offline nhận
   // Server → Client
   Welcome: 101,
   Pong: 102,
@@ -44,6 +45,9 @@ export const MsgType = {
   RoundEnd: 122,       // Sinh Tử: kết thúc ván (plan 13 ghi 121–123 nhưng 120/121 đã dùng)
   RoundReset: 123,     // Sinh Tử: bắt đầu ván mới (xoá lựu đạn/xác)
   MatchEnd: 124,       // Sinh Tử: kết thúc trận
+  OfflineState: 125,   // plan 15: danh sách bot + tiền vô hạn của phòng offline
+  BotDebug: 126,       // plan 15 (F11): trạng thái từng bot, 10 lần/giây, chỉ khi client bật
+  NavDebug: 127,       // plan 15 (F11): lưới di chuyển, gửi một lần khi bật
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -70,6 +74,39 @@ export interface JoinMsg {
   mapId?: string           // map của phòng mới (thiếu/sai → map đầu tiên)
   options?: RoomOptions    // thể thức + cài đặt của phòng mới (server kẹp theo SETTINGS_LIMITS)
 }
+
+export type BotDifficulty = 'medium' | 'hard'
+export const BOT_DIFFICULTIES: readonly BotDifficulty[] = ['medium', 'hard']
+export const BOT_TAG: Record<BotDifficulty, string> = { medium: 'TB', hard: 'KHÓ' }
+
+// Phòng offline (plan 15, B.7). `ally`: bot phe mình (Shift); mặc định bot phe địch.
+export type OfflineCmdMsg = { t: typeof MsgType.OfflineCmd } & (
+  | { cmd: 'addBot'; difficulty: BotDifficulty; ally?: boolean }
+  | { cmd: 'removeBot'; id: number }
+  | { cmd: 'clearBots' }
+  | { cmd: 'swapSide' }
+  | { cmd: 'infiniteMoney'; on: boolean }
+  | { cmd: 'botDebug'; on: boolean }
+)
+
+export interface OfflineBotInfo { id: number; name: string; difficulty: BotDifficulty; team: TeamId }
+export interface OfflineStateMsg {
+  t: typeof MsgType.OfflineState
+  infiniteMoney: boolean
+  bots: OfflineBotInfo[]
+}
+
+export interface BotDebugInfo {
+  id: number
+  state: string                          // 'Engage', 'TakeCover'...
+  eye: [number, number, number]
+  look: [number, number, number]         // điểm bot đang nhìn thẳng tới (xanh)
+  want: [number, number, number] | null  // điểm bot định nhắm (đỏ)
+  path: [number, number, number][]
+}
+export interface BotDebugMsg { t: typeof MsgType.BotDebug; bots: BotDebugInfo[] }
+/** nodes: phẳng [x, y, z, coverMask, ...]; edges: phẳng [a, b, ...] (chỉ số node) */
+export interface NavDebugMsg { t: typeof MsgType.NavDebug; nodes: number[]; edges: number[] }
 
 // Lệnh debug trong game (task M.8): '/endround A' ...
 export interface DebugCmdMsg { t: typeof MsgType.DebugCmd; cmd: string }
@@ -309,8 +346,8 @@ export interface PongMsg {
 }
 
 export type AnyMsg =
-  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg | ListRoomsMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg
+  | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg | ListRoomsMsg | OfflineCmdMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)

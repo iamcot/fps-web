@@ -86,14 +86,17 @@ export function createBottomHud() {
     moneyNum.style.color = '#fff'
   }
 
+  let infinite = false
   return {
     setMoneyVisible(v: boolean): void { moneyRow.style.display = v ? '' : 'none' },
+    /** Offline + tiền vô hạn: hiện `∞` thay cho số tiền */
+    setInfiniteMoney(v: boolean): void { infinite = v; moneyNum.textContent = v ? '∞' : String(shown) },
     /** Ẩn cả cụm HUD dưới (khi đang xem đồng đội) */
     setVisible(v: boolean): void { const d = v ? '' : 'none'; left.style.display = d; slotsBox.style.display = d; right.style.display = d },
     setMoney(v: number): void {
-      if (first) { first = false; shown = from = target = v; moneyNum.textContent = String(v); return }
+      if (first) { first = false; shown = from = target = v; moneyNum.textContent = infinite ? '∞' : String(v); return }
       if (v === target) return
-      flash(v > target)
+      if (!infinite) flash(v > target)
       from = shown; target = v; t = 0
     },
     /** +$500 bay lên cạnh số tiền rồi mờ đi (600ms). bounty: to hơn, vàng */
@@ -147,7 +150,7 @@ export function createBottomHud() {
       t += dtMs
       const k = Math.min(1, t / 400)
       shown = k >= 1 ? target : Math.round(from + (target - from) * (1 - (1 - k) * (1 - k)))
-      moneyNum.textContent = String(shown)
+      if (!infinite) moneyNum.textContent = String(shown)
     },
   }
 }

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bot-bench": "tsx src/bots/bench.ts"
   },
   "dependencies": {
     "@fps/shared": "*",

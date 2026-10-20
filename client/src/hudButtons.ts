@@ -76,15 +76,18 @@ export function createLeaveButton(onClick: () => void): void {
 }
 
 /** Góc trên trái, dưới 2 nút: "Sinh Tử · Hai thành · ROOM 1" + nút sao chép link vào thẳng phòng */
-export function createRoomLabel(text: string, link: string, onCopied: () => void): void {
+export function createRoomLabel(text: string, link: string | null, onCopied: () => void): void {
   const box = document.createElement('div')
   box.style.cssText = 'position:fixed;left:12px;top:48px;z-index:30;display:flex;gap:8px;align-items:center;color:#fff;font:12px monospace;text-shadow:0 0 4px #000'
   const t = document.createElement('span'); t.textContent = text
-  const b = document.createElement('button'); b.textContent = 'Sao chép link'; b.style.cssText = BTN + ';padding:2px 8px;font-size:11px'
-  b.addEventListener('click', () => {
-    void navigator.clipboard?.writeText(link).then(onCopied, () => {})
-  })
-  box.append(t, b)
+  box.append(t)
+  if (link !== null) {   // offline không có link vào phòng
+    const b = document.createElement('button'); b.textContent = 'Sao chép link'; b.style.cssText = BTN + ';padding:2px 8px;font-size:11px'
+    b.addEventListener('click', () => {
+      void navigator.clipboard?.writeText(link).then(onCopied, () => {})
+    })
+    box.append(b)
+  }
   document.body.appendChild(box)
 }
 

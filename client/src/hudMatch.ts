@@ -72,6 +72,7 @@ export function createMatchHud(sounds?: MatchSounds) {
   let matchEnd: MatchEndMsg | null = null
   let mvpName = ''
   let online = false
+  let unlimited = false              // offline: Hỗn Chiến không giới hạn mạng và thời gian
   let lastTickSec = -1
   let dotsKey = ''
 
@@ -102,7 +103,7 @@ export function createMatchHud(sounds?: MatchSounds) {
     switch (st.phase) {
       case MatchPhase.Waiting: clock = 'Chờ thêm người chơi…'; break
       case MatchPhase.Countdown: clock = 'Chuẩn bị'; bigT = String(Math.max(0, Math.ceil(left / 1000))); subT = st.sideSwapped ? 'Đã đổi bên' : ''; break
-      case MatchPhase.Playing: clock = formatClock(left); break
+      case MatchPhase.Playing: clock = unlimited ? '∞' : formatClock(left); break
       case MatchPhase.Freeze: clock = formatClock(left); bigT = `VÁN ${st.round}`; subT = 'Mua súng: B'; break
       case MatchPhase.RoundEnd:
         clock = '0:00'
@@ -118,7 +119,7 @@ export function createMatchHud(sounds?: MatchSounds) {
         break
     }
     if (elim && st.phase !== MatchPhase.Waiting) topSub = `Ván ${Math.min(st.round, maxR)} / ${maxR}`
-    else if (!elim && config?.settings.mode === 'tdm') topSub = `Mục tiêu: ${config.settings.killLimit} mạng`
+    else if (!elim && config?.settings.mode === 'tdm') topSub = unlimited ? 'Không giới hạn' : `Mục tiêu: ${config.settings.killLimit} mạng`
     setText(clockEl, clock); setText(big, bigT); setText(sub, subT); setText(subTop, topSub)
 
     if (elim && st.phase === MatchPhase.Playing && left > 0 && left <= 10_000) {
@@ -135,6 +136,7 @@ export function createMatchHud(sounds?: MatchSounds) {
       st = m; online = true
     },
     setConfig(c: RoomConfig): void { config = c },
+    setUnlimited(v: boolean): void { unlimited = v },
     setTeamSizes(a: number, b: number): void { sizeA = a; sizeB = b },
     onRoundEnd(m: RoundEndMsg, myTeam: TeamId | undefined): void {
       lastEnd = m; roundMoney = 0

@@ -176,3 +176,40 @@ Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
 
 - Lựu đạn (theo yêu cầu): bỏ đường bay dự kiến (xoá `grenadeTrajectory.ts`), tăng lực ném (strong 16→32 m/s, góc +10°; lob 7→12), nổ to hơn (nhiều khói/lửa/tia lửa, rung mạnh hơn), tiếng nổ vang và kéo dài hơn.
 - [x] Bộ nhân vật mới "Bão Cát Sa Mạc" (`saberDesert`, mặc định khi tạo phòng) — CT = đội A (`saber_ct.glb`), T = đội B (`saber_t.glb`) + tay 1st person `saber_*_fparms.glb`. Build từ `mixamo_out/saber-ct.fbx` / `saber-t.fbx` (Mixamo chỉ rig 57 / 33 xương) bằng donor `robber_rigged.fbx` → 65 xương, 16 animation dùng chung. Code: `characterRig.ts` có `SkinId` (`classic` = Cớm & Cướp, `saber`), `fpArms.ts` nạp tay theo skin, `viewmodel.setSkin`, `CHARACTER_SETS` thêm `saberDesert` làm mặc định. Chưa xem bằng mắt trong game.
+
+## 15 – Bot offline (Trung bình / Khó)
+- [x] B.0 Offline chạy trên code Room trong Web Worker — trước đó offline chỉ chạy client (không có Room, không tiền, không bot) nên chuyển sang worker: `server/src/connection.ts` (tách xử lý một kết nối khỏi `main.ts`, không import ws/fs/process; `main.ts` giờ chỉ dựng ws + gọi `handleConnection`), `server/src/offline/host.ts` (RoomManager + TickLoop + phòng `offline` + nav), `offline/worker.ts` (postMessage, msgpack), `offline/rules.ts` (Hỗn Chiến không giới hạn, 1 người là đủ bắt đầu, `maxTeamDiff` 10). Client: `net/localTransport.ts` (LocalTransport + `startOfflineWorker`), lobby nút "Chơi offline" mở worker rồi `joinRoom` như online (không netsim → ping 0); worker lỗi thì rơi về offline cũ chỉ-client. `Room.offline/infiniteMoney/nav`, `teamRules` bỏ cân bằng đội khi offline. Đo bằng Chromium thật: vào phòng, đi bộ, bot đến, bị bot hạ rồi hồi sinh. `vite build` gói được worker.
+- [x] B.1 Nav grid — `server/src/bots/nav.ts`: lưới 1m, mọi mặt đứng (raycast xuống nhiều lớp + `canStand` nâng 0,12m vì trên dốc đáy capsule cắt mặt nghiêng), cạnh đi bộ (dốc ≤ 0,7 và quả cầu quét theo từng đoạn sát mặt sàn thật, vì đường thẳng giữa hai node cắt vào ramp), nhảy lên gờ ≤ 0,95m, nhảy qua gờ thấp, nhảy xuống ≤ 4,5m (một chiều), cover 8 hướng (tường ≥ 1,2m), 7 vùng, A* (heap, `costFn`) + làm mượt. Map Deathmatch: 2438 node, 17476 cạnh, 288 node núp, ≈0,3s. Test `nav.test.ts` (đất→ramp→mặt tường, đất→đỉnh tháp, căn cứ A→B, costFn, drop). ⚠️ map không có cạnh `Jump` (0 cạnh): khe tường có bệ 0,5m nhưng đi vòng qua mép z>16 là đủ.
+- [x] B.2 Hạ tầng bot — `bots/controller.ts` (`BotController`: `drive()` mỗi tick đẩy một `InputCmd` vào `inputQueue` trước `stepPlayer`; `think()` 10Hz rải theo id), `roster.ts` (`addBot/removeBot/clearBots`), `names.ts` (`[BOT] Tèo TB|KHÓ`, không trùng), transport rỗng chuyển tin cho bot (nghe ShotFx/Hurt/HitConfirm/Kill). Đi theo đường, nhảy khi waypoint cần, chống kẹt (1,5s repath → nhảy → bỏ đích). Mua đồ qua `handleBuy` như người (cách nhau 230ms). Test: 8 bot ≈ 0,6 ms/tick.
+- [x] B.3 Nhận thức — `bots/perception.ts`: FOV + 2 tia (đầu, ngực) mỗi địch, phản xạ (thấy lần đầu / thấy lại sau > 1s), nghe tiếng súng trong `hearingRadius` (có sai số 3m), bước chân chạy ≤ 15m (chỉ khó), bị bắn → hướng ±20°, trí nhớ `memoryMs`. Thấy địch trong lúc đang "phản xạ" thì quay đầu nhìn thẳng vào nó. Test: sau tường không thấy/không bắn; bắn từ sau lưng → chưa quay ngay, rồi quay.
+- [x] B.4 Ngắm/bắn — `bots/aim.ts` (bám vị trí trễ `trackingLagMs`, sai số ban đầu giảm dần + rung mượt, lò xo giảm chấn có quán tính nên vẩy xa hơi vượt, bám tốc độ góc khi địch chạy ngang, bù giật `recoilCompensation`) + `controller.ts` (loạt `burst`/`burstPause`, bán tự động chậm hơn tối đa 20–60%, ADS với sniper/xa, mỗi loạt chọn lại đầu/ngực + dựng lại một phần sai số). `npm run bot-bench` (`bots/bench.ts`, Room + Rapier thật, ép bot mua AK47): bia đứng 20m — TB trúng ~28–34% (đầu ≤ ~15%), khó ~48% (đầu ~14%); bia chạy 6 m/s — TB ~11%, khó ~27%; từ thấy → phát đầu — TB ~790ms, khó ~400ms. ⚠️ Phải chỉnh `bots.json` khác bảng mẫu của plan để vào khoảng (xem dưới); không sửa code ngắm để ép số.
+- [x] B.5 Bot Trung bình — Patrol (đi bộ 50% tốc độ, dừng 3–8s nhìn quanh) / Engage (đứng hoặc ngồi, bước ngang 1–2 bước mỗi 3–5s) / Search / Reload; không đánh vòng, không áp sát, không lựu đạn.
+- [x] B.6 Bot Khó — chọn hành vi bằng điểm ưu tiên + dính 0,15: Hunt (chạy, ưu tiên đường nhiều node núp), Engage (đi ngang ≤ `accurateSpeed`×0,95 để vẫn bắn chuẩn), TakeCover (máu < 50 / đang nạp / thua đấu súng; node núp ≤ 12m mà địch không thấy — 14 tia), Peek (ló sang bên 0,8–2,2m, bắn, lùi; tối đa 3 lần rồi đổi chỗ), Flank (địch đứng yên > 4s: A* với chi phí cao ở node địch nhìn thấy), Push (địch đang nạp, đã trúng ≥ 60 sát thương, hoặc cầm súng vừa; trượt vào tầm gần), lựu đạn tuỳ chọn (thử 5 góc bằng `throwInitial` + `stepGrenade`, tối đa 1 quả/20s). Mô phỏng 1v1 khó vs trung bình 6 trận × 150s: K/D 49/24 (khó thắng gấp đôi).
+- [x] B.7 Giao diện offline — `hudOffline.ts` (góc trên trái: + Bot trung bình / khó, đổi phe, xoá hết, danh sách ✕, tiền vô hạn), Shift = đồng đội, phím `[` `]` `\` và `~`; `Session.offline`; HUD tiền `$ ∞`, đồng hồ `∞` / "Không giới hạn". Đổi phe = đổi chỗ cả bot (`swapSide`, hồi sinh ở căn cứ mới, loadout về mặc định). Tiền vô hạn tắt → mỗi lần hồi sinh nạp lại $16000 (mua có trừ trong lúc sống).
+- [x] B.8 `server/src/bots/bots.json` + hot-reload (plugin trong `client/vite.config.ts` đẩy qua HMR, không tải lại trang) + F11 (`render/botDebug.ts`: node xanh, node núp vàng có gạch hướng tường, cạnh, đường đi đỏ, tên + trạng thái, đường nhìn thật xanh / điểm định nhắm đỏ; `;` dự phòng vì trình duyệt giữ F11). Protocol thêm `OfflineCmd`, `OfflineState`, `BotDebug`, `NavDebug`.
+- `bots.json` chốt sau khi chạy bench (khác bảng mẫu của plan): medium `reactionMs [400,650]`, `aimErrorDeg [2.5,5]`, `aimErrorDecayPerSec 3`, `aimJitterDeg 0.9`, `trackingLagMs 40`, `headChance 0`, `fireThresholdDeg 3.0`, `recoilCompensation 0.85`; hard `reactionMs [100,200]`, `aimErrorDeg [1,2]`, `aimErrorDecayPerSec 6`, `aimJitterDeg 0.65`, `trackingLagMs 25`, `headChance 0.15`, `fireThresholdDeg 1.6`, `recoilCompensation 0.9`. Lý do: thời gian từ thấy → phát đầu cộng dồn phản xạ + thời gian hạ sai số ngắm, và bot gần như không lệch ngang ở bia đứng nên phải tăng rung; trúng đầu cao vì giật chưa bù hết kéo tâm lên (ngắm giữa thân `CHEST_Y 1.0` + bù giật cao để giữ ≤ 15%).
+
+## 16 – Zombie: nền chung + Lây Nhiễm
+- [ ] ZF.1 Model zombie + biến thể (tint, cỡ, mắt đỏ)
+- [ ] ZF.2 Vai trò zombie: cào, bò qua lỗ, nhảy E, đẩy lùi, hồi máu
+- [ ] ZF.3 Ban đêm + đèn pin
+- [ ] ZF.4 Góc nhìn zombie 1st/3rd + biến hình
+- [ ] ZF.5 Âm thanh zombie
+- [ ] ZF.6 HUD zombie
+- [ ] ZF.7 Kiểm tra hiệu năng
+- [ ] I.1 InfectionMode: zombie mẹ, lây nhiễm, anh hùng, điểm
+- [ ] I.2 Cân bằng chống cắm tháp
+- [ ] I.3 Chiêu đánh hơi của zombie
+- [ ] I.4 HUD + thông báo Lây Nhiễm
+- [ ] I.5 Bot trong Lây Nhiễm
+
+## 17 – Thủ Thành
+- [ ] T.1 DefenseMode: đợt, nghỉ, thắng/thua, kinh tế
+- [ ] T.2 Các loại zombie (zombieTypes.json)
+- [ ] T.3 Đợt zombie (waves.json)
+- [ ] T.4 AI zombie + cạnh nav đặc biệt (lỗ, nhảy)
+- [ ] T.5 Boss Đại Ca Zombie
+- [ ] T.6 Gục và cứu đồng đội
+- [ ] T.7 HUD Thủ Thành
+- [ ] T.8 Không khí, dọn xác
+- [ ] T.9 Cân bằng
