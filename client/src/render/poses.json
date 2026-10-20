@@ -68,6 +68,27 @@
       -0.26,
       -0.585,
       -0.325
+    ],
+    "armsRootOffset": [
+      0.0,
+      -0.3,
+      0.0
+    ],
+    "armsRootRotDeg": [
+      0,
+      0,
+      0
+    ],
+    "armsScale": 1.4,
+    "armsPoleR": [
+      0.4,
+      -0.5,
+      0.3
+    ],
+    "armsPoleL": [
+      -0.4,
+      -0.5,
+      0.3
     ]
   },
   "character": {

@@ -27,9 +27,13 @@ function rotateBoneTo(bone: THREE.Object3D, from: THREE.Vector3, to: THREE.Vecto
 }
 
 export class SkeletonArm {
-  readonly lenA: number
-  readonly lenB: number
-  readonly palmLen: number
+  lenA: number            // đã nhân scale thế giới hiện tại (cập nhật mỗi lần solve)
+  lenB: number
+  palmLen: number
+  private readonly lenA0: number   // độ dài ở scale 1
+  private readonly lenB0: number
+  private readonly palm0: number
+  private readonly scale0: number
   reached = true
   // khung bàn tay: trục X = hướng ngón, Z = pháp tuyến lòng bàn tay, Y = Z × X
   private readonly basisInHandInv = new THREE.Quaternion()
@@ -43,11 +47,13 @@ export class SkeletonArm {
   ) {
     upper.updateWorldMatrix(true, true)
     upper.getWorldPosition(_sh); fore.getWorldPosition(_el0); hand.getWorldPosition(_wr0)
-    this.lenA = _sh.distanceTo(_el0)
-    this.lenB = _el0.distanceTo(_wr0)
+    this.scale0 = upper.getWorldScale(_fing).x
+    this.lenA = this.lenA0 = _sh.distanceTo(_el0) / this.scale0
+    this.lenB = this.lenB0 = _el0.distanceTo(_wr0) / this.scale0
     const knuckle = fingers.middle[0]!.getWorldPosition(_elN)
     const f = _dirCur.subVectors(knuckle, _wr0)
     const handLen = f.length()
+    this.palm0 = handLen / this.scale0
     this.palmLen = handLen * poses.character.palmCenterFrac
     f.normalize()
     // T-pose: lòng bàn tay úp xuống
@@ -78,6 +84,9 @@ export class SkeletonArm {
    */
   solve(target: THREE.Vector3, targetQuat: THREE.Quaternion, pole: THREE.Vector3, weight: number): { reached: boolean } {
     if (weight <= 0) return { reached: true }
+    const sc = this.upper.getWorldScale(_fing).x
+    this.lenA = this.lenA0 * sc; this.lenB = this.lenB0 * sc
+    this.palmLen = this.palm0 * sc * poses.character.palmCenterFrac
     const o = this.offsetDeg()
     _off.setFromEuler(_eul.set(o[0] * DEG, o[1] * DEG, o[2] * DEG, 'XYZ'))
     const gunHandQ = _hq.copy(targetQuat).multiply(_off)               // khung bàn tay chuẩn trong thế giới

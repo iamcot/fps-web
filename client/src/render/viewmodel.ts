@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import type { TeamId } from "@fps/shared";
 import { BlockArm } from "./blockArm";
+import { FpArms } from "./fpArms";
 import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf } from "./poses";
 
 // ── Hằng số ────────────────────────────────────────────────────────────────────
@@ -270,6 +271,10 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   const armR = new BlockArm(() => poses.style.first, sleeve, skin);
   const armL = new BlockArm(() => poses.style.first, sleeve, skin);
   scene.add(armR.root, armL.root);
+  // Tay bằng model nhân vật (C.6): có rồi thì thay tay khối; tay khối vẫn giải IK (ẩn) để bảng F9 và làm dự phòng khi glb không load được
+  const fp = new FpArms();
+  scene.add(fp.root);
+  fp.load();
   const shoulderR = new THREE.Vector3(), shoulderL = new THREE.Vector3();
   const poleR = new THREE.Vector3(), poleL = new THREE.Vector3();
   const targetR = new THREE.Vector3(), targetL = new THREE.Vector3();
@@ -294,7 +299,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     const mesh = currentMesh.getObjectByName("mag");
     if (!mesh || !mesh.parent) return;
     magHeld = { mesh, parent: mesh.parent, weapon: currentWeapon, pos: mesh.position.clone(), quat: mesh.quaternion.clone(), scale: mesh.scale.clone() };
-    armL.handMesh.attach(mesh);
+    (fp.ready ? fp.leftHand()! : armL.handMesh).attach(mesh);
   }
   const dbg: ViewmodelDebug = { gunGroup, armR, armL, shoulderR, shoulderL, targetR, targetL, validR: false, validL: false, freezeReload: -1, showReach: false };
   onPosesChange(() => { cam.fov = poses.first.fov; cam.updateProjectionMatrix(); });
@@ -511,12 +516,13 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     poleR.set(shoulderR.x + f.poleR[0], shoulderR.y + f.poleR[1], shoulderR.z + f.poleR[2]);
     poleL.set(shoulderL.x + f.poleL[0], shoulderL.y + f.poleL[1], shoulderL.z + f.poleL[2]);
     const showArms = gunGroup.visible;
-    armR.setVisible(showArms);
+    const useFp = fp.ready;
+    armR.setVisible(showArms && !useFp);
     getAnchor(currentWeapon, "hand_r", targetR).applyMatrix4(M);
     armR.solve(shoulderR, targetR, poleR);
     dbg.validR = true;
     const leftOn = showArms && pose.hold !== "oneHand";
-    armL.setVisible(leftOn);
+    armL.setVisible(leftOn && !useFp);
     dbg.validL = leftOn;
     if (leftOn) {
       const keys = rl.keys;
@@ -535,6 +541,12 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       }
       armL.solve(shoulderL, targetL, poleL);
     }
+    if (useFp) {
+      fp.setVisible(showArms)
+      fp.setLeftVisible(leftOn)
+      fp.place()
+      fp.solve(targetR, leftOn ? targetL : null, gunGroup.quaternion)
+    }
     updateMag(rp);
     armR.setReachedColor(dbg.showReach);
     armL.setReachedColor(dbg.showReach);
@@ -551,7 +563,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     cam.updateProjectionMatrix();
   }
 
-  return {
+  const handle: ViewmodelHandle = {
     scene,
     cam,
     get currentWeapon() {
@@ -575,8 +587,11 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       sleeve = colorOf(poses.style.sleeveColor[team]);
       armR.setColors(sleeve, skin);
       armL.setColors(sleeve, skin);
+      fp.setTeam(team);
     },
     setHidden(h: boolean) { hidden = h; },
     debug: dbg,
   };
+  if (import.meta.env?.DEV) (globalThis as { __vm?: ViewmodelHandle }).__vm = handle;   // debug: script kiểm tra từ trình duyệt
+  return handle;
 }

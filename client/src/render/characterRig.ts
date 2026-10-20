@@ -26,7 +26,7 @@ export function skeletalEnabled(): boolean {
 }
 
 // Debug: ?charTeam=B dựng model Cướp cho mọi người (offline chỉ có đội A) để xem/chỉnh tay áo, ngón của model kia
-function forcedTeam(): TeamId | null {
+export function forcedTeam(): TeamId | null {
   try { const t = new URLSearchParams(location.search).get('charTeam'); return t === 'A' || t === 'B' ? t : null } catch { return null }
 }
 

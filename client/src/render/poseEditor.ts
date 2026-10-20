@@ -102,6 +102,12 @@ export function createPoseEditor(vm: ViewmodelHandle, weaponId: () => number, eq
       vecRows(body, 'shoulderL', () => poses.first.shoulderL, -1, 1)
       vecRows(body, 'poleR', () => poses.first.poleR, -1, 1)
       vecRows(body, 'poleL', () => poses.first.poleL, -1, 1)
+      body.append(el('div', 'margin-top:6px;color:#8af', 'Tay bằng model nhân vật (xương thật)'))
+      vecRows(body, 'armsRoot', () => poses.first.armsRootOffset, -1, 1)
+      vecRows(body, 'armsRot°', () => poses.first.armsRootRotDeg, -90, 90, 1)
+      numRow(body, 'armsScale', () => poses.first.armsScale, v => { poses.first.armsScale = v }, 0.5, 3, 0.01)
+      vecRows(body, 'armsPoleR', () => poses.first.armsPoleR, -1, 1)
+      vecRows(body, 'armsPoleL', () => poses.first.armsPoleL, -1, 1)
     } else if (tab === 'Third') {
       selectRow(body, 'hold', ['twoHand', 'oneHand'], () => w.third.hold, v => { w.third.hold = v as never })
       vecRows(body, 'gunPos', () => w.third.gunPos, -1, 1)

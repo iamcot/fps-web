@@ -29,7 +29,7 @@ export interface GripCfg { R: Record<FingerName, Vec3>; L: Record<FingerName, Ve
 export interface Poses {
   style: { skinColor: string; sleeveColor: { A: string; B: string }; third: ArmStyleCfg; first: ArmStyleCfg }
   third: { shoulderR: Vec3; shoulderL: Vec3; aimPivot: Vec3; poleR: Vec3; poleL: Vec3 }
-  first: { fov: number; shoulderR: Vec3; shoulderL: Vec3; poleR: Vec3; poleL: Vec3 }
+  first: { fov: number; shoulderR: Vec3; shoulderL: Vec3; poleR: Vec3; poleL: Vec3; armsRootOffset: Vec3; armsRootRotDeg: Vec3; armsScale: number; armsPoleR: Vec3; armsPoleL: Vec3 }
   character: CharacterCfg
   grip: GripCfg
   weapons: Record<string, WeaponPose>
@@ -49,7 +49,7 @@ const DEFAULTS = {
     first: { upperLen: 0.45, foreLen: 0.47, thickness: 0.075, handSize: 0.085, sleeveToElbow: true },
   },
   third: { shoulderR: [0.25, 1.4, 0], shoulderL: [-0.25, 1.4, 0], aimPivot: [0, 1.35, 0], poleR: [0.35, -0.55, 0.25], poleL: [-0.35, -0.55, 0.05] },
-  first: { fov: 54, shoulderR: [0.22, -0.3, 0.12], shoulderL: [-0.2, -0.3, 0.1], poleR: [0.45, -0.5, 0.2], poleL: [-0.45, -0.5, 0.1] },
+  first: { fov: 54, shoulderR: [0.22, -0.3, 0.12], shoulderL: [-0.2, -0.3, 0.1], poleR: [0.45, -0.5, 0.2], poleL: [-0.45, -0.5, 0.1], armsRootOffset: [0, -0.3, 0], armsRootRotDeg: [0, 0, 0], armsScale: 1.4, armsPoleR: [0.4, -0.5, 0.3], armsPoleL: [-0.4, -0.5, 0.3] },
   character: {
     crouchDrop: 0, crouchWalkDrop: 0.25, aimPivotBone: 'mixamorigSpine2', spinePitchBones: ['mixamorigSpine', 'mixamorigSpine1', 'mixamorigSpine2'],
     spinePitchLimitDeg: 60, headPitchShare: 0.3, aimPivotOffset: [0, -0.2, 0], poleR: [0.35, -0.6, 0.3], poleL: [-0.35, -0.6, 0.1],
@@ -123,6 +123,8 @@ export function loadPoses(json: unknown): Poses {
 let fileJson: unknown = raw
 export const poses: Poses = loadPoses(raw)
 const listeners = new Set<() => void>()
+// Debug (vite dev): script kiểm tra từ trình duyệt chỉnh đúng bản `poses` đang chạy (import động có thể ra bản module khác)
+if (import.meta.env?.DEV) Object.assign(globalThis, { __poses: poses, __notifyPoses: () => notifyPosesChanged() })
 export function onPosesChange(fn: () => void): () => void { listeners.add(fn); return () => { listeners.delete(fn) } }
 export function notifyPosesChanged(): void { for (const fn of listeners) fn() }
 export function replacePoses(json: unknown): void {

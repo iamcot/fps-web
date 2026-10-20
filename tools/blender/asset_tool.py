@@ -5,6 +5,7 @@ Dùng:
   blender -b --python tools/blender/asset_tool.py -- inspect-character <model.glb> [<preview_dir>]
   blender -b --python tools/blender/asset_tool.py -- prep-mixamo <in.glb> <out.fbx>
   blender -b --python tools/blender/asset_tool.py -- build-character <team_rigged.fbx> <anims_dir> <out.glb> [donor_rigged.fbx]
+  blender -b --python tools/blender/asset_tool.py -- build-fp-arms <team_rigged.fbx> <out.glb> [donor_rigged.fbx] [--keep-upper=0.6]
   (donor: dùng bộ xương 65 của file này, dịch khớp về thân của team_rigged, rồi gắn skin tự động)
 (gun_tool.py cũ chỉ còn là lối tắt gọi file này.)
 """
@@ -433,9 +434,8 @@ def _weight_missing_fingers(body, arm, missing, eps=1e-4):
         print("FIT fingers", side, "vertices re-weighted:", moved)
 
 
-def build_character(rigged_path, anims_dir, out_path, donor_path=None):
-    import glob
-    from mathutils import Vector
+def prepare_rigged(rigged_path, donor_path=None):
+    """Import <team>_rigged.fbx: gỡ rác Mixamo, apply cm→mét/Z-up, (tuỳ chọn) đổi sang bộ xương 65 của donor. Trả về (arm, body)."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.fbx(filepath=rigged_path)
     scene = bpy.context.scene
@@ -464,7 +464,7 @@ def build_character(rigged_path, anims_dir, out_path, donor_path=None):
         if im.size[0] == 0:
             bpy.data.images.remove(im)
 
-    # 1) Apply transform: armature scale 0.01 / xoay 90° (cm, Y-up của FBX) -> mét, Z-up
+    # Apply transform: armature scale 0.01 / xoay 90° (cm, Y-up của FBX) -> mét, Z-up
     mw = body.matrix_world.copy()
     body.parent = None
     body.matrix_world = mw
@@ -486,6 +486,13 @@ def build_character(rigged_path, anims_dir, out_path, donor_path=None):
         if im.type == 'IMAGE' and im.packed_file is None:
             im.pack()
 
+    return arm, body
+
+def build_character(rigged_path, anims_dir, out_path, donor_path=None):
+    import glob
+    from mathutils import Vector
+    arm, body = prepare_rigged(rigged_path, donor_path)
+    scene = bpy.context.scene
     # 2) Nạp từng animation: lấy action, đổi tên theo file, xoá armature tạm
     ad = arm.animation_data_create()
     hips_rest = arm.data.bones['mixamorig:Hips'].matrix_local.to_3x3()
@@ -549,8 +556,66 @@ def build_character(rigged_path, anims_dir, out_path, donor_path=None):
         print("ANIM", r)
     print("BUILT", out_path)
 
+# ---------------------------------------------------------------- build-fp-arms
+def build_fp_arms(rigged_path, out_path, donor_path=None, keep_upper=0.6):
+    """Chỉ giữ hai cánh tay (bắp tay → bàn tay + ngón) của model làm tay viewmodel. Giữ nguyên armature, không action."""
+    import bmesh
+    from mathutils import Vector
+    arm, body = prepare_rigged(rigged_path, donor_path)
+    for ac in list(bpy.data.actions):
+        bpy.data.actions.remove(ac)
+    names = {g.index: g.name for g in body.vertex_groups}
+    def side_of(n):
+        n = n.replace("mixamorig:", "")
+        for side in ("Left", "Right"):
+            if n in (side + "Arm", side + "ForeArm") or n.startswith(side + "Hand"):
+                return side
+        return None
+    bones = arm.data.bones
+    upper_axis = {}
+    for side in ("Left", "Right"):
+        a = bones[f"mixamorig:{side}Arm"]; f = bones[f"mixamorig:{side}ForeArm"]
+        v = f.head_local - a.head_local
+        upper_axis[side] = (a.head_local.copy(), v.normalized(), v.length)
+    bm = bmesh.new(); bm.from_mesh(body.data)
+    dl = bm.verts.layers.deform.active
+    kill = []
+    for v in bm.verts:
+        w = {"Left": 0.0, "Right": 0.0}; w_up = {"Left": 0.0, "Right": 0.0}
+        for gi, wt in v[dl].items():
+            n = names.get(gi, ""); side = side_of(n)
+            if side:
+                w[side] += wt
+                if n.replace("mixamorig:", "") == side + "Arm":
+                    w_up[side] += wt
+        side = max(w, key=w.get)
+        if w[side] < 0.5:
+            kill.append(v); continue
+        head, axis, ln = upper_axis[side]
+        t = (v.co - head).dot(axis) / ln          # 0 = vai, 1 = khuỷu
+        if w_up[side] > 0.8 and t < (1.0 - keep_upper):
+            kill.append(v)
+    bmesh.ops.delete(bm, geom=kill, context='VERTS')
+    # bỏ các mảnh rời nhỏ còn sót (không dính vào cánh tay)
+    bm.to_mesh(body.data); bm.free()
+    body.data.update()
+    # bỏ vertex group không còn dùng cũng như xương thân: giữ nguyên armature để IK dùng chung tên xương
+    for im in bpy.data.images:
+        if im.type == 'IMAGE' and max(im.size) > 1024:
+            im.scale(1024, 1024)
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    bpy.ops.export_scene.gltf(filepath=out_path, export_format='GLB', export_yup=True,
+                              export_animations=False, export_image_format='WEBP', export_apply=False)
+    print("FPARMS verts kept", len(body.data.vertices), "removed", len(kill), "->", out_path)
+
 if mode == "inspect":
     inspect()
+elif mode == "build-fp-arms":
+    ku = 0.6
+    pos = [a for a in argv[1:] if not a.startswith("--")]
+    for a in argv[1:]:
+        if a.startswith("--keep-upper="): ku = float(a.split("=")[1])
+    build_fp_arms(pos[0], pos[1], pos[2] if len(pos) > 2 else None, ku)
 elif mode == "build-character":
     build_character(argv[1], argv[2], argv[3], argv[4] if len(argv) > 4 else None)
 elif mode == "prep-mixamo":
