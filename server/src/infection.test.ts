@@ -245,4 +245,24 @@ describe('Lây Nhiễm – các pha (I.1)', () => {
     expect(p.role).toBe('human')
     expect(p.team).toBe('A')
   })
+
+  it('đánh hơi (I.3): Q → người trong 18m nhận Sniffed, ngoài 18m không; hồi chiêu 15s; snapshot báo thời gian còn lại', () => {
+    const s = toLive()
+    const mom = zombiesOf(s.room)[0]!
+    const [near, far] = humansOf(s.room)
+    mom.state.pos = [0, 0, 0]; near!.state.pos = [10, 0, 0]; far!.state.pos = [25, 0, 0]
+    enqueueCmds(mom, [{ seq: 9000, buttons: Btn.Sniff, yaw: 0, pitch: 0, weapon: 0 }], 0)
+    run(s.room, 32)
+    expect(sent(s.msgs, near!.id, MsgType.Sniffed).length).toBe(1)
+    expect(sent(s.msgs, far!.id, MsgType.Sniffed).length).toBe(0)
+    expect(mom.sniffReadyAt).toBeGreaterThan(s.room.serverNow + 14_000)
+    enqueueCmds(mom, [{ seq: 9010, buttons: Btn.Sniff, yaw: 0, pitch: 0, weapon: 0 }], 0)   // còn hồi chiêu
+    run(s.room, 64)
+    expect(sent(s.msgs, near!.id, MsgType.Sniffed).length).toBe(1)
+    sendSnapshots(s.room, 0, s.room.serverNow)
+    const snap = sent(s.msgs, near!.id, MsgType.Snapshot).pop() as { players: { id: number; sniffLeft?: number; sniffCd?: number }[] }
+    const nz = snap.players.find(p => p.id === mom.id)!
+    expect(nz.sniffLeft).toBeGreaterThan(0)
+    expect(nz.sniffCd).toBeGreaterThan(10_000)
+  })
 })

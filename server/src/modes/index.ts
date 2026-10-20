@@ -34,6 +34,8 @@ export interface MatchMode {
   onLethal?(room: Room, p: Player): boolean
   /** Điểm hồi sinh riêng; null/thiếu = luật mặc định */
   pickSpawn?(room: Room, p: Player): { pos: [number, number, number]; yaw: number } | null
+  /** Sau mỗi cmd của `p` đã chạy (phím nhấn): chiêu riêng của thể thức (Q đánh hơi...) */
+  onCmd?(room: Room, p: Player, buttons: number): void
   /** Sau mỗi lần một người/zombie nhận sát thương `applied` từ `shooter` (thống kê đợt) */
   onDamage?(room: Room, shooter: Player, target: Player, applied: number): void
   /** Thêm cột riêng của thể thức vào một dòng bảng điểm */

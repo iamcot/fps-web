@@ -51,6 +51,7 @@ export const MsgType = {
   Infected: 130,       // plan 16: zombie mẹ xuất hiện / có người bị lây nhiễm
   HeroChosen: 131,     // plan 16: người cuối cùng thành anh hùng
   InfectionCount: 132, // plan 16: số người / zombie (khi đổi)
+  Sniffed: 133,        // plan 16 (I.3): gửi người bị zombie đánh hơi (nghe growl gần + icon mũi)
   DefenseState: 140,   // plan 17: pha, đợt, số zombie còn lại
   WaveStart: 141,      // plan 17: banner đầu đợt
   WaveClear: 142,      // plan 17: hết đợt + tiền thưởng
@@ -201,6 +202,10 @@ export interface NetPlayer {
   runSpeed?: number    // zombie: tốc độ chạy theo loại (client dựng cấu hình di chuyển giống server)
   ztype?: string       // zombie: loại ('mother'/'normal'/'walker'/...), để chọn dáng/tint
   zscale?: number      // zombie to/nhỏ (boss 2.2): cỡ model và hitbox
+  downLeft?: number    // Thủ Thành: ms còn lại của người đang gục (vòng thời gian)
+  reviveP?: number     // Thủ Thành: tiến độ được cứu 0..1
+  sniffLeft?: number   // zombie (Lây Nhiễm): ms còn lại của chiêu đánh hơi đang chạy
+  sniffCd?: number     // zombie: ms còn lại của hồi chiêu đánh hơi
 }
 
 export interface SnapshotMsg {
@@ -365,6 +370,7 @@ export interface GrenadeAnimMsg {
 
 // Lây Nhiễm (plan 16): byId = zombie đã cào (null = zombie mẹ được chọn / tự rớt khỏi map)
 export interface InfectedMsg { t: typeof MsgType.Infected; playerId: number; byId: number | null; kind: 'mother' | 'infected' }
+export interface SniffedMsg { t: typeof MsgType.Sniffed; byId: number }
 export interface HeroChosenMsg { t: typeof MsgType.HeroChosen; playerId: number }
 export interface InfectionCountMsg { t: typeof MsgType.InfectionCount; humans: number; zombies: number }
 
@@ -386,7 +392,7 @@ export interface PongMsg {
 
 export type AnyMsg =
   | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg | ListRoomsMsg | OfflineCmdMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg | InfectedMsg | HeroChosenMsg | InfectionCountMsg | DefenseStateMsg | WaveStartMsg | WaveClearMsg | DefenseEndMsg | TelegraphMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg | InfectedMsg | HeroChosenMsg | InfectionCountMsg | SniffedMsg | DefenseStateMsg | WaveStartMsg | WaveClearMsg | DefenseEndMsg | TelegraphMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)

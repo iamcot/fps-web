@@ -61,6 +61,8 @@ export interface Player {
   downed: boolean                // Thủ Thành (T.6): gục chờ cứu — chưa chết hẳn
   downUntil: number              // serverTime hết hạn gục → chết hẳn
   reviveProgressMs: number       // đồng đội đang cứu mình: ms đã giữ
+  sniffUntil: number             // Lây Nhiễm: chiêu đánh hơi chạy tới serverTime này
+  sniffReadyAt: number           // hồi chiêu đánh hơi xong lúc này
 }
 
 /** Người điều khiển một Player không phải người thật (bot dùng BotController, zombie Thủ Thành dùng ZombieNpc) */
@@ -234,6 +236,8 @@ export class Room {
       downed: false,
       downUntil: 0,
       reviveProgressMs: 0,
+      sniffUntil: 0,
+      sniffReadyAt: 0,
     }
     return player
   }
@@ -329,6 +333,7 @@ export class Room {
     p.hp = stats.hpMax
     p.lastHurtAt = -Infinity
     p.pendingClaw = null
+    p.sniffUntil = 0; p.sniffReadyAt = 0
     p.loadout = { slots: [{ key: 'claw', paid: 0 }, null, null, null, null] }
     this.equip(p)
     if (p.team !== 'B') this.setTeam(p, 'B')

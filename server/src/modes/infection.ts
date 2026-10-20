@@ -4,7 +4,7 @@
 //                                                            └→ MATCH_END ─(15s)→ PREP ván 1 / WARMUP
 // Người = đội A, zombie = đội B: luật "không bắn đồng đội" có sẵn nên người không hại nhau, zombie không cào zombie.
 import {
-  ECONOMY_INFECTION, INFECTION, MatchPhase, MsgType, infectionStats,
+  Btn, ECONOMY_INFECTION, INFECTION, MatchPhase, MsgType, infectionStats,
   type InfectionSettings, type MatchStateMsg, type ScoreboardRow, type TeamId,
 } from '@fps/shared'
 import type { Player, Room } from '../room'
@@ -313,6 +313,18 @@ export class InfectionMode implements MatchMode {
       mode: 'infection', round: this.round, maxRounds: this.s.rounds,
       aliveA: this.humans(room), aliveB: this.zombies(room),
       buyEndsAt: room.phase === MatchPhase.Prep ? room.phaseEndsAt : null,
+    }
+  }
+
+  // Q: zombie đánh hơi — người trong bán kính hiện viền đỏ xuyên tường trên màn hình zombie (client vẽ), và nghe tiếng gầm gần
+  onCmd(room: Room, p: Player, buttons: number): void {
+    if ((buttons & Btn.Sniff) === 0 || p.role !== 'zombie' || !p.alive || room.phase !== MatchPhase.Playing) return
+    if (room.serverNow < p.sniffReadyAt || room.serverNow < p.transformUntil) return
+    p.sniffUntil = room.serverNow + INFECTION.sniff.durationMs
+    p.sniffReadyAt = room.serverNow + INFECTION.sniff.cooldownMs
+    for (const o of room.players.values()) {
+      if (o.role !== 'human' || !o.alive) continue
+      if (Math.hypot(o.state.pos[0] - p.state.pos[0], o.state.pos[2] - p.state.pos[2]) <= INFECTION.sniff.radius) o.transport.send({ t: MsgType.Sniffed, byId: p.id })
     }
   }
 

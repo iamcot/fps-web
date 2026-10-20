@@ -1,6 +1,6 @@
 import {
   Btn, DT, MatchPhase, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE, VOID_Y,
-  WEAPONS, ZOMBIE, CLAW_HEAVY_ID, DOWNED_BUTTON_MASK, DOWNED_WEAPON_SLOT, isValidCmd, movementFor, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
+  WEAPONS, ZOMBIE, CLAW_HEAVY_ID, DEFENSE, DOWNED_BUTTON_MASK, DOWNED_WEAPON_SLOT, isValidCmd, movementFor, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
 import type { Player, Room } from './room'
@@ -61,6 +61,7 @@ export function stepPlayer(p: Player, baseCfg: MovementConfig, room: Room | null
     p.lastProcessedSeq = cmd.seq
     p.lastCmd = cmd
     p.flashlight = p.alive && !p.zstats && (eff.buttons & Btn.Flashlight) !== 0
+    if (room && eff.buttons !== 0) room.mode.onCmd?.(room, p, eff.buttons)
     // Chạy cả khi chết (nút đã bị mask nên không bắn được): wantSlot/hoàn tất nạp khớp với dự đoán của client
     const ev = stepWeaponCmd(p.weapon, eff)
     if (ev === 'fired' && p.alive) {
@@ -139,8 +140,9 @@ export function sendSnapshots(room: Room, tick: number, serverTime: number): voi
     const flags = (p.alive ? 0 : NetFlag.Dead) | (p.alive && serverTime < p.invulnUntil ? NetFlag.Invuln : 0)
       | (p.zstats ? NetFlag.Zombie : 0) | (p.hero ? NetFlag.Hero : 0) | (p.flashlight ? NetFlag.Flashlight : 0) | (serverTime < p.transformUntil ? NetFlag.Transform : 0)
     const np = stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current, p.killStreak)
+    if (p.zstats && p.sniffReadyAt > serverTime) { np.sniffCd = p.sniffReadyAt - serverTime; if (p.sniffUntil > serverTime) np.sniffLeft = p.sniffUntil - serverTime }
     if (p.zstats) { np.hpMax = p.zstats.hpMax; np.runSpeed = p.zstats.runSpeed; np.ztype = p.zstats.type; if (p.zstats.scale && p.zstats.scale !== 1) np.zscale = p.zstats.scale }
-    if (p.downed) np.flags |= NetFlag.Downed
+    if (p.downed) { np.flags |= NetFlag.Downed; np.downLeft = Math.max(0, p.downUntil - serverTime); if (p.reviveProgressMs > 0) np.reviveP = Math.min(1, p.reviveProgressMs / DEFENSE.down.reviveMs) }
     players.push(np)
   }
   for (const p of room.players.values()) {

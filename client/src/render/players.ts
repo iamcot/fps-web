@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
-import { defaultMovement, ECONOMY, NetFlag, TEAMS, WEAPONS, type TeamId } from '@fps/shared'
+import { defaultMovement, DEFENSE, ECONOMY, NetFlag, TEAMS, WEAPONS, ZOMBIE_TYPES, type TeamId } from '@fps/shared'
 import { makeBlobShadow } from './blobShadow'
 import { MUZZLE_FALLBACK, makeFlashTexture, adjustModel } from './viewmodel'
 import { BlockArm } from './blockArm'
@@ -14,7 +14,7 @@ import { createDeathFx } from './characters/deathFx'
 import { makeZombieFx, removeZombieFx, updateZombieFx, type ZombieFx } from './zombieLook'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
-interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number; adsT?: number }
+interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number; adsT?: number; ztype?: string; zscale?: number }
 
 export interface TeamInfo {
   teamOf(id: number): TeamId | undefined
@@ -22,7 +22,7 @@ export interface TeamInfo {
   myTeam(): TeamId | undefined
   characterSet?(): string   // bộ nhân vật của phòng (mặc định nếu thiếu)
   /** Đội dùng để chọn model (zombie: người bị lây giữ nguyên model của mình dù đổi sang phe zombie) */
-  modelTeam?(id: number): TeamId | undefined
+  modelTeam?(id: number, flags: number): TeamId | undefined
   /** Vị trí mắt người xem (để tắt mắt zombie ở xa) */
   viewer?(): [number, number, number]
 }
@@ -109,6 +109,7 @@ interface Actor {
   pinOff: boolean           // chốt đã rút: ẩn node `pin` trên quả trong tay
   thrown: boolean           // vừa ném: sau khi hết animation ném, quả mới (nếu còn) hiện lại trong tay
   zfx: ZombieFx | null      // đang là zombie: tint + mắt đỏ
+  deadAt: number            // zombie chết: mốc performance.now() (xác chìm xuống đất sau CORPSE_MS)
 }
 
 // Súng rơi khỏi tay người chết: rơi thẳng + xoay, nằm xuống sàn, mờ dần cùng xác
@@ -122,6 +123,16 @@ interface GunDrop {
   vy: number; wx: number; wz: number; floorY: number
   landed: boolean; settleT: number; age: number
   from: THREE.Quaternion; to: THREE.Quaternion
+}
+
+// Zombie Thủ Thành: tint theo loại (nhìn màu biết loại), cỡ theo loại; Lây Nhiễm: tint xanh xám cố định, mẹ to hơn một chút
+function zombieOpts(ztype?: string): { fromHuman?: boolean; tintOverride?: string | null; modelOverride?: string | null } {
+  const def = ztype ? ZOMBIE_TYPES[ztype] : undefined
+  return def ? { tintOverride: def.tintOverride, modelOverride: def.modelOverride } : { fromHuman: true }
+}
+function zombieSize(ztype?: string, zscale?: number): number {
+  if (zscale) return zscale
+  return ztype === 'mother' ? 1.12 : 1
 }
 
 const HIP_Y = 0.8   // khớp kit.ts: `upper` có gốc ở hông
@@ -143,7 +154,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   rig.gunAnchor.add(flash)
   rig.root.add(makeBlobShadow())
   if (rig.skel) {
-    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null }
+    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null, deadAt: 0 }
   }
   const aimPivot = new THREE.Group()
   const holder = new THREE.Group()
@@ -156,7 +167,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   armR.setVisible(false); armL.setVisible(false)
   rig.upper.add(armR.root, armL.root)
   for (const arm of [armR, armL]) rig.mats.push(...arm.mats)
-  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null }
+  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null, deadAt: 0 }
 }
 
 function disposeActor(a: Actor, scene?: THREE.Scene): void {
@@ -296,7 +307,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
 
   // Dựng lại khi đội đổi (TeamAssigned đến sau snapshot đầu) hoặc đổi bộ nhân vật
   function ensure(p: RenderPlayer): Actor {
-    const team = info?.modelTeam?.(p.id) ?? info?.teamOf(p.id) ?? 'A'
+    const team = info?.modelTeam?.(p.id, p.flags) ?? info?.teamOf(p.id) ?? 'A'
     const skin = skinOfSet(getCharacterSet(setId).id)   // bộ có xương (Bão Cát Sa Mạc, Cớm & Cướp) → skin tương ứng
     const wantSkel = skeletalEnabled() && !!skin && skeletalReady(skin, team)
     let a = actors.get(p.id)
@@ -441,7 +452,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       else if (!dead && sk.isDead) { sk.revive(); clearDrop(a) }
       a.wasDead = dead
       const zombie = (p.flags & NetFlag.Zombie) !== 0
-      if (zombie && !a.zfx) { a.zfx = makeZombieFx(scene, rig, p.id, { fromHuman: true }); hideGun(a) }
+      if (zombie && !a.zfx) { a.zfx = makeZombieFx(scene, rig, p.id, zombieOpts(p.ztype), zombieSize(p.ztype, p.zscale)); a.deadAt = 0; hideGun(a) }
       else if (!zombie && a.zfx) { removeZombieFx(scene, a.zfx, rig); a.zfx = null }
       const frame = { dt, x: p.pos[0], z: p.pos[2], yaw: p.yaw, grounded, crouching, sliding, pitch: p.pitch ?? 0, pistol: zombie, dead }
       if (zombie && !dead) {   // zombie không cầm súng: tay buông theo animation
@@ -466,6 +477,11 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
         if (sk.ikWeight > 0 && a.twoHand) { sk.placeAim(); solveSkelArms(a, weapon, 0) }   // IK mờ dần về tư thế animation
       }
       rig.root.visible = sk.corpseVisible
+      if (a.zfx && dead) {   // xác zombie nằm 4s rồi chìm xuống đất (không mờ, đỡ tốn shader)
+        if (a.deadAt === 0) a.deadAt = nowMs
+        const sink = Math.min(1, Math.max(0, (nowMs - a.deadAt - DEFENSE.corpseMs) / DEFENSE.corpseSinkMs))
+        rig.root.position.y = p.pos[1] - sink * 2.2
+      } else a.deadAt = 0
       if (a.zfx) { const v = info?.viewer?.(); updateZombieFx(a.zfx, rig, rig.root.visible && !dead, !!v && Math.hypot(v[0] - p.pos[0], v[2] - p.pos[2]) > 40) }
       dressWanted(p, a, h)
       a.flash.visible = nowMs < a.flashUntil

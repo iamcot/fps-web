@@ -12,6 +12,12 @@ interface Entry {
   weapon: number
   killStreak: number
   adsT: number
+  hp: number
+  hpMax: number
+  ztype?: string
+  zscale?: number
+  downLeft?: number
+  reviveP?: number
 }
 
 // Trạng thái đã nội suy, tái sử dụng mỗi frame (không cấp phát)
@@ -24,6 +30,12 @@ export interface InterpPlayer {
   weapon: number
   killStreak: number
   adsT: number   // mức ngắm 0..1 (vẽ súng lên má)
+  hp: number
+  hpMax: number          // zombie: máu tối đa (thanh máu trên đầu); người: 0
+  ztype?: string         // zombie: loại → tint/cỡ/tên
+  zscale?: number
+  downLeft?: number      // Thủ Thành: người gục — ms còn lại
+  reviveP?: number       // tiến độ được cứu 0..1
   stale: boolean   // snapshot cuối đã cũ hơn STALE_MS so với renderTime
 }
 
@@ -67,7 +79,7 @@ export class Interpolator {
       if (!buf) { buf = []; this.buffers.set(p.id, buf) }
       const last = buf[buf.length - 1]
       if (last && serverTime <= last.serverTime) continue
-      buf.push({ serverTime, pos: [p.pos[0], p.pos[1], p.pos[2]], yaw: p.yaw, pitch: p.pitch, flags: p.flags, weapon: p.weapon, killStreak: p.killStreak ?? 0, adsT: p.adsT ?? 0 })
+      buf.push({ serverTime, pos: [p.pos[0], p.pos[1], p.pos[2]], yaw: p.yaw, pitch: p.pitch, flags: p.flags, weapon: p.weapon, killStreak: p.killStreak ?? 0, adsT: p.adsT ?? 0, hp: p.hp, hpMax: p.hpMax ?? 0, ztype: p.ztype, zscale: p.zscale, downLeft: p.downLeft, reviveP: p.reviveP })
       while (buf.length > 2 && buf[0]!.serverTime < serverTime - BUFFER_MS) buf.shift()
     }
     for (const id of this.buffers.keys()) {
@@ -83,7 +95,7 @@ export class Interpolator {
     this.list.length = 0
     for (const [id, buf] of this.buffers) {
       let o = this.out.get(id)
-      if (!o) { o = { id, pos: [0, 0, 0], yaw: 0, pitch: 0, flags: 0, weapon: 0, killStreak: 0, adsT: 0, stale: false }; this.out.set(id, o) }
+      if (!o) { o = { id, pos: [0, 0, 0], yaw: 0, pitch: 0, flags: 0, weapon: 0, killStreak: 0, adsT: 0, hp: 0, hpMax: 0, stale: false }; this.out.set(id, o) }
       this.fill(o, buf, renderTime)
       this.list.push(o)
     }
@@ -116,10 +128,12 @@ export class Interpolator {
     o.weapon = a.weapon
     o.killStreak = a.killStreak
     o.adsT = lerp(a.adsT, b.adsT, t)
+    o.hp = a.hp; o.hpMax = a.hpMax; o.ztype = a.ztype; o.zscale = a.zscale; o.downLeft = a.downLeft; o.reviveP = a.reviveP
   }
 
   private copy(o: InterpPlayer, e: Entry): void {
     o.pos[0] = e.pos[0]; o.pos[1] = e.pos[1]; o.pos[2] = e.pos[2]
     o.yaw = e.yaw; o.pitch = e.pitch; o.flags = e.flags; o.weapon = e.weapon; o.killStreak = e.killStreak; o.adsT = e.adsT
+    o.hp = e.hp; o.hpMax = e.hpMax; o.ztype = e.ztype; o.zscale = e.zscale; o.downLeft = e.downLeft; o.reviveP = e.reviveP
   }
 }

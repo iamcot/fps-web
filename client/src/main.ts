@@ -5,13 +5,15 @@ import {
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
-import { flagSpeedMul, INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
+import { DEFENSE, flagSpeedMul, INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { setFlashlightAllowed, flashlightOn, initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
 import { createNight } from './render/night'
+import { createZombieOverlay } from './render/zombieOverlay'
+import { createSniffFx } from './render/sniffFx'
 import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase, setTransforming, setDowned } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby, BACK_KEY, type Session } from './net/lobby'
@@ -200,7 +202,8 @@ const playersRenderer = createPlayersRenderer(scene, {
   nameOf: id => sessionRef?.names.get(id),
   myTeam: () => sessionRef?.teams.get(sessionRef.yourId),
   characterSet: () => sessionRef?.characterSet ?? '',
-  modelTeam: id => (sessionRef && isZombieMode(sessionRef.config.settings.mode) ? 'A' : sessionRef?.teams.get(id)),   // thể thức zombie: người bị lây giữ model của mình
+  // Lây Nhiễm: người bị lây giữ model của mình; Thủ Thành: zombie dùng model Cướp (+tint theo loại)
+  modelTeam: (id, flags) => (sessionRef && isZombieMode(sessionRef.config.settings.mode) ? (sessionRef.config.settings.mode === 'defense' && (flags & NetFlag.Zombie) !== 0 ? 'B' : 'A') : sessionRef?.teams.get(id)),
   viewer: () => [camera.position.x, camera.position.y, camera.position.z],
 })
 const explosionFx = createExplosionFx(scene, () => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
@@ -256,12 +259,60 @@ const shop = createShop({
   sounds: { ok: playBuyOk, fail: playBuyFail },
 })
 const zombieHud = createZombieHud()
+const zoverlay = createZombieOverlay(scene)
+const sniffFx = createSniffFx(scene)
+let sniffedUntil = 0   // đã bị zombie đánh hơi: icon mũi 2s
 const matchHud = createMatchHud({ start: playRoundStart, win: playRoundWin, lose: playRoundLose, tick: playTick })
 const spectator = createSpectator(() => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
 let spectatingId = -2   // -2 = không xem; -1 = camera bay trên cao; ≥0 = đang xem người đó
 const specBuf: SpecCandidate[] = []
 const specLabel = createSpectateLabel()
 let hudShown = true
+// HUD thế giới của thể thức zombie: thanh máu boss, lời nhắc cứu, mũi tên đồng đội bị tấn công, đánh hơi (Q)
+const sniffTargets: { pos: [number, number, number]; crouching?: boolean }[] = []
+function zombieWorldHud(state: { pos: [number, number, number] }, _dt: number): void {
+  const mode = sessionRef?.config.settings.mode
+  if (!snapStore || !sessionRef || !mode || !isZombieMode(mode)) { zombieHud.setBoss(null); return }
+  let boss: (typeof lastSampled)[number] | null = null
+  for (const o of lastSampled) if (o.ztype === 'boss' && (o.flags & NetFlag.Dead) === 0 && o.hpMax > 0) boss = o
+  zombieHud.setBoss(boss ? boss.hp / boss.hpMax : null)
+  if (mode === 'defense') {
+    // Gục: mình đang gục / có đồng đội gục trong 1,5m để cứu
+    const selfDowned = (snapStore.flags & NetFlag.Downed) !== 0
+    zombieHud.setDownedSelf(selfDowned ? (snapStore.me?.downLeft ?? 0) / 1000 : null)
+    let near: { name: string; progress: number } | null = null
+    let arrowTarget: (typeof lastSampled)[number] | null = null, arrowD = Infinity
+    if (!selfDowned && !dead) {
+      for (const o of lastSampled) {
+        if ((o.flags & NetFlag.Zombie) !== 0 || (o.flags & NetFlag.Dead) !== 0) continue
+        const d = Math.hypot(o.pos[0] - state.pos[0], o.pos[2] - state.pos[2])
+        if ((o.flags & NetFlag.Downed) !== 0 && d <= DEFENSE.down.reviveRangeM && Math.abs(o.pos[1] - state.pos[1]) < 1.5) near = { name: sessionRef.names.get(o.id) ?? `#${o.id}`, progress: o.reviveP ?? 0 }
+        // đồng đội đang bị zombie vây: có zombie sống trong 2,2m
+        let attacked = false
+        for (const z of lastSampled) if ((z.flags & NetFlag.Zombie) !== 0 && (z.flags & NetFlag.Dead) === 0 && Math.hypot(z.pos[0] - o.pos[0], z.pos[2] - o.pos[2]) < 2.2 && Math.abs(z.pos[1] - o.pos[1]) < 2) { attacked = true; break }
+        if (attacked && d > 3 && d < arrowD) { arrowD = d; arrowTarget = o }
+      }
+    }
+    zombieHud.setRevivePrompt(near)
+    zombieHud.setAttackArrow(arrowTarget ? relAngle(arrowTarget.pos[0] - state.pos[0], arrowTarget.pos[2] - state.pos[2]) : null)
+  }
+  // Đánh hơi: người trong bán kính hiện đỏ xuyên tường khi chiêu đang chạy
+  const me = snapStore.me
+  const sniffing = mode === 'infection' && zombieSelf && (me?.sniffLeft ?? 0) > 0
+  sniffTargets.length = 0
+  if (sniffing) for (const o of lastSampled) {
+    if ((o.flags & NetFlag.Zombie) !== 0 || (o.flags & NetFlag.Dead) !== 0) continue
+    if (Math.hypot(o.pos[0] - state.pos[0], o.pos[2] - state.pos[2]) <= INFECTION.sniff.radius) sniffTargets.push({ pos: o.pos, crouching: (o.flags & NetFlag.Crouching) !== 0 })
+  }
+  sniffFx.update(!!sniffing, sniffTargets, performance.now())
+  zombieHud.setNose(performance.now() < sniffedUntil)
+}
+/** Góc (rad, 0 = thẳng trước mặt, + = bên phải) từ camera tới vector (dx, dz) trên mặt phẳng ngang */
+function relAngle(dx: number, dz: number): number {
+  const f = dx * -Math.sin(yaw) + dz * -Math.cos(yaw)
+  const r = dx * Math.cos(yaw) + dz * -Math.sin(yaw)
+  return Math.atan2(r, f)
+}
 let zombieSelf = false
 const specNext = () => { if (spectatingId !== -2) spectator.next(specBuf) }
 document.addEventListener('mousedown', e => { if (e.button === 0) specNext() })
@@ -375,6 +426,10 @@ sessionP.then(session => {
         blood.spawn(hitCenter, lastFireDir, msg.headshot)
       }
       playHit(msg.headshot ? 'head' : 'body')
+      if (isZombieMode(session.config.settings.mode)) {   // số damage nổi + thanh máu zombie (máu lớn nên cần thấy mình gây bao nhiêu)
+        zoverlay.onHit(msg.targetId)
+        if (tgt && msg.damage > 0) zoverlay.floatDamage([tgt.pos[0], tgt.pos[1] + (msg.headshot ? 1.9 : 1.4), tgt.pos[2]], msg.damage, msg.headshot)
+      }
     } else if (msg.t === MsgType.ShotFx) {
       const ray = (dir: [number, number, number], dist: number) => {
         tracers.add(msg.origin, dir, dist)
@@ -471,6 +526,18 @@ sessionP.then(session => {
       zombieHud.onHero(msg, id => session.names.get(id) ?? `#${id}`, session.yourId)
     } else if (msg.t === MsgType.InfectionCount) {
       zombieHud.onCount(msg)
+    } else if (msg.t === MsgType.Sniffed) {
+      sniffedUntil = performance.now() + 2000
+    } else if (msg.t === MsgType.DefenseState) {
+      zombieHud.setDefense(msg)
+    } else if (msg.t === MsgType.WaveStart) {
+      zombieHud.onWaveStart(msg)
+    } else if (msg.t === MsgType.WaveClear) {
+      zombieHud.onWaveClear(msg)
+    } else if (msg.t === MsgType.DefenseEnd) {
+      zombieHud.onDefenseEnd(msg, id => session.names.get(id) ?? `#${id}`)
+    } else if (msg.t === MsgType.Telegraph) {
+      zoverlay.telegraph(msg, t => performance.now() + (t - clock.serverNow()))
     } else if (msg.t === MsgType.Scoreboard) {
       scoreboard.setRows(msg.rows, session.yourId)
     } else if (msg.t === MsgType.BuyResult) {
@@ -647,7 +714,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     {   // Zombie: thanh máu lớn + chiêu E thay ô vũ khí
       const me = snapStore?.me
       const zomb = !!me && ((snapStore!.flags & NetFlag.Zombie) !== 0)
-      zombieHud.setSelf({ zombie: zomb, hp: snapStore?.hp ?? 0, hpMax: me?.hpMax ?? 1, leapCdMs: (state.leapCd ?? 0) * 1000, leapMaxMs: ZOMBIE.leap.cooldownMs })
+      const inf = sessionRef?.config.settings.mode === 'infection'
+      zombieHud.setSelf({ zombie: zomb, hp: snapStore?.hp ?? 0, hpMax: me?.hpMax ?? 1, leapCdMs: (state.leapCd ?? 0) * 1000, leapMaxMs: ZOMBIE.leap.cooldownMs, ...(inf ? { sniffCdMs: me?.sniffCd ?? 0, sniffMaxMs: INFECTION.sniff.cooldownMs } : null) })
       if (zomb !== zombieSelf) { zombieSelf = zomb; hud.bottom.setVisible(!zomb && hudShown) }
     }
 
@@ -705,6 +773,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       playersRenderer.update(lastSampled)
     }
     night.setZombieVision(zombieSelf)
+    if (snapStore && isZombieMode(sessionRef?.config.settings.mode ?? 'tdm')) zoverlay.update(dt, lastSampled, playerId, camera)
+    zombieWorldHud(state, dt)
     setFlashlightAllowed(night.night && !zombieSelf)
     night.update(camera, flashlightOn() && !dead && spectatingId === -2, lastSampled)
     grenades.update(dt, interp.currentRenderTime > 0 ? interp.currentRenderTime : clock.serverNow(), netStats.rttMs)

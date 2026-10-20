@@ -1,5 +1,5 @@
 // HUD các thể thức zombie (plan 16 I.4/ZF.6, plan 17 T.7): thanh trên giữa, banner giữa màn hình, thanh máu/chiêu của zombie. DOM thuần, chỉ ghi khi text đổi.
-import { MatchPhase, type HeroChosenMsg, type InfectedMsg, type InfectionCountMsg, type MatchEndMsg, type MatchStateMsg, type RoundEndMsg } from '@fps/shared'
+import { MatchPhase, type DefenseEndMsg, type DefenseStateMsg, type WaveClearMsg, type WaveStartMsg, type HeroChosenMsg, type InfectedMsg, type InfectionCountMsg, type MatchEndMsg, type MatchStateMsg, type RoundEndMsg } from '@fps/shared'
 import { formatClock } from './hudMatch'
 
 function el(css: string): HTMLDivElement {
@@ -73,6 +73,31 @@ export function createZombieHud() {
   skills.append(leap.box, sniff.box)
   self.append(hpText, hpOuter, skills)
 
+  // ── Thủ Thành: thanh máu boss, lời nhắc cứu, màn gục, mũi tên đồng đội bị tấn công, bảng thống kê cuối trận
+  const bossBar = el('position:fixed;top:64px;left:50%;transform:translateX(-50%);width:min(560px,70vw);display:none;pointer-events:none;z-index:20;text-align:center;color:#ff6a6a;font:bold 18px monospace;text-shadow:0 0 4px #000')
+  const bossName = document.createElement('div')
+  const bossOuter = document.createElement('div')
+  bossOuter.style.cssText = 'height:16px;background:rgba(0,0,0,.65);border:2px solid #722;margin-top:2px'
+  const bossFill = document.createElement('div')
+  bossFill.style.cssText = 'height:100%;width:100%;background:linear-gradient(#e33,#911)'
+  bossOuter.appendChild(bossFill)
+  bossBar.append(bossName, bossOuter)
+  const prompt = el('position:fixed;top:58%;left:50%;transform:translateX(-50%);display:none;pointer-events:none;z-index:20;color:#fff;font:bold 20px monospace;text-shadow:0 0 4px #000;text-align:center')
+  const promptBar = document.createElement('div')
+  promptBar.style.cssText = 'height:8px;width:200px;background:rgba(0,0,0,.6);margin:4px auto 0;border:1px solid #fff'
+  const promptFill = document.createElement('div')
+  promptFill.style.cssText = 'height:100%;width:0;background:#6fe06f'
+  promptBar.appendChild(promptFill)
+  const promptText = document.createElement('div')
+  prompt.append(promptText, promptBar)
+  const downed = el('position:fixed;inset:0;display:none;pointer-events:none;z-index:15;background:radial-gradient(transparent 40%,rgba(160,0,0,.55));color:#fff;font:bold 28px monospace;text-align:center;padding-top:62vh;text-shadow:0 0 6px #000')
+  const arrow = el('position:fixed;left:50%;top:50%;width:0;height:0;display:none;pointer-events:none;z-index:19;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:34px solid #ffb030;filter:drop-shadow(0 0 3px #000)')
+  const endBox = el('position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,.6);z-index:25;color:#fff;font:15px monospace;pointer-events:none')
+  const nose = el('position:fixed;top:92px;left:50%;transform:translateX(-50%);display:none;pointer-events:none;z-index:20;font:bold 22px monospace;color:#ff6a6a;text-shadow:0 0 6px #000')
+  nose.textContent = '👃 Bạn bị zombie đánh hơi!'
+  let defense: DefenseStateMsg | null = null
+  let lastClear: WaveClearMsg | null = null
+
   let st: MatchStateMsg | null = null
   let counts = { humans: 0, zombies: 0 }
   let online = false
@@ -120,7 +145,19 @@ export function createZombieHud() {
       if (st.phase !== MatchPhase.Waiting) topSub = `Ván ${Math.min(st.round, st.maxRounds)}/${st.maxRounds}`
     } else {
       setText(humansEl, ''); setText(zombiesEl, '')
-      clock = extraTop
+      const d = defense
+      if (d) {
+        const leftSec = formatClock(d.phaseEndsAt - serverNow)
+        switch (d.phase) {
+          case 'waiting': clock = 'Chờ người chơi…'; break
+          case 'prep': clock = `Chuẩn bị · ${leftSec}`; bigT = bigT || `Zombie tới sau ${leftSec}`; subT = subT || 'Mua súng ở khu mua · B'; break
+          case 'wave': clock = `ĐỢT ${d.wave} / ${d.waves}  ·  Còn ${d.zombiesLeft} zombie`; break
+          case 'intermission': clock = `Đợt tiếp theo sau ${leftSec}`; break
+          case 'victory': clock = 'THẮNG!'; break
+          case 'defeat': clock = 'THUA'; break
+        }
+        if (d.phase === 'intermission' && lastClear && !big_text) { bigT = `HẾT ĐỢT ${lastClear.wave} · +$${lastClear.bonus}` }
+      } else clock = extraTop
     }
     setText(clockEl, clock); setText(subEl, topSub)
     setText(big, bigT); setText(sub, subT)
@@ -143,11 +180,60 @@ export function createZombieHud() {
       say(m.playerId === myId ? 'BẠN LÀ NGƯỜI CUỐI CÙNG – ANH HÙNG!' : `${nameOf(m.playerId)} LÀ NGƯỜI CUỐI CÙNG – ANH HÙNG!`, '', 3000, '#ffd23c')
     },
     onRoundEnd(m: RoundEndMsg): void { lastEnd = m },
+    setDefense(m: DefenseStateMsg): void { defense = m; if (m.phase === 'wave' || m.phase === 'prep') endBox.style.display = 'none' },
+    onWaveStart(m: WaveStartMsg): void { lastClear = null; say(m.title, m.hint, 3000, '#ffd23c') },
+    onWaveClear(m: WaveClearMsg): void { lastClear = m; say(`HẾT ĐỢT ${m.wave} · +$${m.bonus}`, '', 3000, '#7ed957') },
+    onDefenseEnd(m: DefenseEndMsg, nameOf: (id: number) => string): void {
+      endBox.replaceChildren()
+      const title = document.createElement('div')
+      title.textContent = m.result === 'victory' ? 'THỦ THÀNH THÀNH CÔNG!' : `THUA Ở ĐỢT ${m.wave}`
+      title.style.cssText = `font-size:44px;font-weight:bold;margin-bottom:14px;color:${m.result === 'victory' ? '#7ed957' : '#ff6a6a'}`
+      const tb = document.createElement('table')
+      tb.style.cssText = 'border-collapse:collapse;min-width:420px;background:rgba(0,0,0,.5)'
+      const hr = tb.insertRow()
+      for (const h of ['Tên', 'Zombie hạ', 'Sát thương', 'Cứu']) { const c = hr.insertCell(); c.textContent = h; c.style.cssText = 'opacity:.6;padding:3px 10px;text-align:' + (h === 'Tên' ? 'left' : 'right') }
+      for (const r of m.stats.slice().sort((a, b) => b.kills - a.kills)) {
+        const tr = tb.insertRow()
+        const cells: [string, string][] = [[nameOf(r.id), 'left'], [String(r.kills), 'right'], [String(r.damage), 'right'], [String(r.revives), 'right']]
+        for (const [t, al] of cells) { const c = tr.insertCell(); c.textContent = t; c.style.cssText = `padding:3px 10px;text-align:${al}` }
+      }
+      endBox.append(title, tb)
+      endBox.style.display = 'flex'
+    },
+    /** frac = máu boss 0..1; null = không có boss */
+    setBoss(frac: number | null, name = 'ĐẠI CA ZOMBIE'): void {
+      if (frac === null) { bossBar.style.display = 'none'; return }
+      bossBar.style.display = 'block'
+      setText(bossName, `${name}  ${Math.ceil(frac * 100)}%`)
+      bossFill.style.width = `${(Math.max(0, Math.min(1, frac)) * 100).toFixed(1)}%`
+    },
+    /** Lời nhắc "Giữ E để cứu" kèm tiến độ; null ẩn */
+    setRevivePrompt(p: { name: string; progress: number } | null): void {
+      if (!p) { prompt.style.display = 'none'; return }
+      prompt.style.display = 'block'
+      setText(promptText, `Giữ E để cứu ${p.name}`)
+      promptFill.style.width = `${(Math.max(0, Math.min(1, p.progress)) * 100).toFixed(0)}%`
+    },
+    /** Mình đang gục: số giây còn lại; null = không gục */
+    setDownedSelf(secLeft: number | null): void {
+      if (secLeft === null) { downed.style.display = 'none'; return }
+      downed.style.display = 'block'
+      setText(downed, `BẠN ĐÃ GỤC · chờ đồng đội cứu (${Math.ceil(secLeft)}s)`)
+    },
+    /** Mũi tên mép màn hình chỉ hướng đồng đội đang bị zombie tấn công; angle rad (0 = lên trên, + = sang phải); null ẩn */
+    setAttackArrow(angle: number | null): void {
+      if (angle === null) { arrow.style.display = 'none'; return }
+      arrow.style.display = 'block'
+      const r = Math.min(window.innerWidth, window.innerHeight) * 0.42
+      arrow.style.transform = `translate(${Math.sin(angle) * r - 14}px, ${-Math.cos(angle) * r - 17}px) rotate(${angle}rad)`
+    },
     onMatchEnd(m: MatchEndMsg, mvpName: string): void { matchEnd = m; mvp = mvpName },
     /** Ghi dòng thông báo/banner tuỳ ý (Thủ Thành dùng) */
     banner(text: string, subText = '', ms = 3000, color = '#fff'): void { say(text, subText, ms, color) },
     feedLine: line,
     setTopText(t: string): void { extraTop = t },
+    /** Icon mũi 2 giây khi bị zombie đánh hơi */
+    setNose(on: boolean): void { nose.style.display = on ? 'block' : 'none' },
     setSelf(s: ZombieSelf): void {
       self.style.display = s.zombie ? 'block' : 'none'
       if (!s.zombie) return
@@ -165,6 +251,6 @@ export function createZombieHud() {
       }
     },
     tick: render,
-    clear(): void { online = false; st = null; lastEnd = null; matchEnd = null; self.style.display = 'none'; render(0) },
+    clear(): void { online = false; st = null; lastEnd = null; matchEnd = null; defense = null; self.style.display = 'none'; bossBar.style.display = 'none'; prompt.style.display = 'none'; downed.style.display = 'none'; arrow.style.display = 'none'; endBox.style.display = 'none'; render(0) },
   }
 }
