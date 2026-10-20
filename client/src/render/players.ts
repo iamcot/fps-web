@@ -11,6 +11,7 @@ import { makeSkeletalRig, requestCharacters, skeletalEnabled, skeletalReady, ski
 import { GRENADE_ID } from '@fps/shared'
 import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './characters/animate'
 import { createDeathFx } from './characters/deathFx'
+import { makeZombieFx, removeZombieFx, updateZombieFx, type ZombieFx } from './zombieLook'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
 interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number; adsT?: number }
@@ -20,6 +21,10 @@ export interface TeamInfo {
   nameOf(id: number): string | undefined
   myTeam(): TeamId | undefined
   characterSet?(): string   // bộ nhân vật của phòng (mặc định nếu thiếu)
+  /** Đội dùng để chọn model (zombie: người bị lây giữ nguyên model của mình dù đổi sang phe zombie) */
+  modelTeam?(id: number): TeamId | undefined
+  /** Vị trí mắt người xem (để tắt mắt zombie ở xa) */
+  viewer?(): [number, number, number]
 }
 
 const FLASH_MS = 60
@@ -103,6 +108,7 @@ interface Actor {
   pulling: boolean          // đang rút chốt (người khác): hết cử động tay trái thì chốt rời quả
   pinOff: boolean           // chốt đã rút: ẩn node `pin` trên quả trong tay
   thrown: boolean           // vừa ném: sau khi hết animation ném, quả mới (nếu còn) hiện lại trong tay
+  zfx: ZombieFx | null      // đang là zombie: tint + mắt đỏ
 }
 
 // Súng rơi khỏi tay người chết: rơi thẳng + xoay, nằm xuống sàn, mờ dần cùng xác
@@ -137,7 +143,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   rig.gunAnchor.add(flash)
   rig.root.add(makeBlobShadow())
   if (rig.skel) {
-    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false }
+    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null }
   }
   const aimPivot = new THREE.Group()
   const holder = new THREE.Group()
@@ -150,10 +156,11 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   armR.setVisible(false); armL.setVisible(false)
   rig.upper.add(armR.root, armL.root)
   for (const arm of [armR, armL]) rig.mats.push(...arm.mats)
-  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false }
+  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null }
 }
 
-function disposeActor(a: Actor): void {
+function disposeActor(a: Actor, scene?: THREE.Scene): void {
+  if (a.zfx && scene) { removeZombieFx(scene, a.zfx, a.rig); a.zfx = null }
   if (a.drop) { a.drop.obj.removeFromParent(); for (const m of a.drop.mats) m.dispose(); a.drop = null }
   if (a.rig.skel) a.rig.skel.dispose(); else disposeRig(a.rig)
   a.armR?.dispose(); a.armL?.dispose()
@@ -282,14 +289,14 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   function dropActor(id: number, a: Actor): void {
     dropWanted(id)
     scene.remove(a.rig.root)
-    disposeActor(a)
+    disposeActor(a, scene)
     actors.delete(id)
     lastSeen.delete(id)
   }
 
   // Dựng lại khi đội đổi (TeamAssigned đến sau snapshot đầu) hoặc đổi bộ nhân vật
   function ensure(p: RenderPlayer): Actor {
-    const team = info?.teamOf(p.id) ?? 'A'
+    const team = info?.modelTeam?.(p.id) ?? info?.teamOf(p.id) ?? 'A'
     const skin = skinOfSet(getCharacterSet(setId).id)   // bộ có xương (Bão Cát Sa Mạc, Cớm & Cướp) → skin tương ứng
     const wantSkel = skeletalEnabled() && !!skin && skeletalReady(skin, team)
     let a = actors.get(p.id)
@@ -352,6 +359,11 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     parent.add(a.gun)
     // Toạ độ đầu nòng đã đo sẵn trong hệ gunGroup (node 'muzzle' nằm trong GunRoot đã scale nên không dùng trực tiếp)
     a.flash.position.copy(MUZZLE_FALLBACK[weapon] ?? MUZZLE_FALLBACK[0]!)
+  }
+
+  function hideGun(a: Actor): void {
+    if (a.gun) a.gun.visible = false
+    a.flash.visible = false
   }
 
   const killMemory = new Map<number, { headshot: boolean; t: number }>()
@@ -428,8 +440,17 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       if (dead && !sk.isDead) { sk.die(takeKill(p.id)); dropGun(a) }
       else if (!dead && sk.isDead) { sk.revive(); clearDrop(a) }
       a.wasDead = dead
-      const frame = { dt, x: p.pos[0], z: p.pos[2], yaw: p.yaw, grounded, crouching, sliding, pitch: p.pitch ?? 0, pistol: false, dead }
-      if (!dead) {
+      const zombie = (p.flags & NetFlag.Zombie) !== 0
+      if (zombie && !a.zfx) { a.zfx = makeZombieFx(scene, rig, p.id, { fromHuman: true }); hideGun(a) }
+      else if (!zombie && a.zfx) { removeZombieFx(scene, a.zfx, rig); a.zfx = null }
+      const frame = { dt, x: p.pos[0], z: p.pos[2], yaw: p.yaw, grounded, crouching, sliding, pitch: p.pitch ?? 0, pistol: zombie, dead }
+      if (zombie && !dead) {   // zombie không cầm súng: tay buông theo animation
+        sk.animate(frame)
+        sk.placeAim()
+        sk.setOpacity((p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1)
+        hideGun(a)
+      } else if (!dead) {
+        if (a.gun) a.gun.visible = true   // vừa hồi phục từ zombie về người
         dressGun(a, weapon)
         const two = weaponPose(weapon).third.hold === 'twoHand' && !!a.gun
         setHold(a, two)
@@ -445,6 +466,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
         if (sk.ikWeight > 0 && a.twoHand) { sk.placeAim(); solveSkelArms(a, weapon, 0) }   // IK mờ dần về tư thế animation
       }
       rig.root.visible = sk.corpseVisible
+      if (a.zfx) { const v = info?.viewer?.(); updateZombieFx(a.zfx, rig, rig.root.visible && !dead, !!v && Math.hypot(v[0] - p.pos[0], v[2] - p.pos[2]) > 40) }
       dressWanted(p, a, h)
       a.flash.visible = nowMs < a.flashUntil
       dressLabel(p.id, a, h)

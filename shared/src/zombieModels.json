@@ -1,0 +1,11 @@
+{
+  "models": [],
+  "variation": {
+    "scaleJitter": 0.06,
+    "tints": ["#9fb59a", "#b5a99a", "#8fa0a8", "#a89a9a"],
+    "tintStrength": 0.35,
+    "infectedTint": "#7fa87a",
+    "infectedTintStrength": 0.6,
+    "eyeGlow": "#ff3b2f"
+  }
+}

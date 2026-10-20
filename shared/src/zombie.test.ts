@@ -123,3 +123,24 @@ describe('đẩy lùi (ZF.2)', () => {
     expect(vel[1]).toBe(3)
   })
 })
+
+describe('hình dáng zombie (ZF.1)', () => {
+  it('tất định theo id; cỡ lệch ≤ ±6%; 10 zombie không cùng một tint+cỡ', async () => {
+    const { zombieVariation } = await import('./zombie')
+    expect(zombieVariation(7)).toEqual(zombieVariation(7))
+    const seen = new Set<string>()
+    for (let id = 1; id <= 10; id++) {
+      const v = zombieVariation(id)
+      expect(Math.abs(v.scale - 1)).toBeLessThanOrEqual(0.0601)
+      seen.add(`${v.tint}|${v.scale.toFixed(3)}`)
+    }
+    expect(seen.size).toBeGreaterThanOrEqual(8)
+  })
+  it('zombie do người bị lây: tint xanh xám cố định, không model riêng; tintOverride thay tint', async () => {
+    const { zombieVariation, ZOMBIE_LOOK } = await import('./zombie')
+    const h = zombieVariation(3, { fromHuman: true })
+    expect(h.tint).toBe(ZOMBIE_LOOK.variation.infectedTint)
+    expect(h.model).toBeNull()
+    expect(zombieVariation(3, { tintOverride: '#c9b28a' }).tint).toBe('#c9b28a')
+  })
+})

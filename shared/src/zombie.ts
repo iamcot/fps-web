@@ -89,3 +89,32 @@ export function applyKnockback(vel: [number, number, number], imp: readonly [num
 }
 
 export function isClawKey(key: string): boolean { return weaponByKey(key)?.category === 'claw' }
+
+// ── Hình dáng zombie (ZF.1): mỗi zombie chọn ngẫu nhiên (theo id, tất định) một model + tint + cỡ lệch ±6%.
+// `models` rỗng (chưa build glb zombie) → client dùng model Cớm/Cướp của người đó + tint (xem plan 16, ZF.1).
+import zombieModelsRaw from './zombieModels.json'
+import { hashSeed, mulberry32 } from './math'
+
+export interface ZombieModelDef { id: string; file: string; scale: number; eyeBone: string; eyeOffset: [number, number, number] }
+export interface ZombieLookDef {
+  models: ZombieModelDef[]
+  variation: { scaleJitter: number; tints: string[]; tintStrength: number; infectedTint: string; infectedTintStrength: number; eyeGlow: string }
+}
+export const ZOMBIE_LOOK: ZombieLookDef = zombieModelsRaw as ZombieLookDef
+
+export interface ZombieVariation { model: ZombieModelDef | null; scale: number; tint: string; tintStrength: number }
+
+/**
+ * Biến thể của zombie `id`. `fromHuman`: zombie do người bị lây (dùng model Cớm/Cướp, tint xanh xám cố định);
+ * `tintOverride` (Thủ Thành: màu theo loại) thay tint ngẫu nhiên. `modelOverride` gán riêng model cho một loại.
+ */
+export function zombieVariation(id: number, opts: { fromHuman?: boolean; tintOverride?: string | null; modelOverride?: string | null } = {}): ZombieVariation {
+  const v = ZOMBIE_LOOK.variation
+  const rng = mulberry32(hashSeed(id, 0x2b1e))
+  const scale = 1 + (rng() * 2 - 1) * v.scaleJitter
+  const tintPick = v.tints[Math.floor(rng() * v.tints.length)] ?? '#9fb59a'
+  const modelPick = ZOMBIE_LOOK.models.length > 0 ? ZOMBIE_LOOK.models[Math.floor(rng() * ZOMBIE_LOOK.models.length)]! : null
+  if (opts.fromHuman) return { model: null, scale, tint: v.infectedTint, tintStrength: v.infectedTintStrength }
+  const model = opts.modelOverride ? ZOMBIE_LOOK.models.find(m => m.id === opts.modelOverride) ?? modelPick : modelPick
+  return { model, scale, tint: opts.tintOverride ?? tintPick, tintStrength: opts.tintOverride ? Math.max(v.tintStrength, 0.5) : v.tintStrength }
+}

@@ -5,7 +5,7 @@ import {
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
-import { INFECTION, ZOMBIE, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
+import { INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
@@ -198,6 +198,8 @@ const playersRenderer = createPlayersRenderer(scene, {
   nameOf: id => sessionRef?.names.get(id),
   myTeam: () => sessionRef?.teams.get(sessionRef.yourId),
   characterSet: () => sessionRef?.characterSet ?? '',
+  modelTeam: id => (sessionRef && isZombieMode(sessionRef.config.settings.mode) ? 'A' : sessionRef?.teams.get(id)),   // thể thức zombie: người bị lây giữ model của mình
+  viewer: () => [camera.position.x, camera.position.y, camera.position.z],
 })
 const explosionFx = createExplosionFx(scene, () => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
 const grenades = createGrenades(scene, {

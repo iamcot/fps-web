@@ -113,6 +113,8 @@ export class SkelCharacter {
   private readonly slotW = makeSlotWeights()
   private readonly spine: THREE.Object3D[]
   private readonly head: THREE.Object3D
+  /** Xương đầu (mắt zombie bám theo) */
+  get headBone(): THREE.Object3D { return this.head }
   private readonly chest: THREE.Object3D
   private readonly rightHand: THREE.Bone
   lastTargetR = new THREE.Vector3(); lastTargetL = new THREE.Vector3()
