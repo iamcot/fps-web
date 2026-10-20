@@ -75,3 +75,34 @@ describe('nav grid', () => {
     expect(drops).toBeGreaterThan(0)
   })
 })
+
+describe('cạnh nav của zombie (T.4)', () => {
+  const edgesOf = (kind: number) => {
+    const out: { a: number; b: number; e: { to: number; face?: [number, number] } }[] = []
+    for (let a = 0; a < nav.count; a++) for (const e of nav.adj[a]!) if (e.kind === kind) out.push({ a, b: e.to, e })
+    return out
+  }
+  it('thống kê', () => {
+    const h = edgesOf(EdgeKind.Hole), l = edgesOf(EdgeKind.Leap)
+    console.log(`zombie edges: hole ${h.length}, leap ${l.length}, build ${buildMs.toFixed(0)}ms`)
+    expect(buildMs).toBeLessThan(8000)
+  })
+  it('có cạnh Hole xuyên tường thành ở x = ±19', () => {
+    const h = edgesOf(EdgeKind.Hole)
+    expect(h.length).toBeGreaterThan(0)
+    const wall = h.filter(({ a, b }) => Math.abs(nav.x[a]!) > 19 !== Math.abs(nav.x[b]!) > 19)
+    expect(wall.length).toBeGreaterThan(0)
+  })
+  it('có cạnh Leap từ mặt đất lên gờ tường (y ≈ 4,2) và từ gờ lên đỉnh tháp', () => {
+    const l = edgesOf(EdgeKind.Leap)
+    expect(l.some(({ a, b }) => nav.y[a]! < 0.5 && nav.y[b]! > 3.9 && nav.y[b]! < 4.5)).toBe(true)
+    expect(l.some(({ a, b }) => nav.y[a]! > 3.9 && nav.y[b]! > 6)).toBe(true)
+  })
+  it('A* của người không dùng cạnh zombie; có ability thì được', () => {
+    const from = nav.nearest(27, 0, 5), to = nav.nearest(-27, 0, 5)
+    const human = nav.findNodePath(from, to)!
+    for (let i = 1; i < human.length; i++) expect(nav.edge(human[i - 1]!, human[i]!)!.kind).toBeLessThan(EdgeKind.Hole)
+    const crawl = nav.findNodePath(from, to, undefined, { hole: true })!
+    expect(crawl).not.toBeNull()
+  })
+})

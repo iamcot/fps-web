@@ -90,6 +90,26 @@ export function applyKnockback(vel: [number, number, number], imp: readonly [num
 
 export function isClawKey(key: string): boolean { return weaponByKey(key)?.category === 'claw' }
 
+/**
+ * Chiêu E bật từ ĐỨNG YÊN (vận tốc ngang 0 → chỉ còn đà `forward`): thời gian bay và quãng ngang đi được tới khi rơi xuống độ cao `dy`
+ * so với chỗ bật (mô phỏng đúng từng tick như stepMovement: gravity trừ trước khi dịch chuyển). null = không lên tới độ cao đó.
+ * Nav (cạnh nhảy) và bộ não zombie dùng chung để bật đúng chỗ.
+ */
+export function leapFlight(dy: number, gravity = defaultMovement.gravity, dt = 1 / 60): { time: number; dist: number } | null {
+  let y = 0, vy: number = ZOMBIE.leap.velY, ticks = 0, reached = dy <= 0
+  while (ticks < 600) {
+    vy -= gravity * dt
+    y += vy * dt
+    ticks++
+    if (y >= dy) reached = true
+    if (reached && vy < 0 && y <= dy) return { time: ticks * dt, dist: ZOMBIE.leap.forward * ticks * dt }
+    if (vy < 0 && y < Math.min(dy, 0) - 1) return null
+  }
+  return null
+}
+/** Độ cao đỉnh của chiêu E so với chỗ bật */
+export function leapApex(gravity = defaultMovement.gravity): number { return ZOMBIE.leap.velY * ZOMBIE.leap.velY / (2 * gravity) }
+
 // ── Hình dáng zombie (ZF.1): mỗi zombie chọn ngẫu nhiên (theo id, tất định) một model + tint + cỡ lệch ±6%.
 // `models` rỗng (chưa build glb zombie) → client dùng model Cớm/Cướp của người đó + tint (xem plan 16, ZF.1).
 import zombieModelsRaw from './zombieModels.json'

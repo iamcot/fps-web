@@ -2,6 +2,7 @@
 // Node = chỗ đứng được (mọi mặt đứng: đất, mặt tường thành, đỉnh tháp, ramp). Cạnh: đi bộ, nhảy (gờ thấp), nhảy xuống (một chiều).
 import type { LoadedMap, Vec3, MovementConfig } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
+import { addZombieEdges } from './navZombie'
 
 export const NAV_CELL = 1                 // m
 const MIN_NORMAL_Y = 0.7                  // mặt đứng được
@@ -16,7 +17,8 @@ const COVER_RAY_LEN = 1.2
 const MAX_LAYERS = 8
 const STAND_LIFT = 0.12
 
-export const EdgeKind = { Walk: 0, Jump: 1, Drop: 2 } as const
+// Hole/Leap chỉ dành cho zombie (plan 17, T.4): Hole = bò (ngồi + nhảy) qua lỗ bắn; Leap = chiêu E bật từ đứng yên lên gờ tường / đỉnh tháp
+export const EdgeKind = { Walk: 0, Jump: 1, Drop: 2, Hole: 3, Leap: 4 } as const
 export type EdgeKindValue = (typeof EdgeKind)[keyof typeof EdgeKind]
 
 export const Zone = { Mid: 0, BaseA: 1, BaseB: 2, WallA: 3, WallB: 4, TowerA: 5, TowerB: 6 } as const
@@ -27,8 +29,14 @@ export const DIRS8: readonly (readonly [number, number])[] = [
   [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1],
 ].map(([x, z]) => { const l = Math.hypot(x!, z!); return [x! / l, z! / l] as const })
 
-export interface NavEdge { to: number; cost: number; kind: EdgeKindValue }
-export interface Waypoint { x: number; y: number; z: number; jump: boolean }
+export interface NavEdge {
+  to: number; cost: number; kind: EdgeKindValue
+  face?: [number, number]   // Hole: điểm mặt tường phía mình (x, z) — bộ não zombie tính lúc ngồi + nhảy theo khoảng cách tới đây
+}
+export interface Waypoint { x: number; y: number; z: number; jump: boolean; kind: EdgeKindValue; face?: [number, number] }
+/** Cạnh đặc biệt nào được phép dùng khi tìm đường (mặc định: không cạnh nào của zombie) */
+export interface NavAbility { hole?: boolean; leap?: boolean }
+const allowed = (e: NavEdge, ab: NavAbility | undefined): boolean => e.kind < EdgeKind.Hole || (e.kind === EdgeKind.Hole ? !!ab?.hole : !!ab?.leap)
 
 export function zoneOf(x: number, y: number, z: number): ZoneId {
   void z
@@ -162,7 +170,7 @@ export class NavGrid {
    * A* giữa hai node. `costFn(node)` cộng thêm chi phí khi bước vào node (≥ 0), vd. né tầm nhìn địch.
    * Trả danh sách node (gồm cả hai đầu) hoặc null.
    */
-  findNodePath(start: number, goal: number, costFn?: (node: number) => number): number[] | null {
+  findNodePath(start: number, goal: number, costFn?: (node: number) => number, ability?: NavAbility): number[] | null {
     if (start < 0 || goal < 0) return null
     if (start === goal) return [start]
     const stamp = ++this.curStamp
@@ -184,7 +192,7 @@ export class NavGrid {
       }
       const gc = g[cur]!
       for (const e of this.adj[cur]!) {
-        if (closed[e.to] === stamp) continue
+        if (closed[e.to] === stamp || !allowed(e, ability)) continue
         const ng = gc + e.cost + (costFn ? costFn(e.to) : 0)
         if (this.stamp[e.to] !== stamp || ng < g[e.to]!) {
           this.stamp[e.to] = stamp; g[e.to] = ng; from[e.to] = cur
@@ -205,9 +213,9 @@ export class NavGrid {
    * Đường đi từ vị trí `from` tới vị trí `to` (làm mượt bằng cách bỏ node trung gian khi đi thẳng được).
    * Waypoint `jump` = bước vào nó cần nhảy (gờ thấp / nhảy xuống không cần nhảy: chỉ bước ra).
    */
-  findPath(from: Vec3, to: Vec3, costFn?: (node: number) => number): Waypoint[] | null {
+  findPath(from: Vec3, to: Vec3, costFn?: (node: number) => number, ability?: NavAbility): Waypoint[] | null {
     const s = this.nearest(from[0], from[1], from[2]), t = this.nearest(to[0], to[1], to[2])
-    const nodes = this.findNodePath(s, t, costFn)
+    const nodes = this.findNodePath(s, t, costFn, ability)
     if (!nodes) return null
     return this.smooth(nodes)
   }
@@ -225,7 +233,7 @@ export class NavGrid {
       const e = this.edge(prev, cur)
       const special = !e || e.kind !== EdgeKind.Walk
       if (special) {
-        out.push({ x: this.x[cur]!, y: this.y[cur]!, z: this.z[cur]!, jump: e?.kind === EdgeKind.Jump })
+        out.push({ x: this.x[cur]!, y: this.y[cur]!, z: this.z[cur]!, jump: e?.kind === EdgeKind.Jump, kind: e?.kind ?? EdgeKind.Walk, ...(e?.face ? { face: e.face } : null) })
         anchor = cur; i++
         continue
       }
@@ -238,7 +246,7 @@ export class NavGrid {
         far = j
       }
       const n = nodes[far]!
-      out.push({ x: this.x[n]!, y: this.y[n]!, z: this.z[n]!, jump: false })
+      out.push({ x: this.x[n]!, y: this.y[n]!, z: this.z[n]!, jump: false, kind: EdgeKind.Walk })
       anchor = n; i = far + 1
     }
     return out
@@ -418,6 +426,6 @@ export function buildNav(world: CollisionWorld, map: LoadedMap, cfg: MovementCon
     }
     cover[i] = mask
   }
-  void cfg
+  addZombieEdges({ world, xs, ys, zs, adj, colNodes, minX, minZ, nx, nz, gravity: cfg.gravity })
   return new NavGrid(world, xs, ys, zs, cover, zones, adj, minX, minZ, colKeys)
 }

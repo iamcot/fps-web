@@ -144,3 +144,15 @@ describe('hình dáng zombie (ZF.1)', () => {
     expect(zombieVariation(3, { tintOverride: '#c9b28a' }).tint).toBe('#c9b28a')
   })
 })
+
+describe('leapFlight', () => {
+  it('lên gờ 4,2m: bay ≈ 0,74s, đi ngang ≈ 3,7m; không lên được 4,5m (đỉnh 4,33m)', async () => {
+    const { leapFlight, leapApex } = await import('./zombie')
+    const f = leapFlight(4.2)!
+    expect(f.time).toBeGreaterThan(0.6); expect(f.time).toBeLessThan(0.9)
+    expect(f.dist).toBeCloseTo(5 * f.time, 6)
+    expect(leapApex()).toBeCloseTo(4.33, 1)
+    expect(leapFlight(4.6)).toBeNull()
+    expect(leapFlight(2.2)!.dist).toBeGreaterThan(leapFlight(4.2)!.dist)   // thấp hơn thì bay lâu hơn (rơi xuống muộn)
+  })
+})
