@@ -596,7 +596,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
         deathScreen.hide()
         const tgt = snapStore?.players.find(p => p.id === spectatingId)
         specLabel.set(spectatingId >= 0 ? sess.names.get(spectatingId) ?? `#${spectatingId}` : null, tgt?.hp ?? 0)
-      } else if (spectatingId !== -2) { spectatingId = -2; specLabel.set(undefined, 0) }
+      } else { spectatingId = -2; specLabel.set(undefined, 0) }   // luôn ẩn nhãn (đã có kiểm tra trùng chữ): hồi sinh đặt spectatingId trực tiếp nên không dựa vào việc nó đổi
       const showHud = spectatingId === -2
       if (showHud !== hudShown) { hudShown = showHud; hud.bottom.setVisible(showHud) }
       if (sess) {
