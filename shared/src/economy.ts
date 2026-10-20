@@ -13,6 +13,7 @@ export interface EconomyConfig {
   defaultResaleValue: number   // giá bán lại súng được cấp sẵn (0 = không bán được)
   keepLoadoutOnDeath: boolean
   maxBuysPerSecond: number
+  infiniteReserve?: boolean   // thể thức zombie: đạn dự trữ vô hạn (chỉ phải nạp băng) – HUD hiện `25 / ∞`
 }
 
 /** Hỗn Chiến (task 09) */

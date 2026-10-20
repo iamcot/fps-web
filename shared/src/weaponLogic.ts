@@ -1,4 +1,4 @@
-import { WEAPONS, SWITCH_MS, MAX_PELLETS, GRENADE_ID, GRENADE_SLOT } from './weapons'
+import { WEAPONS, SWITCH_MS, MAX_PELLETS, GRENADE_ID, GRENADE_SLOT, CLAW_ID, CLAW_HEAVY_ID } from './weapons'
 import { onShotBloom } from './spread'
 import { GRENADE } from './grenade'
 import type { WeaponDef, WeaponState } from './weapons'
@@ -222,8 +222,15 @@ export function stepWeaponCmd(ws: WeaponState, cmd: InputCmd): WeaponEvent {
   const quickDown = !!(cmd.buttons & Btn.QuickNade)
   const ev = stepGrenade(ws, cmd, nowMs, quickDown)
   if (ev !== null) return ev === 'none' && autoSwitched ? 'switched' : ev   // đang cầm lựu đạn (hoặc vừa bấm G): không chạy logic súng
-  if (autoSwitched) { stepWeapon(ws, nowMs, !!(cmd.buttons & Btn.Fire), !!(cmd.buttons & Btn.Reload)); return 'switched' }
-  return stepWeapon(ws, nowMs, !!(cmd.buttons & Btn.Fire), !!(cmd.buttons & Btn.Reload))
+  let trigger = !!(cmd.buttons & Btn.Fire)
+  if (WEAPONS[ws.current]!.category === 'claw') {
+    // Zombie: chuột trái = cào thường, chuột phải (Aim) = cào mạnh; hai kiểu dùng chung nhịp bắn (nextFireMs)
+    const heavy = !!(cmd.buttons & Btn.Aim)
+    ws.current = heavy ? CLAW_HEAVY_ID : CLAW_ID
+    trigger = trigger || heavy
+  }
+  if (autoSwitched) { stepWeapon(ws, nowMs, trigger, !!(cmd.buttons & Btn.Reload)); return 'switched' }
+  return stepWeapon(ws, nowMs, trigger, !!(cmd.buttons & Btn.Reload))
 }
 
 /**

@@ -27,10 +27,12 @@ export function setWeaponMove(h: WeaponMove): void { _weaponMove = h }
 let _dead = false
 let _phase: MatchPhase = MatchPhase.Playing   // offline = đang chơi
 export function setDead(v: boolean): void { _dead = v }
+let _transforming = false   // đang biến hình (zombie): server bỏ mọi nút
+export function setTransforming(v: boolean): void { _transforming = v }
 export function setMatchPhase(v: MatchPhase): void { _phase = v }
 
 function _buildCmd(): InputCmd {
-  let buttons = sampleButtons() & phaseButtonMask(_phase, !_dead)   // chết / đếm ngược / hết trận: server cũng bỏ nút này
+  let buttons = _transforming ? 0 : sampleButtons() & phaseButtonMask(_phase, !_dead)   // chết / đếm ngược / hết trận / biến hình: server cũng bỏ nút này
   if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload | Btn.Aim)   // chưa khoá chuột thì không bắn/nạp/ngắm
   return { seq: _seq++, buttons, yaw, pitch, weapon: _weapon }
 }

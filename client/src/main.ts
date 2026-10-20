@@ -4,13 +4,14 @@ import {
   stepWeaponCmd, computeSpreadDeg, spreadParts, adsMoveFor, adsWanted, computeShotDirs, MAX_PELLETS, recoverRecoil,
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
-import type { MapFile, SpreadParts } from '@fps/shared'
+import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
+import { ZOMBIE_DEFAULT_RUN_SPEED, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
-import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase } from './loop'
+import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase, setTransforming } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby, BACK_KEY, type Session } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
@@ -184,6 +185,7 @@ document.addEventListener('keydown', (e) => {
 
 // ── Physics world + game loop ─────────────────────────────────────────────────
 const cfg = { ...defaultMovement }
+let selfCfg: MovementConfig = cfg   // cấu hình di chuyển của chính mình: zombie khác người (plan 16)
 const spawn = loadedMap.spawns.A[0] ?? { pos: [0, 2, 0] as [number,number,number], yaw: 0 }
 
 // Mạng: vào phòng qua màn hình lobby; chơi offline nếu bỏ qua. Ping chạy sau khi vào phòng
@@ -480,6 +482,12 @@ sessionP.then(session => {
       if (srvDead && !dead) { dead = true; deadAt = performance.now() - 2000; setDead(true) }   // vào giữa ván: chỉ xem
       else if (!srvDead && dead) { dead = false; setDead(false); deathScreen.hide(); spectator.reset() }   // lỡ mất tin Respawn: không kẹt ở chế độ xem
     }
+    {   // vai trò (người/zombie) quyết định cấu hình di chuyển; đổi trước khi reconcile để replay dùng đúng cấu hình
+      const zr = (s.flags & NetFlag.Zombie) !== 0 ? (s.me?.runSpeed ?? ZOMBIE_DEFAULT_RUN_SPEED) : null
+      const want = movementFor(cfg, zr !== null ? { runSpeed: zr } : null)
+      if (want !== selfCfg) { selfCfg = want; prediction?.setConfig(want) }
+      setTransforming((s.flags & NetFlag.Transform) !== 0)
+    }
     if (s.self) prediction?.onSnapshot(s.ack, s.self, s.wpn)
     if (s.wpn && prediction) reconcileWeapon(ws, s.wpn, prediction.pending)
   })
@@ -551,7 +559,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     const fps  = 1 / dt
     lastMs     = now
 
-    const targetEye = state.crouching ? cfg.eyeCrouch : cfg.eyeStand
+    const targetEye = state.crouching ? selfCfg.eyeCrouch : selfCfg.eyeStand
     eyeY += (targetEye - eyeY) * Math.min(1, 10 / 60)
 
     camera.position.set(state.pos[0], state.pos[1] + eyeY, state.pos[2])
@@ -611,7 +619,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       const pull = n.phase === 'ready' ? 1 : n.phase === 'pulling' ? Math.min(1, Math.max(0, (simMs - n.pressSeq * 1000 / TICK_RATE) / GRENADE.pinPullMs)) : 0
       vm.setGrenade(n.phase === 'idle' ? 'idle' : n.phase === 'pulling' ? 'pulling' : 'ready', n.mode, pull, (ws.ammo[GRENADE_ID] ?? 0) > 0)
     }
-    hud.setSpread(computeSpreadDeg(state, ws, def, cfg, simMs), dt * 1000, def.spread.pelletConeDeg ?? 0, def.spread.unscopedDeg !== undefined && adsT < 0.5)   // cùng hàm với lúc bắn (bloom hiện tại)
+    hud.setSpread(computeSpreadDeg(state, ws, def, selfCfg, simMs), dt * 1000, def.spread.pelletConeDeg ?? 0, def.spread.unscopedDeg !== undefined && adsT < 0.5)   // cùng hàm với lúc bắn (bloom hiện tại)
     hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee, !!def.consumable)
 
     updateTargets(targets, dt)
@@ -685,7 +693,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
 
     const ev = stepWeaponCmd(ws, cmd)
     if (ev === 'fired') {
-      const pellets = computeShotDirs(shotDirs, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, computeSpreadDeg(state, ws, def, cfg, nowMs, true))
+      const pellets = computeShotDirs(shotDirs, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, computeSpreadDeg(state, ws, def, selfCfg, nowMs, true))
       vm.onFire(def.melee)
       lastFireDir[0] = shotDirs[0]![0]; lastFireDir[1] = shotDirs[0]![1]; lastFireDir[2] = shotDirs[0]![2]   // cho điểm máu khi HitConfirm về
       playShot(def.id, ws.ammo[def.id]!)

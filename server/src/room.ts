@@ -1,4 +1,4 @@
-import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, sanitizeRoomConfig, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
+import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, sanitizeRoomConfig, type Role, type ZombieStats, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 import type { RoomGrenade } from './grenades'
@@ -47,6 +47,11 @@ export interface Player {
   inRound: boolean               // Sinh Tử: có mặt trong ván hiện tại (người vào giữa ván chỉ xem → không nhận tiền cuối ván)
   survived: boolean              // Sinh Tử: còn sống tới hết ván trước → giữ súng sang ván sau
   bot: BotController | null      // plan 15: có = bot (transport rỗng, input do BotController sinh mỗi tick)
+  role: Role                     // plan 16: 'zombie' dùng movement/vuốt/hitbox riêng (xem shared/zombie.ts)
+  zstats: ZombieStats | null     // thông số zombie đang áp (null = người)
+  lastHurtAt: number             // serverTime lần cuối trúng đạn (zombie hồi máu sau regenDelayMs không bị bắn)
+  transformUntil: number         // serverTime hết biến hình: trước đó bất tử, không di chuyển/bắn được
+  pendingClaw: { at: number; cmd: InputCmd } | null   // cào mạnh đang vung: trúng khi tới `at` (xác định lúc đó)
 }
 
 /** Hỗn Chiến theo luật của server (dùng khi phòng tạo không kèm cài đặt, và trong test) */
@@ -175,6 +180,11 @@ export class Room {
       inRound: true,
       survived: false,
       bot: null,
+      role: 'human',
+      zstats: null,
+      lastHurtAt: 0,
+      transformUntil: 0,
+      pendingClaw: null,
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name, characterSet: this.characterSet,
       config: this.config, players: [...this.players.values()].map(o => ({ id: o.id, name: o.name })) })
@@ -249,6 +259,31 @@ export class Room {
     if (anyDeath) this.mode.afterDeaths(this)
   }
 
+  // Biến thành zombie (plan 16): sang phe B (không có friendly fire giữa zombie), cầm vuốt, máu theo loại. transformMs > 0: bất tử + đứng yên chừng đó
+  makeZombie(p: Player, stats: ZombieStats, transformMs = 0): void {
+    p.role = 'zombie'
+    p.zstats = stats
+    p.hp = stats.hpMax
+    p.lastHurtAt = -Infinity
+    p.pendingClaw = null
+    p.loadout = { slots: [{ key: 'claw', paid: 0 }, null, null, null, null] }
+    this.equip(p)
+    if (p.team !== 'B') this.setTeam(p, 'B')
+    if (transformMs > 0) { p.transformUntil = this.serverNow + transformMs; p.invulnUntil = p.transformUntil }
+  }
+
+  // Về làm người (hết ván, lệnh debug): bộ súng mặc định của đội
+  makeHuman(p: Player, team: TeamId = 'A'): void {
+    p.role = 'human'
+    p.zstats = null
+    p.hp = PLAYER_MAX_HP
+    p.pendingClaw = null
+    p.transformUntil = 0
+    if (p.team !== team) this.setTeam(p, team)
+    p.loadout = defaultLoadout(p.team, this.eco)
+    this.equip(p)
+  }
+
   // Hồi sinh người đã chết đủ lâu
   respawnDue(): void {
     for (const p of this.players.values()) {
@@ -284,13 +319,15 @@ export class Room {
       grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0,
     }
     p.alive = true
-    p.hp = PLAYER_MAX_HP
+    p.hp = p.zstats ? p.zstats.hpMax : PLAYER_MAX_HP
     p.killerId = -1
     p.invulnUntil = this.serverNow + SPAWN_INVULN_MS
+    p.lastHurtAt = -Infinity
     // Chết thì mất súng đã mua (tiền giữ nguyên): hồi sinh với bộ mặc định của đội, cầm súng dài
-    const keep = keepLoadout || this.eco.keepLoadoutOnDeath
+    const keep = keepLoadout || this.eco.keepLoadoutOnDeath || p.zstats !== null
     if (!keep) p.loadout = defaultLoadout(p.team, this.eco)
     this.equip(p, keep ? p.weapon.slot : DEFAULT_SLOT)
+    if (p.zstats) p.pendingClaw = null
     if (this.offline && p.money !== this.eco.maxMoney) {   // offline: mỗi lần hồi sinh nạp lại đủ tiền
       p.money = this.eco.maxMoney
       p.transport.send({ t: MsgType.MoneyEvent, delta: p.money, reason: 'reset' })

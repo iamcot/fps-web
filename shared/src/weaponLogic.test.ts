@@ -186,13 +186,14 @@ describe('vũ khí mới (H.1)', () => {
   const SHOTGUN = weaponByKey('shotgun')!, SMG = weaponByKey('smg')!, KNIFE = weaponByKey('knife')!, SNIPER = weaponByKey('sniper')!
 
   it('mỗi súng có dòng/ô hợp lệ, dao không mua được, giá khớp bảng', () => {
-    const price: Record<string, number> = { knife: 0, colt: 300, rulo: 700, shotgun: 1100, smg: 1250, ak47: 2700, m16: 3100, sniper: 4750, m67: 300 }
-    expect(WEAPONS.length).toBe(9)   // 8 súng + lựu đạn M67
+    const price: Record<string, number> = { knife: 0, colt: 300, rulo: 700, shotgun: 1100, smg: 1250, ak47: 2700, m16: 3100, sniper: 4750, m67: 300, claw: 0, claw_heavy: 0 }
+    expect(WEAPONS.length).toBe(11)   // 8 súng + lựu đạn M67 + 2 vuốt zombie
     for (const w of WEAPONS) {
       expect(price[w.key], w.key).toBe(w.price)
       expect(CATEGORY_SLOT[w.category]).toBeGreaterThanOrEqual(0)
     }
     expect(KNIFE.buyable).toBe(false)
+    expect(weaponByKey('claw')!.buyable).toBe(false)
   })
 
   it('shotgun: 8 tia; 3m đủ sát thương, 25m giảm còn ~37% (falloff nội suy)', () => {

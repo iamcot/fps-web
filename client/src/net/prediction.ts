@@ -25,12 +25,15 @@ export class Prediction {
 
   constructor(
     private world: CollisionWorld,
-    private cfg: MovementConfig,
+    private cfg: MovementConfig,   // đổi được khi vai trò đổi (người ↔ zombie): setConfig
     initial: PlayerState,
     private now: () => number = () => performance.now(),
   ) {
     this.predicted = initial
   }
+
+  /** Đổi cấu hình di chuyển (người ↔ zombie). Gọi trước onSnapshot của snapshot báo vai mới để replay dùng đúng cấu hình. */
+  setConfig(cfg: MovementConfig): void { this.cfg = cfg }
 
   // Chạy một tick dự đoán. Gọi sau khi cmd được tạo; trả về state mới.
   // speedMul = hệ số tốc độ theo súng đang cầm TRƯỚC cmd này (moveSpeedMul của WeaponState hiện tại)

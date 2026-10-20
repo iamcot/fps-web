@@ -2,7 +2,9 @@ import { WEAPONS, type MovementConfig, type SpreadDef } from '@fps/shared'
 
 type FieldRange = [min: number, max: number, step: number]
 
-const RANGES: Record<keyof MovementConfig, FieldRange> = {
+// Chỉ các tham số số của người (leap/hopPenalty là của zombie, nằm trong shared/zombie.ts)
+type TunableKey = Exclude<keyof MovementConfig, 'leap' | 'hopPenalty'>
+const RANGES: Record<TunableKey, FieldRange> = {
   runSpeed:      [1,    20,  0.5],
   crouchSpeed:   [1,    10,  0.5],
   groundAccel:   [1,    40,  0.5],
@@ -56,9 +58,9 @@ export function initTuningPanel(cfg: MovementConfig): void {
   panel.append(tabs, moveBox, spreadBox)
   buildSpreadTab(spreadBox)
 
-  const labels: Partial<Record<keyof MovementConfig, HTMLSpanElement>> = {}
+  const labels: Partial<Record<TunableKey, HTMLSpanElement>> = {}
 
-  for (const key of Object.keys(RANGES) as (keyof MovementConfig)[]) {
+  for (const key of Object.keys(RANGES) as TunableKey[]) {
     const [min, max, step] = RANGES[key]
     const row = document.createElement('div')
     row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:2px'
@@ -110,7 +112,7 @@ export function initTuningPanel(cfg: MovementConfig): void {
       panel.style.display = visible ? 'block' : 'none'
       // Đồng bộ slider nếu cfg bị thay đổi từ ngoài
       if (visible) {
-        for (const key of Object.keys(RANGES) as (keyof MovementConfig)[]) {
+        for (const key of Object.keys(RANGES) as TunableKey[]) {
           const inputs = moveBox.querySelectorAll<HTMLInputElement>('input[type=range]')
           const idx = (Object.keys(RANGES) as string[]).indexOf(key)
           if (inputs[idx]) {

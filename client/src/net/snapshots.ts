@@ -13,6 +13,7 @@ export interface SnapshotStore {
   loadout: (OwnedWeapon | null)[] | null   // súng đã mua ở 4 ô
   hp: number                  // máu của mình
   flags: number               // cờ NetFlag của mình (Dead/Invuln)
+  me: NetPlayer | null        // bản NetPlayer đầy đủ của mình (zombie: hpMax, runSpeed, leapCd...)
   count: number
   perSec: number              // số snapshot nhận mỗi giây (cập nhật mỗi ~1s)
 }
@@ -22,7 +23,7 @@ export function attachSnapshots(
   yourId: number,
   onSnapshot?: (store: SnapshotStore) => void,
 ): SnapshotStore {
-  const store: SnapshotStore = { yourId, tick: 0, serverTime: 0, ack: -1, players: [], self: null, wpn: null, money: 0, loadout: null, hp: 100, flags: 0, count: 0, perSec: 0 }
+  const store: SnapshotStore = { yourId, tick: 0, serverTime: 0, ack: -1, players: [], self: null, wpn: null, money: 0, loadout: null, hp: 100, flags: 0, me: null, count: 0, perSec: 0 }
   let windowStart = performance.now()
   let windowCount = 0
   transport.onMessage(msg => {
@@ -46,6 +47,7 @@ export function attachSnapshots(
     store.loadout = msg.loadout ?? store.loadout
     store.hp = me?.hp ?? store.hp
     store.flags = me?.flags ?? 0
+    store.me = me ?? null
     onSnapshot?.(store)
   })
   return store

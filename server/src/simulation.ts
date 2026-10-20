@@ -1,6 +1,6 @@
 import {
   Btn, DT, MatchPhase, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE, VOID_Y,
-  WEAPONS, isValidCmd, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
+  WEAPONS, ZOMBIE, CLAW_HEAVY_ID, isValidCmd, movementFor, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
 import type { Player, Room } from './room'
@@ -28,15 +28,22 @@ export function enqueueCmds(p: Player, cmds: unknown, nowMs: number = performanc
   }
 }
 
-export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = null): void {
+// Biến hình (plan 16): bất tử, đứng yên, không bắn. Client áp cùng luật qua NetFlag.Transform
+function buttonMask(p: Player, room: Room | null): number {
+  if (room && room.serverNow < p.transformUntil) return 0
+  return phaseButtonMask(room?.phase ?? MatchPhase.Playing, p.alive)
+}
+
+export function stepPlayer(p: Player, baseCfg: MovementConfig, room: Room | null = null): void {
   if (!p.world) return
+  const cfg = movementFor(baseCfg, p.zstats)
   let ran = 0
   while (ran < MAX_INPUTS_PER_TICK && p.inputQueue.length > 0) {
     const cmd = p.inputQueue.shift()!
     if (cmd.seq <= p.lastProcessedSeq) continue   // trùng hoặc cũ
     // Nút bị cấm (chết / đếm ngược / hết trận): bỏ nút, vẫn bước để rơi xuống đất, xoay và ack tiếp.
     // Client áp cùng phaseButtonMask nên dự đoán khớp.
-    const mask = phaseButtonMask(room?.phase ?? MatchPhase.Playing, p.alive)
+    const mask = buttonMask(p, room)
     let eff = cmd
     if ((cmd.buttons & ~mask) !== 0) {
       eff = p.deadCmd
@@ -52,7 +59,10 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
     if (ev === 'fired' && p.alive) {
       p.shotsFired++
       p.invulnUntil = 0   // bắn phát hợp lệ đầu tiên thì hết bất tử
-      if (room) resolveShot(p, room, eff, cfg)
+      if (room) {
+        if (WEAPONS[p.weapon.current]!.id === CLAW_HEAVY_ID) p.pendingClaw = { at: room.serverNow + ZOMBIE.heavyWindupMs, cmd: { ...eff } }   // cào mạnh: vung 0,3s rồi mới trúng
+        else resolveShot(p, room, eff, baseCfg)
+      }
     } else if (room && p.alive && (ev === 'pull' || ev === 'cancel' || ev === 'threw')) {
       // Lựu đạn: động tác cho người khác vẽ; ném thật thì tạo quả (state đã là sau cmd này)
       const mode = p.weapon.nade.mode
@@ -75,10 +85,23 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
   // Chạy tiếp lastCmd đã bỏ Jump/Fire/Reload, không tăng lastProcessedSeq
   const idle = p.idleCmd
   const last = p.lastCmd
-  idle.buttons = last ? last.buttons & HELD_MASK & phaseButtonMask(room?.phase ?? MatchPhase.Playing, p.alive) : 0
+  idle.buttons = last ? last.buttons & HELD_MASK & buttonMask(p, room) : 0
   idle.yaw = last ? last.yaw : p.state.yaw
   idle.pitch = last ? last.pitch : p.state.pitch
   p.state = stepMovement(p.state, idle, p.world, cfg, DT, moveSpeedMul(p.weapon), adsMoveFor(p.weapon), false)
+}
+
+// Cào mạnh tới lúc trúng (đo lại vị trí bây giờ: người lùi kịp thì hụt) + hồi máu zombie
+function stepZombieExtras(p: Player, room: Room, baseCfg: MovementConfig): void {
+  const pc = p.pendingClaw
+  if (pc && room.serverNow >= pc.at) {
+    p.pendingClaw = null
+    if (p.alive && p.zstats) resolveShot(p, room, pc.cmd, baseCfg, WEAPONS[CLAW_HEAVY_ID])
+  }
+  const z = p.zstats
+  if (z && p.alive && p.hp > 0 && p.hp < z.hpMax && room.serverNow - p.lastHurtAt >= ZOMBIE.regenDelayMs) {
+    p.hp = Math.min(z.hpMax, p.hp + z.regenPerSec * DT)
+  }
 }
 
 // serverTime = thời điểm của tick này; lịch sử hitbox ghi theo mốc này sau khi mọi người đã bước
@@ -88,6 +111,7 @@ export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serv
   for (const p of room.players.values()) {
     if (p.bot && p.world) p.bot.drive(room, p, serverTime)   // bot sinh input trước khi bước, như một client gửi cmd
     stepPlayer(p, cfg, room)
+    stepZombieExtras(p, room, cfg)
     if (p.alive && p.state.pos[1] < VOID_Y) { p.hp = 0; p.killerId = p.id; p.killWeapon = p.weapon.current; p.killHeadshot = false }   // rớt khỏi map
   }
   room.finalizeDeaths()
@@ -103,7 +127,10 @@ export function sendSnapshots(room: Room, tick: number, serverTime: number): voi
   const players: NetPlayer[] = []
   for (const p of room.players.values()) {
     const flags = (p.alive ? 0 : NetFlag.Dead) | (p.alive && serverTime < p.invulnUntil ? NetFlag.Invuln : 0)
-    players.push(stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current, p.killStreak))
+      | (p.zstats ? NetFlag.Zombie : 0) | (serverTime < p.transformUntil ? NetFlag.Transform : 0)
+    const np = stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current, p.killStreak)
+    if (p.zstats) { np.hpMax = p.zstats.hpMax; np.runSpeed = p.zstats.runSpeed; np.ztype = p.zstats.type }
+    players.push(np)
   }
   for (const p of room.players.values()) {
     p.transport.send({ t: MsgType.Snapshot, tick, serverTime, ack: p.lastProcessedSeq, players, wpn: p.weapon, money: p.money, loadout: p.loadout.slots })

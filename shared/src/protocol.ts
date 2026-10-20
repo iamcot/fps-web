@@ -167,6 +167,8 @@ export const NetFlag = {
   Sliding:   1 << 2,   // slideTimer > 0; chỉ để hiển thị, không dùng để dựng lại state
   Dead:      1 << 3,   // đã chết, chờ hồi sinh (không có hitbox, không vẽ)
   Invuln:    1 << 4,   // bất tử sau hồi sinh (vẽ nhấp nháy)
+  Zombie:    1 << 5,   // vai zombie (plan 16): dùng cấu hình di chuyển/vuốt zombie, vẽ model zombie
+  Transform: 1 << 6,   // đang biến hình (bất tử, không di chuyển được)
 } as const
 
 export interface NetPlayer {
@@ -183,6 +185,10 @@ export interface NetPlayer {
   team: TeamId
   weapon: number   // súng đang cầm (để vẽ súng trên tay người khác)
   killStreak: number   // chuỗi hạ hiện tại (≥ ECONOMY.bountyStreak: dấu truy nã trên đầu)
+  leapCd?: number      // zombie: giây còn lại của hồi chiêu nhảy E (reconcile dùng đúng giá trị)
+  hpMax?: number       // zombie: máu tối đa (máu zombie hàng nghìn, HUD cần để vẽ thanh máu)
+  runSpeed?: number    // zombie: tốc độ chạy theo loại (client dựng cấu hình di chuyển giống server)
+  ztype?: string       // zombie: loại ('mother'/'normal'/...), để chọn dáng/tint
 }
 
 export interface SnapshotMsg {
@@ -369,7 +375,7 @@ export function isValidCmd(c: unknown): c is InputCmd {
 }
 
 export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0, team: TeamId = 'A', weapon = 0, killStreak = 0): NetPlayer {
-  return {
+  const out: NetPlayer = {
     id,
     pos: [s.pos[0], s.pos[1], s.pos[2]],
     vel: [s.vel[0], s.vel[1], s.vel[2]],
@@ -378,6 +384,8 @@ export function stateToNet(id: number, s: PlayerState, hp = 100, extraFlags = 0,
     slideTimer: s.slideTimer, slideCooldown: s.slideCooldown, adsT: s.adsT,
     hp, team, weapon, killStreak,
   }
+  if (s.leapCd) out.leapCd = s.leapCd
+  return out
 }
 
 export function netToState(n: NetPlayer): PlayerState {
@@ -388,6 +396,7 @@ export function netToState(n: NetPlayer): PlayerState {
     grounded: (n.flags & NetFlag.Grounded) !== 0,
     crouching: (n.flags & NetFlag.Crouching) !== 0,
     slideTimer: n.slideTimer, slideCooldown: n.slideCooldown, adsT: n.adsT ?? 0,
+    ...(n.leapCd ? { leapCd: n.leapCd } : null),
   }
 }
 

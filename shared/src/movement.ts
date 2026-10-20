@@ -9,6 +9,7 @@ export const Btn = {
   Reload:  1 << 7,
   Aim:     1 << 8,   // giữ chuột phải: ngắm (ADS / scope); khi cầm lựu đạn = ném thấp (lăn)
   QuickNade: 1 << 9, // phím G: cầm lựu đạn + rút chốt luôn, thả = ném mạnh rồi tự đổi về súng trước
+  Ability:  1 << 10, // phím E: chiêu của zombie (nhảy cao). Người không dùng
 } as const
 
 export interface InputCmd {
@@ -30,6 +31,7 @@ export interface PlayerState {
   slideTimer: number
   slideCooldown: number
   adsT: number   // 0..1: mức ngắm (0 = hông, 1 = ngắm hẳn); ảnh hưởng tốc độ chạy nên nằm trong state của movement
+  leapCd?: number   // giây còn lại của hồi chiêu nhảy cao (zombie, plan 16); thiếu = 0. Nằm trong state để tất định
 }
 
 /** Tham số ngắm của súng đang cầm, cho stepMovement */
@@ -61,6 +63,9 @@ export interface MovementConfig {
   slideFriction: number
   slideCooldown: number
   slideMinSpeed: number
+  // Chỉ zombie (plan 16, ZF.2) – bỏ trống ở cấu hình người
+  leap?: { velY: number; forward: number; cooldownMs: number }   // chiêu nhảy cao (Btn.Ability)
+  hopPenalty?: number   // 0..1: mỗi lần nhảy khỏi đất mất ngần này tốc độ ngang (chống bunny hop)
 }
 
 export const defaultMovement: MovementConfig = {
@@ -119,12 +124,14 @@ export function stepMovement(
   ads: AdsMove | null = null,   // súng đang cầm có ngắm không (null = không); weaponLogic.adsMoveFor
   adsWant = false,   // muốn ngắm (giữ Aim, không nạp/đổi súng); movement còn kiểm thêm đang đứng đất, không trượt
 ): PlayerState {
+  world.setCrouchHeight?.(cfg.crouchHeight)
   const pos: [number, number, number] = [state.pos[0], state.pos[1], state.pos[2]]
   const vel: [number, number, number] = [state.vel[0], state.vel[1], state.vel[2]]
   let grounded      = state.grounded
   let crouching     = state.crouching
   let slideTimer    = state.slideTimer
   let slideCooldown = state.slideCooldown
+  let leapCd        = state.leapCd ?? 0
   // Ngắm được khi đứng trên đất và không trượt (kiểm trên state TRƯỚC tick); không thì adsT tự giảm
   const aimOk = !!ads && adsWant && grounded && state.slideTimer <= 0
   let adsT = state.adsT
@@ -170,10 +177,19 @@ export function stepMovement(
   const sliding = slideTimer > 0 && grounded
 
   if (grounded) {
-    if (jumping) {
+    if (cfg.leap && (input.buttons & Btn.Ability) && leapCd <= 0) {
+      // Chiêu nhảy cao: vel.y cố định + đà ngang theo hướng nhìn (yaw), hồi chiêu cooldownMs
+      vel[1]   = cfg.leap.velY
+      vel[0]  -= Math.sin(yaw) * cfg.leap.forward
+      vel[2]  -= Math.cos(yaw) * cfg.leap.forward
+      grounded = false
+      slideTimer = 0
+      leapCd   = cfg.leap.cooldownMs / 1000
+    } else if (jumping) {
       vel[1]   = cfg.jumpVelocity
       grounded = false
       slideTimer = 0
+      if (cfg.hopPenalty) { vel[0] *= 1 - cfg.hopPenalty; vel[2] *= 1 - cfg.hopPenalty }
       // skip friction on jump tick
     } else if (sliding) {
       // Đang trượt: ma sát thấp, không lái được
@@ -197,8 +213,9 @@ export function stepMovement(
 
   slideTimer    = Math.max(0, slideTimer    - dt)
   slideCooldown = Math.max(0, slideCooldown - dt)
+  leapCd        = Math.max(0, leapCd        - dt)
 
-  return { pos, vel, yaw: input.yaw, pitch: input.pitch, grounded, crouching, slideTimer, slideCooldown, adsT }
+  return { pos, vel, yaw: input.yaw, pitch: input.pitch, grounded, crouching, slideTimer, slideCooldown, adsT, leapCd }
 }
 
 export function lerpState(a: PlayerState, b: PlayerState, t: number): PlayerState {
@@ -212,6 +229,7 @@ export function lerpState(a: PlayerState, b: PlayerState, t: number): PlayerStat
     slideTimer: b.slideTimer,
     slideCooldown: b.slideCooldown,
     adsT: b.adsT,
+    leapCd: b.leapCd,
   }
 }
 

@@ -18,6 +18,8 @@ export interface CollisionWorld {
     crouching: boolean,
   ): { pos: [number, number, number]; grounded: boolean; hitCeiling: boolean }
   canStand(pos: [number, number, number]): boolean
+  /** Đổi chiều cao capsule khi ngồi (zombie thấp hơn người, plan 16). Gọi mỗi bước; chỉ dựng lại collider khi giá trị đổi. Mock trong test có thể bỏ qua. */
+  setCrouchHeight?(h: number): void
   castRay(
     origin: [number, number, number],
     dir: [number, number, number],
@@ -50,10 +52,13 @@ class PhysicsWorld implements CollisionWorld {
   private _radius: number
   private _standShape: RAPIER.Capsule
   private _crouching = false
+  private _crouchH: number
+  private _crouchDirty = false
 
   constructor(w: RAPIER.World, standH: number, crouchH: number, r: number) {
     this._w      = w
     this._radius = r
+    this._crouchH = crouchH
     this._standHalf  = (standH  - 2 * r) / 2
     this._crouchHalf = (crouchH - 2 * r) / 2
     this._standOffset  = r + this._standHalf
@@ -73,12 +78,21 @@ class PhysicsWorld implements CollisionWorld {
     this._ctrl.disableAutostep()
   }
 
+  setCrouchHeight(h: number): void {
+    if (h === this._crouchH) return
+    this._crouchH = h
+    this._crouchHalf = (h - 2 * this._radius) / 2
+    this._crouchOffset = this._radius + this._crouchHalf
+    this._crouchDirty = true
+  }
+
   moveCharacter(
     pos: [number, number, number],
     delta: [number, number, number],
     crouching: boolean,
   ): { pos: [number, number, number]; grounded: boolean; hitCeiling: boolean } {
-    if (crouching !== this._crouching) {
+    if (crouching !== this._crouching || (this._crouchDirty && crouching)) {
+      this._crouchDirty = false
       this._w.removeCollider(this._col, false)
       const half = crouching ? this._crouchHalf : this._standHalf
       this._col = this._w.createCollider(
