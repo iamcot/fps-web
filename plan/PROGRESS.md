@@ -118,3 +118,15 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - [x] C.6 1st person: cắt đôi tay model làm viewmodel — (6.1) `asset_tool.py build-fp-arms <rigged.fbx> <out.glb> [donor] [--keep-upper=0.6]`: giữ đỉnh có tổng trọng số tay ≥ 0,5, cắt 40% bắp tay gần vai, giữ nguyên armature (65 xương), không action, texture 1024. Xuất `client/public/models/characters/cop_fparms.glb` (0,16MB) và `robber_fparms.glb` (0,27MB); xem bằng viewer: chỉ còn 2 cánh tay, mép cắt lởm chởm nằm ở phía vai (ngoài khung hình). (6.2) `render/fpArms.ts` + `viewmodel.ts`: tay xương thật thay BlockArm khi glb đã load (BlockArm vẫn được giải IK ẩn để F9 có chấm debug và làm dự phòng, glb lỗi thì log cảnh báo + tay khối), cùng `SkeletonArm`/ngón/`reloadLeftHand` như góc 3, băng đạn đi theo xương bàn tay trái, đổi đội đổi model, súng 1 tay thu mất tay trái (scale xương về 0). Số mới ở `poses.json: first` (`armsRootOffset/RotDeg/Scale`, `armsPoleR/L`) và F9 tab First. `armsScale` mặc định **1,4** (không phải 1,0 như plan): tay người thật dài 0,46m ngắn hơn khối cũ (0,9m) nên 1,0 không với tới súng. ⚠️ Số `armsRoot*`, `armsPole*` là số đoán (đã xem bằng Chromium: thấy tay trái đỡ ốp trước + nạp đạn tay trái chuyển động, tay phải ở mép dưới phải) — cần chỉnh bằng F9
 - [x] C.7 Chết, đổi đội, dọn bộ nhớ — chết: `SkelCharacter.die(headshot)` phát `death_1` (thường) hoặc `death_2` (**headshot**, theo cờ `headshot` trong tin `Kill` mà server gửi cho mọi client; tin đến muộn ≤0,5s vẫn đổi được kiểu chết; `players.markKill`), IK mờ về 0 trong 0,15s, xác nằm 3s rồi mờ 0,7s; súng tách khỏi tay (giữ toạ độ thế giới, rơi thẳng + xoay, chạm sàn thì nằm nghiêng, mờ cùng xác, vật liệu nhân bản nên mờ riêng). Hồi sinh: `revive()` reset mixer về idle, IK 0→1 trong 0,15s, bỏ súng rơi. Đổi đội/rời phòng: dispose vật liệu + skeleton của bản clone (geometry/texture dùng chung nên không dispose). Kiểm bằng Chromium: sau khi làm nóng, 20 lần vào/ra phòng (có chết giữa chừng, đủ 8 súng) `renderer.info.memory` giữ nguyên geometries=85 textures=9. Hook debug chỉ có khi chạy vite dev: `window.__players/__renderer/__vm/__fpArms/__skelChars/__poses`
 - [ ] C.8 (Người dùng) Kiểm tra license
+
+## 12 – Lựu đạn M67
+- [ ] G.0 Chuẩn bị model lựu đạn (tách chốt, thìa) + icon
+- [ ] G.1 Ô thứ 5, cửa hàng, kinh tế hàng tiêu hao
+- [ ] G.2 Vật lý lựu đạn tất định (có test)
+- [ ] G.3 Server: rút chốt, ném, nổ, sát thương, đẩy lùi
+- [ ] G.4 Client: mô phỏng + vẽ lựu đạn, dự đoán ném
+- [ ] G.5 Viewmodel: rút chốt, ném, đường bay dự kiến
+- [ ] G.6 3rd person: animation ném (người dùng tải Mixamo)
+- [ ] G.7 Hiệu ứng nổ
+- [ ] G.8 Âm thanh lựu đạn + ù tai
+- [ ] G.9 HUD ô 5, cửa hàng, cảnh báo lựu đạn gần
