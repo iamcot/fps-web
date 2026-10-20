@@ -135,6 +135,7 @@ Quy tắc phải giữ khi chỉnh map:
 | `08-task-gun-audio.md` | Bộ súng + âm thanh từng súng |
 | `09-hud-shop-economy.md` ⚠️ | HUD mới, 4 ô vũ khí, cửa hàng, kinh tế |
 | `tools-blend-to-glb.md` | Chuyển model .blend sang .glb |
+| `11-characters.md` ⚠️ | Nhân vật có xương cho 2 phe, IK tay thật, tay viewmodel cắt từ model |
 
 ## Định nghĩa "xong" bản đầu tiên
 

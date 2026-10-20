@@ -107,3 +107,14 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - `render/bloodFx.ts` (pool 220 giọt InstancedMesh + 90 vệt dẹt): giọt văng theo hướng đạn + hất lên, rơi theo trọng lực, chạm sàn/tường (raycast physics world mỗi frame) thì để lại vệt trắng dính bề mặt (lookAt theo normal), mờ dần sau 14s. Chỉ hiệu ứng client, không đổi protocol/shared.
 - Nguồn điểm trúng: offline = tia trúng hình nhân; online đạn của mình = điểm trên tia vừa bắn gần thân/đầu mục tiêu nhất khi nhận `HitConfirm` (server không gửi điểm trúng); đạn người khác = tia `ShotFx` dừng giữa trời trước tầm bắn (bỏ qua nếu sát camera = trúng mình). Đạn người khác luôn tính là trúng thân (không biết headshot).
 - Kiểm bằng Chromium (gọi `spawn` trực tiếp): giọt bay, vệt dính sàn đúng. Chưa kiểm vệt dính tường và trúng người thật online.
+
+## 11 – Nhân vật mới 2 phe (model có xương)
+- [ ] C.0 Inspect 2 model nhân vật + ảnh preview
+- [ ] C.1 Chuẩn hoá + xuất FBX cho Mixamo
+- [ ] C.2 (Người dùng) Rig lại trên Mixamo + tải animation
+- [ ] C.3 Ghép animation + xuất cop.glb / robber.glb
+- [ ] C.4 Animation thân dưới, thân trên ngắm theo pitch
+- [ ] C.5 3rd person: IK xương tay thật + ngón nắm súng
+- [ ] C.6 1st person: cắt đôi tay model làm viewmodel
+- [ ] C.7 Chết, đổi đội, dọn bộ nhớ
+- [ ] C.8 (Người dùng) Kiểm tra license
