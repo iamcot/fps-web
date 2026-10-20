@@ -152,3 +152,7 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - [ ] M.6 HUD Sinh Tử (tỉ số, ván, người sống, banner)
 - [ ] M.7 Hỗn Chiến: cài đặt phòng + hoà
 - [ ] M.8 Lệnh debug (dev)
+
+## Sửa lỗi sau plan 12/lobby
+- Map bị nghiêng: `applyCameraRotation` không reset `rotation.z` trong khi rung vụ nổ cộng `+=` mỗi frame → nghiêng cộng dồn sau mỗi lần nổ. Giờ đặt `rotation.z = 0` mỗi frame.
+- Nhảy ra khỏi map: bunny-hop từ viền bệ cao góc map (7.2m) vượt được tường 8m (tái hiện bằng test). Thêm 3 hộp va chạm vô hình cao 32m trên tường (`MapBox.invisible`, client không vẽ) + lưới an toàn: server tính chết khi `y < VOID_Y (-20)`.

@@ -1,5 +1,5 @@
 import {
-  Btn, DT, MatchPhase, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE,
+  Btn, DT, MatchPhase, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE, VOID_Y,
   WEAPONS, isValidCmd, phaseButtonMask, moveSpeedMul, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
@@ -85,7 +85,10 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
 export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serverNow, tick?: number): void {
   room.serverNow = serverTime
   room.tick = tick ?? room.tick + 1
-  for (const p of room.players.values()) stepPlayer(p, cfg, room)
+  for (const p of room.players.values()) {
+    stepPlayer(p, cfg, room)
+    if (p.alive && p.state.pos[1] < VOID_Y) { p.hp = 0; p.killerId = p.id; p.killWeapon = p.weapon.current; p.killHeadshot = false }   // rớt khỏi map
+  }
   room.finalizeDeaths()
   stepGrenades(room)   // sau finalizeDeaths: lựu đạn rơi từ người vừa chết đã vào danh sách
   room.respawnDue()

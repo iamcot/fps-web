@@ -11,3 +11,6 @@ export const SPAWN_INVULN_MS = 2000;
 export const INPUT_STARVE_GRACE_TICKS = 6;   // hàng đợi input trống ≤ ngần này tick: đứng chờ cmd, không chạy bước 'idle'
 export const SEQ_AHEAD_SLACK_MS = 1000;   // seq của cmd được chạy trước thời gian thực tối đa ngần này (chống seq nhảy cóc để bắn nhanh)
 export const PLAYER_MAX_HP = 100;
+
+/** Rơi thấp hơn mức này (rớt khỏi map) thì tính là chết */
+export const VOID_Y = -20;

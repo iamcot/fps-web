@@ -106,6 +106,7 @@ export function applyCameraRotation(camera: THREE.Camera): void {
   (camera as THREE.PerspectiveCamera).rotation.order = 'YXZ'
   camera.rotation.y = yaw
   camera.rotation.x = pitch
+  camera.rotation.z = 0   // rung vụ nổ cộng vào z mỗi frame: không reset thì nghiêng cộng dồn
 }
 
 // Server đặt hướng nhìn (hồi sinh)

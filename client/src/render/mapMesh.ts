@@ -74,6 +74,7 @@ export function buildMapMesh(map: LoadedMap): THREE.Group {
 
   const crateSlots: THREE.Mesh[] = []   // hộp tạm của các thùng, thay bằng model khi load xong (va chạm/đạn luôn theo hộp của map)
   for (const box of map.boxes) {
+    if (box.invisible) continue
     const [sx, sy, sz] = box.size
     const look = resolveBoxLook(box)
     const geo = new THREE.BoxGeometry(sx, sy, sz)

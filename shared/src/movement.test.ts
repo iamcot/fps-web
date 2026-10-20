@@ -145,3 +145,15 @@ describe('slide', () => {
     expect(s.slideTimer).toBe(0)
   })
 })
+
+describe('tường chắn trời', () => {
+  it('bunny-hop từ viền bệ cao (7.2m) về phía tường không vượt ra khỏi map', async () => {
+    const world = await createWorld(loadedMap)
+    let s = makeState([-15, 7.3, -16], 0)
+    for (let i = 0; i < 30; i++) s = stepMovement(s, { seq: i, buttons: 0, yaw: 0, pitch: 0, weapon: 0 }, world, cfg, DT)
+    for (let i = 0; i < 600; i++) {
+      s = stepMovement(s, { seq: i, buttons: Btn.Forward | Btn.Jump, yaw: 0, pitch: 0, weapon: 0 }, world, cfg, DT)
+      expect(s.pos[2]).toBeGreaterThan(-20.1)
+    }
+  })
+})

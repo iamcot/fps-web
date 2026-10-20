@@ -7,6 +7,9 @@
     { "pos": [-30.5, 4, 0],  "size": [1, 8, 40],     "texture": "stone" },
     { "pos": [0, 4, -20.5],  "size": [60, 8, 1],     "texture": "stone", "noMirror": true },
     { "pos": [0, 4, 20.5],   "size": [60, 8, 1],     "texture": "stone", "noMirror": true },
+    { "pos": [-30.5, 24, 0], "size": [1, 32, 40],    "texture": "stone", "invisible": true },
+    { "pos": [0, 24, -20.5], "size": [60, 32, 1],    "texture": "stone", "noMirror": true, "invisible": true },
+    { "pos": [0, 24, 20.5],  "size": [60, 32, 1],    "texture": "stone", "noMirror": true, "invisible": true },
 
     { "pos": [-19, 0, 0],      "size": [0.4, 1, 32],   "texture": "wall" },
     { "pos": [-19, 3.4, 0],        "size": [0.4, 1.6, 32],   "texture": "wall" },

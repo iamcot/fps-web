@@ -9,6 +9,7 @@ export interface MapBox {
   variant?: number    // chọn ảnh thứ n (từ 1) trong class
   color?: string      // '#rrggbb' nhân vào ảnh (hoặc sơn phẳng)
   noMirror?: boolean
+  invisible?: boolean // chỉ va chạm, không vẽ (tường chắn trời)
 }
 
 export interface MapRamp {
