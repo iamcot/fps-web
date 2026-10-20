@@ -1,7 +1,7 @@
 // Server offline (plan 15, B.0): cùng code Room/simulation như server Node nhưng chạy trong Web Worker của trình duyệt.
 // Phòng 'offline' chỉ có một người thật + bot. Không import ws/fs/process.
 import {
-  MsgType, defaultMovement, otherTeam, type JoinMsg, type LoadedMap, type MovementConfig, type NavDebugMsg, type Transport, type TeamId,
+  MsgType, defaultMovement, otherTeam, isZombieMode, type JoinMsg, type RoomOptions, type LoadedMap, type MovementConfig, type NavDebugMsg, type Transport, type TeamId,
 } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { TickLoop } from '../tickLoop'
@@ -27,12 +27,22 @@ export interface OfflineHost {
 export async function createOfflineHost(map: LoadedMap, now: () => number = () => performance.now(), cfg: MovementConfig = defaultMovement): Promise<OfflineHost> {
   const rules = offlineRules()
   const rooms = new RoomManager(map, now, rules, 'deathmatch')
-  const room = rooms.createRoom(OFFLINE_ROOM, undefined, 'deathmatch')
+  let room = rooms.createRoom(OFFLINE_ROOM, undefined, 'deathmatch')
   room.offline = true
 
   // Rapier khởi tạo wasm ở lần createWorld đầu → làm tuần tự, world này dùng riêng cho lưới di chuyển
   const navWorld: CollisionWorld = await createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius)
-  room.nav = buildNav(navWorld, map, cfg)
+  const nav = buildNav(navWorld, map, cfg)
+  room.nav = nav
+  // Người chơi chọn thể thức lúc vào (Lây Nhiễm / Thủ Thành): dựng lại phòng với cài đặt đó
+  const rebuildRoom = (options: RoomOptions): Room => {
+    rooms.rooms.delete(OFFLINE_ROOM)
+    const r = rooms.createRoom(OFFLINE_ROOM, undefined, 'deathmatch', options)
+    r.offline = true
+    r.nav = nav
+    r.infiniteMoney = true
+    return r
+  }
 
   let human: Player | null = null
   let debugOn = false
@@ -65,10 +75,14 @@ export async function createOfflineHost(map: LoadedMap, now: () => number = () =
     allowDebugCmds: true,
     joinOverride: (transport: Transport, name: string, msg: JoinMsg) => {
       if (human) return null   // một người thật cho mỗi phòng offline
+      if (msg.options && msg.options.mode && msg.options.mode !== 'tdm' && room.players.size === 0) {
+        room = rebuildRoom(msg.options)
+      }
       const pref: TeamId | 'auto' = msg.team === 'A' || msg.team === 'B' ? msg.team : 'A'
       const player = room.join(name, transport, loop.tick, now(), pref)
       if (!player) return null
       human = player
+      if (room.config.settings.mode === 'infection') for (let i = 0; i < 5; i++) addBot(room, 'medium', 'A')   // Lây Nhiễm cần ≥ 3 người: có sẵn 5 bot (xoá được bằng \\)
       return { room, player }
     },
     onJoined: (_room, player) => { player.transport.send(offlineStateMsg(room)) },
@@ -104,7 +118,8 @@ export async function createOfflineHost(map: LoadedMap, now: () => number = () =
   room.infiniteMoney = true   // mặc định bật
 
   return {
-    room, rooms,
+    get room() { return room },
+    rooms,
     connect: transport => handleConnection(ctx, transport),
     pump: () => loop.pump(),
     dispose: () => { clearBots(room); navWorld.dispose() },

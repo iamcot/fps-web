@@ -9,7 +9,7 @@ import { spawnThrown, stepGrenades } from './grenades'
 import { updateMatch } from './match'
 
 // Khi không có input mới, giữ hướng di chuyển nhưng không lặp hành động một lần
-const HELD_MASK = ~(Btn.Jump | Btn.Fire | Btn.Reload)
+const HELD_MASK = ~(Btn.Jump | Btn.Fire | Btn.Reload | Btn.Ability | Btn.Sniff)
 const MAX_CMDS_PER_MSG = 16
 
 // Cmd từ client không đáng tin: sai thì bỏ; hàng đợi quá dài thì bỏ cmd cũ nhất.
@@ -54,6 +54,7 @@ export function stepPlayer(p: Player, baseCfg: MovementConfig, room: Room | null
     p.state = stepMovement(p.state, eff, p.world, cfg, DT, moveSpeedMul(p.weapon), adsMoveFor(p.weapon), adsWanted(p.weapon, eff.buttons, cmd.seq * 1000 / TICK_RATE))
     p.lastProcessedSeq = cmd.seq
     p.lastCmd = cmd
+    p.flashlight = p.alive && !p.zstats && (eff.buttons & Btn.Flashlight) !== 0
     // Chạy cả khi chết (nút đã bị mask nên không bắn được): wantSlot/hoàn tất nạp khớp với dự đoán của client
     const ev = stepWeaponCmd(p.weapon, eff)
     if (ev === 'fired' && p.alive) {
@@ -127,7 +128,7 @@ export function sendSnapshots(room: Room, tick: number, serverTime: number): voi
   const players: NetPlayer[] = []
   for (const p of room.players.values()) {
     const flags = (p.alive ? 0 : NetFlag.Dead) | (p.alive && serverTime < p.invulnUntil ? NetFlag.Invuln : 0)
-      | (p.zstats ? NetFlag.Zombie : 0) | (p.hero ? NetFlag.Hero : 0) | (serverTime < p.transformUntil ? NetFlag.Transform : 0)
+      | (p.zstats ? NetFlag.Zombie : 0) | (p.hero ? NetFlag.Hero : 0) | (p.flashlight ? NetFlag.Flashlight : 0) | (serverTime < p.transformUntil ? NetFlag.Transform : 0)
     const np = stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current, p.killStreak)
     if (p.zstats) { np.hpMax = p.zstats.hpMax; np.runSpeed = p.zstats.runSpeed; np.ztype = p.zstats.type }
     players.push(np)

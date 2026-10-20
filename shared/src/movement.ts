@@ -10,6 +10,8 @@ export const Btn = {
   Aim:     1 << 8,   // giữ chuột phải: ngắm (ADS / scope); khi cầm lựu đạn = ném thấp (lăn)
   QuickNade: 1 << 9, // phím G: cầm lựu đạn + rút chốt luôn, thả = ném mạnh rồi tự đổi về súng trước
   Ability:  1 << 10, // phím E: chiêu của zombie (nhảy cao). Người không dùng
+  Flashlight: 1 << 11, // đèn pin (người, ban đêm): MỨC chứ không phải cạnh — client gửi trạng thái mong muốn trong mọi cmd (phím F bật/tắt)
+  Sniff:    1 << 12, // phím Q: zombie đánh hơi (Lây Nhiễm, plan 16 I.3)
 } as const
 
 export interface InputCmd {

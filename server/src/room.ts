@@ -55,6 +55,7 @@ export interface Player {
   damageMult: number             // anh hùng (Lây Nhiễm) ×1.5
   speedMult: number              // anh hùng ×1.1 tốc độ chạy
   hero: boolean
+  flashlight: boolean            // đèn pin đang bật (người, còn sống): từ Btn.Flashlight của cmd gần nhất
 }
 
 /** Hỗn Chiến theo luật của server (dùng khi phòng tạo không kèm cài đặt, và trong test) */
@@ -193,6 +194,7 @@ export class Room {
       damageMult: 1,
       speedMult: 1,
       hero: false,
+      flashlight: false,
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name, characterSet: this.characterSet,
       config: this.config, players: [...this.players.values()].map(o => ({ id: o.id, name: o.name })) })

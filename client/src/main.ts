@@ -8,9 +8,10 @@ import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
 import { INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
-import { initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
+import { setFlashlightAllowed, flashlightOn, initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
+import { createNight } from './render/night'
 import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase, setTransforming } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby, BACK_KEY, type Session } from './net/lobby'
@@ -95,6 +96,7 @@ initInput(renderer.domElement)
 
 // ── Map mesh ──────────────────────────────────────────────────────────────────
 scene.add(buildMapMesh(loadedMap))
+const night = createNight(scene, hemi, sun, sky, loadedMap.name)
 
 // ── Spawn arrows: chỉ hiện khi bật debug F4 (cùng chế độ vẽ collider) ──────────
 const spawnMarkers = new THREE.Group()
@@ -346,6 +348,10 @@ sessionP.then(session => {
   playerId = session.yourId
   sessionRef = session
   matchHud.setConfig(session.config)
+  {   // thể thức zombie: ban đêm theo cài đặt phòng
+    const st = session.config.settings
+    night.setNight(st.mode === 'infection' || st.mode === 'defense' ? st.lighting === 'night' : false)
+  }
   if (session.offline) matchHud.setUnlimited(true)
   createRoomLabel(session.offline ? `Offline · ${session.mapName} · ${MODE_LABEL[session.config.settings.mode]}` : `${MODE_LABEL[session.config.settings.mode]} · ${session.mapName} · ${session.roomName}`,
     session.offline ? null : `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast('Đã sao chép link phòng'))
@@ -510,7 +516,7 @@ sessionP.then(session => {
   session.transport.onClose(() => {
     setNetHooks(null); snapStore = null; prediction = null
     dead = false; matchPhaseNow = MatchPhase.Playing; buyEndsAt = null; shop.close(); spectator.reset(); spectatingId = -2
-    setDead(false); deathScreen.hide(); setMatchPhase(MatchPhase.Playing); matchHud.clear(); zombieHud.clear(); sessionRef = null
+    setDead(false); deathScreen.hide(); setMatchPhase(MatchPhase.Playing); matchHud.clear(); zombieHud.clear(); night.setNight(false); sessionRef = null
     interpolator.push(0, []); playersRenderer.clear(); ghosts.clear(); grenades.clear()
   })
 })
@@ -697,6 +703,9 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       lastSampled = interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs))
       playersRenderer.update(lastSampled)
     }
+    night.setZombieVision(zombieSelf)
+    setFlashlightAllowed(night.night && !zombieSelf)
+    night.update(camera, flashlightOn() && !dead && spectatingId === -2, lastSampled)
     grenades.update(dt, interp.currentRenderTime > 0 ? interp.currentRenderTime : clock.serverNow(), netStats.rttMs)
     tracers.update(dt * 1000)
     blood.update(dt)

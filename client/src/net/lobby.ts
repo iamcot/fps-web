@@ -117,6 +117,15 @@ export function showLobby(): Promise<Session | null> {
     const done = (s: Session) => { el.remove(); resolve(s) }
     // Offline = một phòng chạy trên chính code server trong Web Worker (có bot). Worker lỗi thì rơi về offline cũ chỉ-client.
     let starting = false
+    let offlineMode: GameMode = (() => { const m = new URLSearchParams(location.search).get('offlineMode'); return m === 'infection' || m === 'defense' ? m : 'tdm' })()
+    // Chọn thể thức cho phòng offline: Hỗn Chiến (mặc định), Lây Nhiễm, Thủ Thành
+    const offlineModeSelect = (): HTMLSelectElement => {
+      const sel = mk('select', INPUT)
+      for (const [v, t] of [['tdm', 'Offline: Hỗn Chiến'], ['infection', 'Offline: Lây Nhiễm'], ['defense', 'Offline: Thủ Thành']] as const) sel.add(new Option(t, v))
+      sel.value = offlineMode
+      sel.addEventListener('change', () => { offlineMode = sel.value as GameMode })
+      return sel
+    }
     const offline = (status?: HTMLElement) => {
       if (starting) return
       starting = true
@@ -124,7 +133,7 @@ export function showLobby(): Promise<Session | null> {
       let worker: Worker | null = null
       startOfflineWorker().then(w => {
         worker = w
-        return joinRoom(createLocalTransport(w), { name: saved.name || 'Người chơi', room: 'offline', team: 'A', create: true })
+        return joinRoom(createLocalTransport(w), { name: saved.name || 'Người chơi', room: 'offline', team: 'A', create: true, ...(offlineMode === 'tdm' ? {} : { options: { mode: offlineMode, maxPlayers: 10 } }) })
       }).then(s => done({ ...s, offline: true, worker: worker! }), err => {
         console.warn('[offline] không chạy được worker, dùng offline chỉ-client', err)
         worker?.terminate()
@@ -143,7 +152,7 @@ export function showLobby(): Promise<Session | null> {
       const off = mk('button', BTN, 'Chơi offline'); off.type = 'button'; off.setAttribute('data-offline', '')
       const err = mk('div', 'color:#f66;min-height:1.2em')
       off.addEventListener('click', () => { saved.name = nameIn.value.trim() || saved.name; offline(err) })
-      form.append(title, nameIn, go, off, err)
+      form.append(title, nameIn, go, offlineModeSelect(), off, err)
       form.addEventListener('submit', e => {
         e.preventDefault()
         const name = nameIn.value.trim()
@@ -171,10 +180,10 @@ export function showLobby(): Promise<Session | null> {
       el.replaceChildren()
       el.style.alignItems = 'flex-start'
       const wrap = mk('div', 'width:min(1000px,94vw);padding:28px 0;display:flex;flex-direction:column;gap:14px')
-      const top = mk('div', 'display:flex;align-items:center;justify-content:space-between')
+      const top = mk('div', 'display:flex;align-items:center;justify-content:space-between;gap:8px')
       top.append(mk('div', 'font-size:22px', `Phòng đang chơi — ${saved.name}`))
       const off = mk('button', BTN, 'Chơi offline'); off.type = 'button'; off.setAttribute('data-offline', ''); off.addEventListener('click', () => { clearInterval(poll); offline(err) })
-      top.appendChild(off)
+      top.append(offlineModeSelect(), off)
       const grid = mk('div', 'display:grid;grid-template-columns:repeat(3,1fr);gap:14px')
       const empty = mk('div', 'opacity:.7;padding:16px 0', 'Chưa có phòng nào. Hãy tạo phòng mới ở bên dưới.')
       const err = mk('div', 'color:#f66;min-height:1.2em')

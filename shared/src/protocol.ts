@@ -170,6 +170,7 @@ export const NetFlag = {
   Sliding:   1 << 2,   // slideTimer > 0; chỉ để hiển thị, không dùng để dựng lại state
   Dead:      1 << 3,   // đã chết, chờ hồi sinh (không có hitbox, không vẽ)
   Invuln:    1 << 4,   // bất tử sau hồi sinh (vẽ nhấp nháy)
+  Flashlight: 1 << 8,  // người đang bật đèn pin (ban đêm): người khác vẽ vệt đèn
   Hero:      1 << 7,   // anh hùng (Lây Nhiễm): máu 200, damage ×1.5, chạy ×1.1
   Zombie:    1 << 5,   // vai zombie (plan 16): dùng cấu hình di chuyển/vuốt zombie, vẽ model zombie
   Transform: 1 << 6,   // đang biến hình (bất tử, không di chuyển được)

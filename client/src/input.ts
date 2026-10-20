@@ -14,6 +14,8 @@ let _mouseLeft = false
 let _mouseRight = false
 let _wheel = 0       // tổng bước lăn chuột chưa đọc (dấu: >0 lăn xuống)
 let _sensScale = 1   // giảm độ nhạy khi zoom (tỉ lệ theo FOV)
+let _flashlight = true         // đèn pin (phím F), mặc định bật; chỉ có tác dụng ban đêm
+let _flashlightAllowed = false // phòng ban đêm + mình là người
 
 // ── Overlay ───────────────────────────────────────────────────────────────────
 const _overlay = document.createElement('div')
@@ -66,6 +68,7 @@ export function initInput(canvas: HTMLElement): void {
 
   document.addEventListener('keydown', (e) => {
     _keys[e.code] = true
+    if (e.code === 'KeyF' && !e.repeat && _locked) _flashlight = !_flashlight
     // Ctrl+phím (S lưu trang, D bookmark, W đóng tab...) mở hộp thoại của trình duyệt
     // → mất focus → keyup Ctrl không bao giờ tới → kẹt ngồi. Chặn mọi Ctrl+phím khi đang khoá chuột.
     if (_locked && e.ctrlKey && e.code !== 'ControlLeft' && e.code !== 'ControlRight') {
@@ -97,6 +100,8 @@ export function sampleButtons(): number {
   if (_keys['KeyC'] || _keys['ControlLeft'] || _keys['ControlRight']) b |= Btn.Crouch
   if (_keys['KeyG'])                                            b |= Btn.QuickNade
   if (_keys['KeyE'])                                            b |= Btn.Ability
+  if (_keys['KeyQ'])                                            b |= Btn.Sniff
+  if (_flashlight && _flashlightAllowed)                        b |= Btn.Flashlight
   if (_mouseLeft)                                               b |= Btn.Fire
   if (_keys['KeyR'])                                            b |= Btn.Reload
   if (_mouseRight)                                              b |= Btn.Aim
@@ -112,6 +117,10 @@ export function applyCameraRotation(camera: THREE.Camera): void {
 
 // Server đặt hướng nhìn (hồi sinh)
 export function setLook(y: number, p: number): void { yaw = y; pitch = p }
+
+/** Phòng ban đêm và mình là người: mới gửi/vẽ đèn pin */
+export function setFlashlightAllowed(v: boolean): void { _flashlightAllowed = v }
+export function flashlightOn(): boolean { return _flashlight && _flashlightAllowed }
 
 export function isKeyDown(code: string): boolean {
   return !!_keys[code]
