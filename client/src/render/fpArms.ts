@@ -51,6 +51,10 @@ export class FpArms {
       mats.push(o.material)
     })
     obj.visible = false
+    // Đo xương (độ dài, khung bàn tay, trung điểm vai) phải làm khi root ở trạng thái gốc: model của phe thứ hai có thể tải xong
+    // sau khi place() đã xoay/scale root cho phe đầu → đo lệch → tay phình to, khuỷu chĩa lên (thứ tự tải đổi theo cache trình duyệt)
+    const keepP = this.root.position.clone(), keepQ = this.root.quaternion.clone(), keepS = this.root.scale.clone()
+    this.root.position.set(0, 0, 0); this.root.quaternion.identity(); this.root.scale.set(1, 1, 1)
     this.root.add(obj)
     obj.updateMatrixWorld(true)
     const bone = (n: string) => model.getObjectByName(n) as THREE.Bone
@@ -62,6 +66,8 @@ export class FpArms {
     const armL = new SkeletonArm(bone('mixamorigLeftArm'), bone('mixamorigLeftForeArm'), bone('mixamorigLeftHand'), fingers('Left'), 'L')
     const mid = armR.upper.getWorldPosition(new THREE.Vector3()).add(armL.upper.getWorldPosition(_v)).multiplyScalar(0.5)
     this.sets.set(team, { obj, armR, armL, mats, mid })
+    this.root.position.copy(keepP); this.root.quaternion.copy(keepQ); this.root.scale.copy(keepS)
+    this.root.updateMatrixWorld(true)
   }
 
   /** Dùng được khi model của đội hiện tại đã load; chưa thì viewmodel vẫn vẽ tay khối. */

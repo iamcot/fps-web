@@ -153,3 +153,6 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - [x] M.7 Hỗn Chiến: `killLimit`/`timeLimitMin` đọc từ cài đặt phòng; HUD `Mục tiêu: N mạng`; hoà khi bằng điểm (đã có sẵn `winnerOf`).
 - [x] M.8 Lệnh debug (`server/src/debugCmds.ts`): `/endround A|B|draw`, `/setround n`, `/time s`, `/money n`, `/hp n`, `/kill`. **Mở ô lệnh bằng phím `/`** (không dùng `~` vì `~` đang là "Đổi phe"). Server bỏ qua khi `NODE_ENV=production`; client chỉ gắn phím ở build dev.
 - Lệch plan (có chủ ý): số message theo bảng đang dùng (CreateRoom/ListRooms đi chung `Join{create,options}`/`ListRooms` đã có từ trước nên không thêm `t:6`/`t:7` mới; RoundEnd=122, RoundReset=123, MatchEnd=124, DebugCmd=8); tên phòng chính là mã phòng (không sinh mã 5 ký tự, không có ô nhập mã); banner kết thúc ván hiện suốt `roundEndSec` (5s) chứ không cắt ở 3s.
+- Tay FP phình to/chĩa lên (lỗi chỉ gặp trên Chrome ẩn danh): `FpArms.add()` đo xương khi root đã bị `place()` xoay/scale cho phe tải trước. Tái hiện bằng cách làm chậm tải `robber_fparms.glb` rồi đổi sang phe Cướp. Giờ đo với root ở trạng thái gốc rồi khôi phục.
+- Sinh Tử: client đồng bộ sống/chết theo cờ Dead của snapshot (không kẹt ở chế độ xem).
+
