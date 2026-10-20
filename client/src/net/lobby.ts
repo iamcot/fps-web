@@ -11,7 +11,7 @@ export interface Session {
 }
 
 const STORE_KEY = 'fps.lobby'
-const WS_URL = `ws://${location.hostname}:8081`
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`   // Vite proxy /ws → backend :8081
 
 function loadSaved(): { name: string; team: string; characters: string } {
   try {
