@@ -92,8 +92,8 @@ function buildCrosshair() {
     root.appendChild(b)
     bars.push(b)
   }
-  const dot = document.createElement('div')   // sniper không ngắm: chỉ một chấm (bắn không ngắm là may rủi)
-  dot.style.cssText = 'position:absolute;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#7CFF7C;box-shadow:0 0 2px #000;display:none'
+  const dot = document.createElement('div')   // sniper không ngắm: chỉ một chấm đen mảnh, nhạt dần ra ngoài (bắn không ngắm là may rủi)
+  dot.style.cssText = 'position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:radial-gradient(circle,rgba(0,0,0,1) 0%,rgba(0,0,0,0.9) 18%,rgba(0,0,0,0.45) 45%,rgba(0,0,0,0) 72%);display:none'
   const ring = document.createElement('div')   // shotgun: vòng mờ cho nón của chùm chì
   ring.style.cssText = 'position:absolute;border:1px solid rgba(124,255,124,0.45);border-radius:50%;display:none;box-sizing:border-box'
   root.append(dot, ring)
