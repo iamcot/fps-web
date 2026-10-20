@@ -441,8 +441,10 @@ sessionP.then(session => {
     interpolator.push(s.serverTime, s.players, s.yourId)
     if (s.hp !== lastHp) { lastHp = s.hp; hudRef?.setHealth(s.hp); setHealthForAudio(s.hp) }
     hudRef?.bottom.setMoney(s.money)
-    if ((s.flags & NetFlag.Dead) !== 0 && !dead && matchHud.mode === 'elimination') {   // vào giữa ván: chỉ xem
-      dead = true; deadAt = performance.now() - 2000; setDead(true)
+    if (matchHud.mode === 'elimination') {   // Sinh Tử: server là nguồn chân lý về sống/chết (cờ Dead trong snapshot)
+      const srvDead = (s.flags & NetFlag.Dead) !== 0
+      if (srvDead && !dead) { dead = true; deadAt = performance.now() - 2000; setDead(true) }   // vào giữa ván: chỉ xem
+      else if (!srvDead && dead) { dead = false; setDead(false); deathScreen.hide(); spectator.reset() }   // lỡ mất tin Respawn: không kẹt ở chế độ xem
     }
     if (s.self) prediction?.onSnapshot(s.ack, s.self, s.wpn)
     if (s.wpn && prediction) reconcileWeapon(ws, s.wpn, prediction.pending)
