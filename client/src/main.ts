@@ -35,7 +35,6 @@ import { createPoseEditor } from './render/poseEditor'
 import { createBloodFx } from './render/bloodFx'
 import { createGrenades } from './render/grenades'
 import { createGrenadeWarning } from './hudGrenadeWarn'
-import { createGrenadeTrajectory } from './render/grenadeTrajectory'
 import { createExplosionFx } from './render/explosionFx'
 import { createTargets, createBoards, rayBoards, updateTargets, flashTarget } from './targets'
 import { fireHitscan } from './hitscan'
@@ -203,10 +202,9 @@ const grenades = createGrenades(scene, {
   localFuse: () => !sessionRef,   // offline không có server: tự nổ khi hết ngòi
   releaseDelayMs: (id, mode) => playersRenderer.grenadeReleaseDelayMs(id, mode),
 })
-const nadeTrajectory = createGrenadeTrajectory(scene)
 const nadeWarn = createGrenadeWarning()
 const nadeAimState = { pos: [0, 0, 0] as [number, number, number], vel: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0 }
-if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __nadeTraj: nadeTrajectory, __explosionFx: explosionFx })   // debug: script kiểm tra từ trình duyệt
+if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __explosionFx: explosionFx })   // debug: script kiểm tra từ trình duyệt
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
@@ -628,13 +626,6 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     } else if (snapStore) {
       lastSampled = interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs))
       playersRenderer.update(lastSampled)
-    }
-    {   // đường bay dự kiến khi giữ ở trạng thái ready (dùng đúng hàm ném thật)
-      const s = nadeAimState
-      s.pos[0] = state.pos[0]; s.pos[1] = state.pos[1]; s.pos[2] = state.pos[2]
-      s.vel[0] = state.vel[0]; s.vel[1] = state.vel[1]; s.vel[2] = state.vel[2]
-      s.yaw = yaw; s.pitch = pitch; s.crouching = state.crouching
-      nadeTrajectory.update(ws.current === GRENADE_ID && ws.nade.phase === 'ready' && !dead, worldRef, s, ws.nade.mode)
     }
     grenades.update(dt, interp.currentRenderTime > 0 ? interp.currentRenderTime : clock.serverNow(), netStats.rttMs)
     tracers.update(dt * 1000)

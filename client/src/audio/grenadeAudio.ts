@@ -13,10 +13,12 @@ export const GSND = {
   throw:  { startHz: 400, endHz: 1500, db: -16, durMs: 150 },
   bounce: { noiseHz: 1800, q: 3, noiseDecayMs: 40, toneHz: 900, toneDecayMs: 60, minDb: -24, maxDb: -10, maxSpeed: 10 },
   explode: {
-    crackHz: 1500, crackDb: -2, crackDecayMs: 60,
-    bodyHz: 900, bodyDb: 0, bodyDecayMs: 600,
-    thumpStartHz: 70, thumpEndHz: 30, thumpDb: 0, thumpDecayMs: 450,
-    tailHz: 400, tailAttackMs: 40, tailDb: -10, tailDecayMs: 2500,
+    crackHz: 1500, crackDb: 4, crackDecayMs: 90,
+    bodyHz: 900, bodyDb: 6, bodyDecayMs: 900,
+    thumpStartHz: 90, thumpEndHz: 24, thumpDb: 8, thumpDecayMs: 900,
+    boomHz: 220, boomDb: 6, boomDecayMs: 1600,   // lớp ầm trầm kéo dài
+    fileDb: 6,
+    tailHz: 450, tailAttackMs: 40, tailDb: -4, tailDecayMs: 3800,
     debrisN: 8, debrisDb: -22, debrisMinS: 0.3, debrisMaxS: 1.2,
     farM: 40,   // ngoài khoảng này chỉ còn thump + tail
   },
@@ -112,12 +114,13 @@ export function playExplode(pos: Vec3, alive = true): void {
   if (!far) {
     // crack + body, hoặc file explode_01..03 thay cả hai lớp đó
     const f = `grenade/explode_0${1 + Math.floor(Math.random() * 3)}`
-    if (!playFile(g, f, out, t, 0, 1 + randSpread(0.04))) {
+    if (!playFile(g, f, out, t, e.fileDb, 1 + randSpread(0.04))) {
       noise(c, out, { filter: 'highpass', freq: e.crackHz, gainDb: e.crackDb, decayMs: e.crackDecayMs, when: t })
       noise(c, out, { filter: 'lowpass', freq: e.bodyHz, gainDb: e.bodyDb, decayMs: e.bodyDecayMs, when: t })
     }
   }
   tone(c, out, { type: 'sine', freq: e.thumpStartHz, freqEnd: e.thumpEndHz, gainDb: e.thumpDb, decayMs: e.thumpDecayMs, when: t })
+  noise(c, out, { filter: 'lowpass', freq: e.boomHz, gainDb: e.boomDb, decayMs: e.boomDecayMs, when: t })
   noise(c, out, { filter: 'lowpass', freq: e.tailHz, gainDb: e.tailDb, attackMs: e.tailAttackMs, decayMs: e.tailDecayMs, when: t })
   if (!far) {   // mảnh vụn rơi lạch cạch rải rác sau nổ
     for (let i = 0; i < e.debrisN; i++) {

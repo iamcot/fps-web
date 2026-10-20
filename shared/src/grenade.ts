@@ -5,8 +5,8 @@ export const GRENADE = {
   maxCarry: 2,
   pinPullMs: 350,          // giữ chuột tối thiểu để rút chốt
   fuseMs: 3000,            // tính từ lúc rời tay
-  throwSpeed: { strong: 16, lob: 7 },   // m/s
-  throwUpDeg: { strong: 6, lob: 2 },    // cộng thêm vào pitch
+  throwSpeed: { strong: 32, lob: 12 },   // m/s
+  throwUpDeg: { strong: 10, lob: 3 },    // cộng thêm vào pitch
   inheritVelocity: 0.5,    // cộng 50% vận tốc người ném
   radius: 0.045,           // m, va chạm hình cầu
   gravity: 22,             // cùng gravity của MovementConfig

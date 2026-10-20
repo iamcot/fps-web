@@ -30,21 +30,21 @@ function run(g: GrenadeState, world: CollisionWorld, ticks: number): { events: G
 }
 
 describe('throwInitial', () => {
-  it('ném mạnh: tốc độ 16 m/s theo pitch + 6°, cộng 50% vận tốc người ném', async () => {
+  it('ném mạnh: tốc độ theo GRENADE.throwSpeed, pitch + throwUpDeg, cộng 50% vận tốc người ném', async () => {
     const w = await createWorld(map)
     const t = throwInitial(player([-25, 0, -3], FACE_PLUS_X, 0, [4, 0, 0]), 'strong', w)
-    const up = 6 * Math.PI / 180
-    expect(t.vel[0]).toBeCloseTo(16 * Math.cos(up) + 2, 4)
-    expect(t.vel[1]).toBeCloseTo(16 * Math.sin(up), 4)
+    const sp = GRENADE.throwSpeed.strong, up = GRENADE.throwUpDeg.strong * Math.PI / 180
+    expect(t.vel[0]).toBeCloseTo(sp * Math.cos(up) + 2, 4)
+    expect(t.vel[1]).toBeCloseTo(sp * Math.sin(up), 4)
     expect(Math.abs(t.vel[2])).toBeLessThan(1e-6)
     // xuất phát: trước mắt 0,3 m, lệch phải 0,15 m, thấp hơn mắt 0,05 m
     expect(t.pos[0]).toBeCloseTo(-25 + 0.3, 4); expect(t.pos[1]).toBeCloseTo(1.6 - 0.05, 4); expect(t.pos[2]).toBeCloseTo(-3 - 0.15 * Math.sin(FACE_PLUS_X), 4)
     w.dispose()
   })
-  it('ném thấp (lob): 7 m/s, pitch + 2°', async () => {
+  it('ném thấp (lob): tốc độ theo GRENADE.throwSpeed.lob', async () => {
     const w = await createWorld(map)
     const t = throwInitial(player([-25, 0, -3], FACE_PLUS_X, 0), 'lob', w)
-    expect(Math.hypot(...t.vel)).toBeCloseTo(7, 4)
+    expect(Math.hypot(...t.vel)).toBeCloseTo(GRENADE.throwSpeed.lob, 4)
     w.dispose()
   })
   it('đứng sát tường: xuất phát tại mắt (không chui qua tường)', async () => {

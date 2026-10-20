@@ -7,14 +7,14 @@ import { GRENADE, type Vec3 } from '@fps/shared'
 export interface CastRay { (o: Vec3, d: Vec3, max: number): { dist: number; normal: Vec3 } | null }
 
 // ── Thông số hiệu ứng ──────────────────────────────────────────────────────────
-const FLASH_SIZE = 4, FLASH_S = 0.08
-const LIGHT_S = 0.15, LIGHT_INTENSITY = 220, LIGHT_DIST = 14, LIGHT_POOL = 3
-const FIRE_COUNT = 7, FIRE_R0 = 0.5, FIRE_R1 = 2.5, FIRE_GROW_S = 0.25, FIRE_LIFE_S = 0.45
-const SMOKE_COUNT = 18, SMOKE_LIFE_S = 2.5, SMOKE_MAX = 200, SMOKE_RISE = 0.9, SMOKE_R0 = 0.6, SMOKE_R1 = 2.4
-const SPARK_COUNT = 25, SPARK_LIFE_S = 0.6, SPARK_GRAVITY = 12, SPARK_SPEED = 7
-const FLASH_POOL = 6, FIRE_POOL = 40, SPARK_POOL = 160
-const DECAL_SIZE = 2.5, DECAL_LIFE_S = 20, DECAL_FADE_S = 3, DECAL_MAX = 10
-const SHAKE_S = 0.4, SHAKE_MAX_M = 0.045, SHAKE_MAX_ROT = 0.035
+const FLASH_SIZE = 7, FLASH_S = 0.08
+const LIGHT_S = 0.25, LIGHT_INTENSITY = 380, LIGHT_DIST = 20, LIGHT_POOL = 3
+const FIRE_COUNT = 14, FIRE_R0 = 0.7, FIRE_R1 = 3.6, FIRE_GROW_S = 0.3, FIRE_LIFE_S = 0.6
+const SMOKE_COUNT = 48, SMOKE_LIFE_S = 5, SMOKE_MAX = 420, SMOKE_RISE = 1.2, SMOKE_R0 = 0.8, SMOKE_R1 = 3.6
+const SPARK_COUNT = 60, SPARK_LIFE_S = 0.8, SPARK_GRAVITY = 12, SPARK_SPEED = 11
+const FLASH_POOL = 6, FIRE_POOL = 80, SPARK_POOL = 360
+const DECAL_SIZE = 3.5, DECAL_LIFE_S = 20, DECAL_FADE_S = 3, DECAL_MAX = 10
+const SHAKE_S = 0.6, SHAKE_MAX_M = 0.07, SHAKE_MAX_ROT = 0.05
 
 function radialTexture(stops: [number, string][]): THREE.CanvasTexture {
   const c = document.createElement('canvas'); c.width = c.height = 64
@@ -30,7 +30,7 @@ interface Particle { sprite: THREE.Sprite; mat: THREE.SpriteMaterial; age: numbe
 export function createExplosionFx(scene: THREE.Scene, castRay: () => CastRay | null) {
   const flashTex = radialTexture([[0, 'rgba(255,255,235,1)'], [0.4, 'rgba(255,230,150,0.8)'], [1, 'rgba(255,200,80,0)']])
   const fireTex = radialTexture([[0, 'rgba(255,230,120,1)'], [0.45, 'rgba(255,120,30,0.85)'], [1, 'rgba(160,30,0,0)']])
-  const smokeTex = radialTexture([[0, 'rgba(120,120,120,0.9)'], [0.6, 'rgba(90,90,90,0.55)'], [1, 'rgba(60,60,60,0)']])
+  const smokeTex = radialTexture([[0, 'rgba(70,70,70,0.95)'], [0.6, 'rgba(55,55,55,0.65)'], [1, 'rgba(35,35,35,0)']])
   const sparkTex = radialTexture([[0, 'rgba(255,255,220,1)'], [0.5, 'rgba(255,170,50,0.9)'], [1, 'rgba(255,100,0,0)']])
   const decalTex = radialTexture([[0, 'rgba(0,0,0,0.85)'], [0.55, 'rgba(0,0,0,0.6)'], [1, 'rgba(0,0,0,0)']])
 
@@ -100,9 +100,9 @@ export function createExplosionFx(scene: THREE.Scene, castRay: () => CastRay | n
         spawn(take(pools.fire), x + Math.cos(a) * r, y + 0.2 + Math.random() * 0.6, z + Math.sin(a) * r, FIRE_LIFE_S * (0.7 + Math.random() * 0.5), FIRE_R0, FIRE_R1 * (0.6 + Math.random() * 0.4), 0, 0.6, 0, FIRE_GROW_S)
       }
       for (let i = 0; i < SMOKE_COUNT; i++) {
-        const a = Math.random() * Math.PI * 2, r = Math.random() * 0.9
+        const a = Math.random() * Math.PI * 2, r = Math.random() * 1.6
         const p = pools.smoke[smokeNext++ % SMOKE_MAX]!   // quá 200 thì tái dùng sprite cũ nhất
-        spawn(p, x + Math.cos(a) * r, y + 0.3 + Math.random() * 0.8, z + Math.sin(a) * r, SMOKE_LIFE_S * (0.7 + Math.random() * 0.5), SMOKE_R0, SMOKE_R1 * (0.7 + Math.random() * 0.5), (Math.random() - 0.5) * 0.5, SMOKE_RISE * (0.6 + Math.random() * 0.6), (Math.random() - 0.5) * 0.5)
+        spawn(p, x + Math.cos(a) * r, y + 0.3 + Math.random() * 1.4, z + Math.sin(a) * r, SMOKE_LIFE_S * (0.7 + Math.random() * 0.5), SMOKE_R0, SMOKE_R1 * (0.7 + Math.random() * 0.5), (Math.random() - 0.5) * 1.6, SMOKE_RISE * (0.5 + Math.random() * 0.8), (Math.random() - 0.5) * 1.6)
       }
       for (let i = 0; i < SPARK_COUNT; i++) {   // hạt sáng bắn tung nửa cầu trên
         const th = Math.random() * Math.PI * 2, ph = Math.random() * Math.PI * 0.5, sp = SPARK_SPEED * (0.4 + Math.random() * 0.6)

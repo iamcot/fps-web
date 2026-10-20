@@ -173,3 +173,5 @@ Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
 - `WeaponState` thêm `bloomDeg[]`, `lastShotMs[]` (theo id súng, để mỗi súng giữ bloom riêng), `shotBloomDeg` (bloom đã dùng cho phát vừa bắn; cập nhật trong `tryFire` nên reconcile súng replay đúng), `switchEndMs` (không ngắm trong lúc khoá đổi súng).
 - `computeSpreadDeg(p, ws, def, cfg, nowMs, forShot)` có thêm cờ `forShot`; `spreadParts` tách từng phần cho F3.
 - Súng ngắn có `ads`; SMG và Shotgun KHÔNG ngắm (theo yêu cầu sau đó: dòng súng vừa đã có tốc độ/hoả lực). Shotgun: spread chỉ dịch tâm chùm, nón cố định `pelletConeDeg 4.5`.
+
+- Lựu đạn (theo yêu cầu): bỏ đường bay dự kiến (xoá `grenadeTrajectory.ts`), tăng lực ném (strong 16→32 m/s, góc +10°; lob 7→12), nổ to hơn (nhiều khói/lửa/tia lửa, rung mạnh hơn), tiếng nổ vang và kéo dài hơn.
