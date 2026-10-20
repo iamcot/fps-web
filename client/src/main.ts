@@ -187,6 +187,7 @@ const playersRenderer = createPlayersRenderer(scene, {
   myTeam: () => sessionRef?.teams.get(sessionRef.yourId),
   characterSet: () => sessionRef?.characterSet ?? '',
 })
+if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer })   // debug: script kiểm tra từ trình duyệt
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
@@ -272,6 +273,7 @@ sessionP.then(session => {
     } else if (msg.t === MsgType.DebugShot) {
       debugShots.add(msg.origin, msg.dir, msg.boxes)
     } else if (msg.t === MsgType.Kill) {
+      playersRenderer.markKill(msg.victimId, msg.headshot)
       const name = (id: number) => session.names.get(id) ?? `#${id}`
       const me = session.yourId
       killfeed.add(name(msg.killerId), WEAPONS[msg.weapon]?.name ?? '?', name(msg.victimId), msg.headshot,

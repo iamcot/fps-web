@@ -98,6 +98,20 @@ interface Actor {
   armR: BlockArm | null   // null với nhân vật có xương (IK nằm trong rig.skel)
   armL: BlockArm | null
   twoHand: boolean | null   // null = chưa chọn chế độ
+  drop: GunDrop | null      // súng rơi khỏi tay xác (nhân vật có xương)
+}
+
+// Súng rơi khỏi tay người chết: rơi thẳng + xoay, nằm xuống sàn, mờ dần cùng xác
+const DROP_GRAVITY = 9.8
+const DROP_SETTLE_S = 0.2
+const DROP_HOLD_S = 3
+const DROP_FADE_S = 0.7
+const KILL_MEMORY_MS = 3000   // tin Kill đến trước snapshot chết trong khoảng này vẫn được dùng để chọn kiểu chết
+interface GunDrop {
+  obj: THREE.Object3D; mats: THREE.Material[]
+  vy: number; wx: number; wz: number; floorY: number
+  landed: boolean; settleT: number; age: number
+  from: THREE.Quaternion; to: THREE.Quaternion
 }
 
 const HIP_Y = 0.8   // khớp kit.ts: `upper` có gốc ở hông
@@ -119,7 +133,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   rig.gunAnchor.add(flash)
   rig.root.add(makeBlobShadow())
   if (rig.skel) {
-    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null }
+    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null }
   }
   const aimPivot = new THREE.Group()
   const holder = new THREE.Group()
@@ -132,10 +146,11 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   armR.setVisible(false); armL.setVisible(false)
   rig.upper.add(armR.root, armL.root)
   for (const arm of [armR, armL]) rig.mats.push(...arm.mats)
-  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null }
+  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null }
 }
 
 function disposeActor(a: Actor): void {
+  if (a.drop) { a.drop.obj.removeFromParent(); for (const m of a.drop.mats) m.dispose(); a.drop = null }
   if (a.rig.skel) a.rig.skel.dispose(); else disposeRig(a.rig)
   a.armR?.dispose(); a.armL?.dispose()
   a.flash.material.map?.dispose()
@@ -295,6 +310,65 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     a.flash.position.copy(MUZZLE_FALLBACK[weapon] ?? MUZZLE_FALLBACK[0]!)
   }
 
+  const killMemory = new Map<number, { headshot: boolean; t: number }>()
+  const _e = new THREE.Euler(), _fwd = new THREE.Vector3(), _roll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2)
+
+  // Súng rời tay: giữ nguyên toạ độ thế giới, rơi + xoay. Vật liệu nhân bản để mờ riêng (geometry dùng chung nên không dispose)
+  function dropGun(a: Actor): void {
+    if (!a.gun || a.drop) return
+    const g = a.gun
+    g.updateWorldMatrix(true, false)
+    scene.attach(g)
+    const mats: THREE.Material[] = []
+    g.traverse(o => {
+      if (!(o instanceof THREE.Mesh)) return
+      o.material = (o.material as THREE.Material).clone()
+      ;(o.material as THREE.Material).transparent = true
+      mats.push(o.material as THREE.Material)
+    })
+    _fwd.set(0, 0, -1).applyQuaternion(g.quaternion)
+    const yaw = Math.atan2(-_fwd.x, -_fwd.z)
+    const to = new THREE.Quaternion().setFromEuler(_e.set(0, yaw, 0)).multiply(_roll)
+    a.drop = {
+      obj: g, mats, vy: 0, wx: (Math.random() - 0.5) * 6, wz: (Math.random() - 0.5) * 6,
+      floorY: a.rig.root.position.y + 0.06, landed: false, settleT: 0, age: 0, from: new THREE.Quaternion(), to,
+    }
+    a.gun = null; a.gunId = -1
+    a.flash.visible = false
+  }
+
+  function clearDrop(a: Actor): void {
+    const d = a.drop
+    if (!d) return
+    d.obj.removeFromParent()
+    for (const m of d.mats) m.dispose()
+    a.drop = null
+  }
+
+  function updateDrop(a: Actor, dt: number): void {
+    const d = a.drop
+    if (!d) return
+    d.age += dt
+    if (!d.landed) {
+      d.vy -= DROP_GRAVITY * dt
+      d.obj.position.y += d.vy * dt
+      d.obj.rotateX(d.wx * dt); d.obj.rotateZ(d.wz * dt)
+      if (d.obj.position.y <= d.floorY) { d.obj.position.y = d.floorY; d.landed = true; d.from.copy(d.obj.quaternion) }
+    } else if (d.settleT < DROP_SETTLE_S) {
+      d.settleT += dt
+      d.obj.quaternion.slerpQuaternions(d.from, d.to, Math.min(1, d.settleT / DROP_SETTLE_S))
+    }
+    const fade = Math.min(1, Math.max(0, (d.age - DROP_HOLD_S) / DROP_FADE_S))
+    if (fade > 0) for (const m of d.mats) m.opacity = 1 - fade
+    d.obj.visible = fade < 1
+  }
+
+  function takeKill(id: number): boolean {
+    const k = killMemory.get(id)
+    killMemory.delete(id)
+    return !!k && performance.now() - k.t < KILL_MEMORY_MS && k.headshot
+  }
+
   function place(p: RenderPlayer, a: Actor, nowMs: number, dt: number) {
     const rig = a.rig
     const crouching = (p.flags & NetFlag.Crouching) !== 0
@@ -306,20 +380,26 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     const sliding = (p.flags & NetFlag.Sliding) !== 0, grounded = (p.flags & NetFlag.Grounded) !== 0
     if (rig.skel) {
       // Nhân vật có xương. Thứ tự bắt buộc: mixer → spine theo pitch → súng → IK tay → ngón
-      rig.root.visible = !dead
-      if (dead && !a.wasDead) a.wasDead = true
-      else if (!dead) a.wasDead = false
-      dressGun(a, weapon)
-      const two = weaponPose(weapon).third.hold === 'twoHand' && !!a.gun
-      setHold(a, two)
+      const sk = rig.skel
+      if (dead && !sk.isDead) { sk.die(takeKill(p.id)); dropGun(a) }
+      else if (!dead && sk.isDead) { sk.revive(); clearDrop(a) }
+      a.wasDead = dead
+      const frame = { dt, x: p.pos[0], z: p.pos[2], yaw: p.yaw, grounded, crouching, sliding, pitch: p.pitch ?? 0, pistol: false, dead }
       if (!dead) {
-        rig.skel.animate({ dt, x: p.pos[0], z: p.pos[2], yaw: p.yaw, grounded, crouching, sliding, pitch: p.pitch ?? 0, pistol: !two })
-        rig.skel.placeAim()
+        dressGun(a, weapon)
+        const two = weaponPose(weapon).third.hold === 'twoHand' && !!a.gun
+        setHold(a, two)
+        frame.pistol = !two
+        sk.animate(frame)
+        sk.placeAim()
         if (two) solveSkelArms(a, weapon)
-        else rig.skel.refreshGunAnchor()
+        else sk.refreshGunAnchor()
+        sk.setOpacity((p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1)
+      } else {
+        sk.animate(frame)
+        if (sk.ikWeight > 0 && a.twoHand) { sk.placeAim(); solveSkelArms(a, weapon) }   // IK mờ dần về tư thế animation
       }
-      const opS = (p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1
-      rig.skel.setOpacity(opS)
+      rig.root.visible = sk.corpseVisible
       dressWanted(p, a, h)
       a.flash.visible = nowMs < a.flashUntil
       dressLabel(p.id, a, h)
@@ -375,7 +455,13 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
         if (lb) { scene.remove(lb); lb.material.map?.dispose(); lb.material.dispose(); labels.delete(id) }
         dropActor(id, a)
       }
+      for (const a of actors.values()) if (a.drop) updateDrop(a, dt)
       deathFx.update(dt)
+    },
+    // Tin Kill: chọn kiểu chết (headshot → death_2) cho nhân vật có xương; đến trước hay sau snapshot chết đều dùng được
+    markKill(victimId: number, headshot: boolean) {
+      killMemory.set(victimId, { headshot, t: performance.now() })
+      actors.get(victimId)?.rig.skel?.setDeathVariant(headshot)
     },
     // Lửa đầu nòng khi nhận ShotFx của người này
     muzzleFlash(id: number) {

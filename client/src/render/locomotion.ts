@@ -59,7 +59,7 @@ export function slotClip(slot: Slot, pistol: boolean): string {
 
 export const CLIP_NAMES = [
   'rifle_idle', 'rifle_walk_f', 'rifle_walk_b', 'rifle_walk_l', 'rifle_walk_r', 'rifle_run_f', 'rifle_crouch_idle', 'rifle_crouch_walk',
-  'pistol_idle', 'pistol_walk_f', 'pistol_run_f', 'jump', 'slide',
+  'pistol_idle', 'pistol_walk_f', 'pistol_run_f', 'jump', 'slide', 'death_1', 'death_2',
 ] as const
 
 /** Tốc độ phát (timeScale) của clip theo tốc độ thực để chân không trượt. */

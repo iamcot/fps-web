@@ -13,6 +13,10 @@ import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, ty
 const FILES: Record<TeamId, string> = { A: '/models/characters/cop.glb', B: '/models/characters/robber.glb' }
 const DEG = Math.PI / 180
 const TELEPORT_M = 3
+const IK_FADE_S = 0.15       // tắt/bật IK khi chết/hồi sinh
+const CORPSE_HOLD_S = 3      // xác nằm yên từng ấy giây rồi mờ dần
+const CORPSE_FADE_S = 0.7
+const DEATH_SWAP_S = 0.5     // tin Kill (có cờ headshot) đến muộn hơn snapshot chết trong khoảng này vẫn đổi được kiểu chết
 
 interface Loaded { scene: THREE.Object3D; clips: Map<string, THREE.AnimationClip> }
 const loaded = new Map<TeamId, Loaded>()
@@ -67,6 +71,7 @@ export interface SkelFrame {
   grounded: boolean; crouching: boolean; sliding: boolean
   pitch: number
   pistol: boolean   // súng 1 tay / dao: dùng bộ pistol_*
+  dead?: boolean    // xác: chỉ phát clip chết, không ngắm theo pitch
 }
 
 export class SkelCharacter {
@@ -95,6 +100,9 @@ export class SkelCharacter {
   private skinned: THREE.SkinnedMesh[] = []
   private opaque = true
   ikWeight = 1
+  private dead = false
+  private deathClip = 'death_1'
+  private deathT = 0
 
   constructor(team: TeamId) {
     const src = loaded.get(forcedTeam() ?? team)!
@@ -132,7 +140,7 @@ export class SkelCharacter {
       const clip = src.clips.get(n)
       if (!clip) continue
       const a = this.mixer.clipAction(clip)
-      if (n === 'jump' || n === 'slide') { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true }
+      if (n === 'jump' || n === 'slide' || n.startsWith('death_')) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true }
       a.play(); a.setEffectiveWeight(0)
       this.actions.set(n, a); this.weight.set(n, 0); this.target.set(n, 0)
     }
@@ -144,6 +152,8 @@ export class SkelCharacter {
   /** mixer → pitch spine/đầu → cập nhật ma trận. Gọi trước placeGun/solve. */
   animate(f: SkelFrame): void {
     const cfg = poses.character.anim
+    this.ikWeight = this.dead ? Math.max(0, this.ikWeight - f.dt / IK_FADE_S) : Math.min(1, this.ikWeight + f.dt / IK_FADE_S)
+    if (this.dead) { this.animateDead(f.dt); return }
     let vx = 0, vz = 0
     if (this.hasLast && f.dt > 0) {
       vx = f.x - this.lastX; vz = f.z - this.lastZ
@@ -196,6 +206,62 @@ export class SkelCharacter {
     this.pitch = f.pitch
   }
   private pitch = 0
+
+  // ── Chết / hồi sinh ───────────────────────────────────────────────────────────
+  /** Vừa chết: phát clip ngã (death_2 nếu headshot), IK mờ về 0 trong IK_FADE_S, sau CORPSE_HOLD_S xác mờ dần. */
+  die(headshot: boolean): void {
+    this.dead = true
+    this.deathT = 0
+    this.deathClip = headshot ? 'death_2' : 'death_1'
+    for (const n of ['death_1', 'death_2']) this.actions.get(n)?.stop()
+    const a = this.actions.get(this.deathClip)
+    if (a) { a.reset(); a.play(); a.setEffectiveWeight(this.weight.get(this.deathClip) ?? 0) }
+  }
+
+  /** Tin Kill báo headshot đến sau snapshot chết một chút: đổi sang đúng kiểu chết (giữ tiến độ). */
+  setDeathVariant(headshot: boolean): void {
+    const want = headshot ? 'death_2' : 'death_1'
+    if (!this.dead || this.deathT > DEATH_SWAP_S || want === this.deathClip) return
+    const old = this.actions.get(this.deathClip), a = this.actions.get(want)
+    if (!a) return
+    old?.stop(); this.weight.set(this.deathClip, 0)
+    this.deathClip = want
+    a.reset(); a.play(); a.time = this.deathT; a.setEffectiveWeight(this.weight.get(want) ?? 0)
+  }
+
+  get isDead(): boolean { return this.dead }
+  /** Xác còn vẽ không (false sau khi mờ hết) */
+  get corpseVisible(): boolean { return !this.dead || this.deathT < CORPSE_HOLD_S + CORPSE_FADE_S }
+
+  /** Hồi sinh: reset mixer về idle, IK trở lại 1 trong IK_FADE_S */
+  revive(): void {
+    this.dead = false
+    for (const n of ['death_1', 'death_2']) { const a = this.actions.get(n); a?.stop(); this.weight.set(n, 0); this.target.set(n, 0) }
+    for (const [n, a] of this.actions) { if (n.startsWith('death_')) continue; a.play(); a.paused = false; a.setEffectiveWeight(0); this.weight.set(n, 0) }
+    this.weight.set('rifle_idle', 1); this.actions.get('rifle_idle')?.setEffectiveWeight(1)
+    this.hasLast = false; this.speed = 0; this.jumpWasOn = false; this.slideWasOn = false
+    this.model.position.y = 0
+    this.ikWeight = 0
+    this.setOpacity(1)
+    this.root.visible = true
+  }
+
+  private animateDead(dt: number): void {
+    this.deathT += dt
+    for (const n of this.target.keys()) this.target.set(n, n === this.deathClip ? 1 : 0)
+    const blend = 1 - Math.exp(-dt / (poses.character.anim.blendTime / 3))
+    for (const [n, a] of this.actions) {
+      const w = this.weight.get(n)! + (this.target.get(n)! - this.weight.get(n)!) * blend
+      this.weight.set(n, w)
+      a.setEffectiveWeight(w)
+    }
+    this.model.position.y = 0
+    this.mixer.update(dt)
+    this.root.updateMatrixWorld(true)
+    const fade = Math.min(1, Math.max(0, (this.deathT - CORPSE_HOLD_S) / CORPSE_FADE_S))
+    this.setOpacity(1 - fade)
+    this.root.visible = fade < 1
+  }
 
   private restart(name: string): void {
     const a = this.actions.get(name)
