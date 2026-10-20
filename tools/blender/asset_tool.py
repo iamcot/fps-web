@@ -3,6 +3,7 @@ Dùng:
   blender -b <file.blend> --python tools/blender/asset_tool.py -- inspect
   blender -b <file.blend> --python tools/blender/asset_tool.py -- normalize <params.json> <out.glb>
   blender -b --python tools/blender/asset_tool.py -- inspect-character <model.glb> [<preview_dir>]
+  blender -b --python tools/blender/asset_tool.py -- prep-mixamo <in.glb> <out.fbx>
 (gun_tool.py cũ chỉ còn là lối tắt gọi file này.)
 """
 import bpy, sys, json, os
@@ -256,8 +257,66 @@ def render_previews(name, out_dir, mn, mx):
         bpy.ops.render.render(write_still=True)
         print("PREVIEW", scene.render.filepath)
 
+# ---------------------------------------------------------------- prep-mixamo
+def prep_mixamo(glb_path, out_path, target_height=1.8):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=glb_path)
+    scene = bpy.context.scene
+    # xoá mesh lạ không skin (Icosphere) và armature cũ, giữ mesh thân
+    for o in list(scene.objects):
+        if o.type == 'MESH' and len(o.vertex_groups) == 0:
+            bpy.data.objects.remove(o, do_unlink=True)
+    for o in list(scene.objects):
+        if o.type == 'ARMATURE':
+            for c in o.children:
+                mw = c.matrix_world.copy(); c.parent = None; c.matrix_world = mw
+            bpy.data.objects.remove(o, do_unlink=True)
+    meshes = mesh_objects()
+    for o in meshes:
+        for m in [m for m in o.modifiers if m.type == 'ARMATURE']:
+            o.modifiers.remove(m)
+        o.vertex_groups.clear()
+    # gộp mesh thân thành 1
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in meshes: o.select_set(True)
+    bpy.context.view_layer.objects.active = meshes[0]
+    if len(meshes) > 1: bpy.ops.object.join()
+    body = bpy.context.view_layer.objects.active
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    # scale cao 1,8m, chân z=0, tâm ngang ở gốc
+    mn, mx = world_bbox([body])
+    s = target_height / (mx.z - mn.z)
+    body.scale = (s, s, s)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    mn, mx = world_bbox([body])
+    body.location = Vector((-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z))
+    bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    # mặt −Y: kiểm tra trước (inspect-character xác nhận cả 2 model đã quay −Y), không xoay thêm
+    for im in bpy.data.images:
+        if im.type == 'IMAGE' and im.packed_file is None and im.size[0] > 0:
+            im.pack()
+    bpy.ops.file.pack_all()
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    bpy.ops.export_scene.fbx(filepath=out_path, path_mode='COPY', embed_textures=True,
+                             use_selection=False, object_types={'MESH'}, add_leaf_bones=False)
+    mn, mx = world_bbox([body])
+    print("PREP_MIXAMO", out_path, "height", round(mx.z - mn.z, 4), "min", list(mn), "max", list(mx))
+
+def check_fbx(path):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.fbx(filepath=path)
+    objs = mesh_objects()
+    mn, mx = world_bbox(objs)
+    print("CHECK_FBX", path, "meshes", [o.name for o in objs], "tris", sum(tri_count(o) for o in objs),
+          "height", round(mx.z - mn.z, 4), "feet", round(mn.z, 4), "bbox", [round(v, 3) for v in mn], [round(v, 3) for v in mx],
+          "images", [(i.name, list(i.size)) for i in bpy.data.images if i.type == 'IMAGE'])
+
 if mode == "inspect":
     inspect()
+elif mode == "prep-mixamo":
+    prep_mixamo(argv[1], argv[2])
+elif mode == "check-fbx":
+    check_fbx(argv[1])
 elif mode == "inspect-character":
     inspect_character(argv[1], argv[2] if len(argv) > 2 else None)
 elif mode == "normalize":

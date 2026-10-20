@@ -110,7 +110,7 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 
 ## 11 – Nhân vật mới 2 phe (model có xương)
 - [x] C.0 Inspect 2 model nhân vật + ảnh preview — `tools/blender/asset_tool.py` (gun_tool.py giờ chỉ là lối tắt gọi file này), chế độ `inspect-character <glb> [preview_dir]`; ảnh ở `assets/source/characters/_preview/`. Chạy được bằng `pip install bpy` (không cần cài Blender). Kết quả: cả 2 model cao 1,70m (CT) / 1,66m (T) sau khi bỏ mesh lạ `Icosphere` (80 tam giác, không skin, làm bbox phình thành 2,7m — nên xoá ở C.1); chân ở z=0; mặt quay về −Y (đã xem ảnh); armature scale 0,01 (cần apply); 54 xương kiểu Mixamo không tiền tố (`Hips`, `Spine02/01/Spine`, `LeftShoulder/LeftArm/LeftForeArm/LeftHand`, đủ ngón `LeftHandIndex1..3`...); 1 mesh `char1` ~8.330 tam giác, 1 material, 1 texture 2048² (PNG nhúng 5,5MB CT / 6,3MB T); 1 animation rỗng (`clip0`, 1 frame); bao súng đùi Cướp dính chung mesh thân
-- [ ] C.1 Chuẩn hoá + xuất FBX cho Mixamo
+- [x] C.1 Chuẩn hoá + xuất FBX cho Mixamo — `asset_tool.py prep-mixamo` + `check-fbx`; xuất `assets/source/characters/mixamo_in/cop.fbx` (6,0MB), `robber.fbx` (6,8MB). Import lại: cao 1,80m, chân z=0, 1 mesh ~8.3k tam giác, texture 2048² nhúng. Đã xoá Icosphere + armature cũ + skin. Mặt −Y lấy từ ảnh C.0 (không xoay thêm)
 - [ ] C.2 (Người dùng) Rig lại trên Mixamo + tải animation
 - [ ] C.3 Ghép animation + xuất cop.glb / robber.glb
 - [ ] C.4 Animation thân dưới, thân trên ngắm theo pitch
