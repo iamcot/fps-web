@@ -9,6 +9,7 @@ import { TickLoop } from './tickLoop'
 import { enqueueCmds, stepRoom, sendSnapshots } from './simulation'
 import { lanAddresses } from './lan'
 import { handleBuy } from './shop'
+import { handleDebugCmd } from './debugCmds'
 import { RoomManager, sanitizeName, sanitizeRoom, type Player, type Room } from './room'
 
 const PORT = 8081
@@ -88,6 +89,9 @@ wss.on('connection', ws => {
       const team = room.assignTeam(pref, player)
       if (team && team !== player.team && room.mode.canSwitchTeam(room, player)) { room.setTeam(player, team); room.resetEconomy(player); room.respawn(player) }
       else transport.send({ t: MsgType.TeamAssigned, id: player.id, team: player.team })
+    } else if (msg.t === MsgType.DebugCmd) {
+      // Lệnh debug (M.8): chỉ nhận khi không chạy production
+      if (process.env.NODE_ENV !== 'production' && room && player && typeof msg.cmd === 'string') handleDebugCmd(room, player, msg.cmd.slice(0, 64))
     } else if (msg.t === MsgType.ListRooms) {
       transport.send({ t: MsgType.RoomList, rooms: rooms.list(), maps: rooms.mapList() })
     } else if (msg.t === MsgType.Join) {

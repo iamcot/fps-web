@@ -88,6 +88,8 @@ export function createBottomHud() {
 
   return {
     setMoneyVisible(v: boolean): void { moneyRow.style.display = v ? '' : 'none' },
+    /** Ẩn cả cụm HUD dưới (khi đang xem đồng đội) */
+    setVisible(v: boolean): void { const d = v ? '' : 'none'; left.style.display = d; slotsBox.style.display = d; right.style.display = d },
     setMoney(v: number): void {
       if (first) { first = false; shown = from = target = v; moneyNum.textContent = String(v); return }
       if (v === target) return

@@ -3,6 +3,7 @@ import { ECONOMY_ELIM, MATCH, MatchPhase, MsgType, defaultMovement, loadMap, typ
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { RoomManager, type Player, type Room } from './room'
 import { stepRoom } from './simulation'
+import { handleDebugCmd } from './debugCmds'
 import type { EliminationMode } from './modes/elimination'
 
 const map = loadMap({
@@ -203,5 +204,33 @@ describe('Sinh Tử – các pha', () => {
     expect(room.mode.canSwitchTeam(room, a)).toBe(true)
     run(room, 1100)
     expect(room.mode.canSwitchTeam(room, a)).toBe(false)
+  })
+})
+
+describe('lệnh debug (M.8)', () => {
+  it('/endround A kết thúc ván cho A; /endround draw hoà; /time đặt lại giờ; /money; /hp; /kill', () => {
+    const { room, a } = oneVsOne()
+    run(room, 1100)
+    expect(handleDebugCmd(room, a, '/time 10')).toBe(true)
+    expect(room.phaseEndsAt - room.serverNow).toBe(10_000)
+    expect(handleDebugCmd(room, a, '/money 16000')).toBe(true)
+    expect(a.money).toBe(16000)
+    expect(handleDebugCmd(room, a, '/hp 30')).toBe(true)
+    expect(a.hp).toBe(30)
+    expect(handleDebugCmd(room, a, '/endround A')).toBe(true)
+    expect(room.phase).toBe(MatchPhase.RoundEnd)
+    expect(room.scoreA).toBe(1)
+    expect(handleDebugCmd(room, a, '/endround xyz')).toBe(false)
+    expect(handleDebugCmd(room, a, '/bogus')).toBe(false)
+  })
+  it('/setround 9 nhảy tới ván 9; /kill tự sát', () => {
+    const { room, a } = oneVsOne()
+    expect(handleDebugCmd(room, a, '/setround 3')).toBe(true)
+    expect(mode(room).round).toBe(3)
+    expect(room.phase).toBe(MatchPhase.Freeze)
+    run(room, 1100)
+    expect(handleDebugCmd(room, a, '/kill')).toBe(true)
+    run(room, 32)
+    expect(a.alive).toBe(false)
   })
 })

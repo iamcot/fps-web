@@ -1,10 +1,11 @@
 // Giỏ hàng + menu cửa hàng (H.7). Chỉ hiển thị và gửi lệnh Buy; tiền/loadout/vùng mua do server quyết định.
-import { CATEGORY_LABEL, CATEGORY_SLOT, ECONOMY, GRENADE, WEAPONS, quoteBuy, type Loadout, type OwnedWeapon, type WeaponCategory } from '@fps/shared'
+import { CATEGORY_LABEL, CATEGORY_SLOT, ECONOMY, GRENADE, type EconomyConfig, WEAPONS, quoteBuy, type Loadout, type OwnedWeapon, type WeaponCategory } from '@fps/shared'
 import { WEAPON_LABEL, weaponIcon } from './weaponIcon'
 
 export interface ShopDeps {
   money(): number
   loadout(): (OwnedWeapon | null)[]
+  eco?(): EconomyConfig            // luật kinh tế của thể thức (mặc định Hỗn Chiến)
   canShop(): boolean              // đang trong khu mua, còn sống, trận chưa ENDED, đang online
   send(key: string): void         // gửi lệnh Buy
   onOpenChange?(open: boolean): void
@@ -55,7 +56,8 @@ export function createShop(deps: ShopDeps) {
 
   const cart = document.createElement('div')
   cart.className = 'shop-cart'
-  cart.innerHTML = CART + '<span>(B)</span>'
+  cart.innerHTML = CART + '<span>(B)</span><span class="bt" style="color:#ffd23c"></span>'
+  const buyEl = cart.querySelector('.bt') as HTMLElement
   document.body.appendChild(cart)
 
   const panel = document.createElement('div')
@@ -93,7 +95,7 @@ export function createShop(deps: ShopDeps) {
   foot.className = 'shop-line'
   const footTxt = document.createElement('div')
   footTxt.className = 'shop-foot'
-  footTxt.textContent = `Mỗi dòng súng chỉ mang được 1 loại. Mua trùng dòng sẽ tự động bán súng đang có với giá ${Math.round(ECONOMY.sellRatio * 100)}%.\nLựu đạn mang tối đa ${GRENADE.maxCarry} quả, không bán lại.`
+  footTxt.textContent = `Mỗi dòng súng chỉ mang được 1 loại. Mua trùng dòng sẽ tự động bán súng đang có với giá ${Math.round((deps.eco?.() ?? ECONOMY).sellRatio * 100)}%.\nLựu đạn mang tối đa ${GRENADE.maxCarry} quả, không bán lại.`
   footTxt.style.whiteSpace = 'pre-line'
   panel.append(foot, footTxt)
 
@@ -117,7 +119,7 @@ export function createShop(deps: ShopDeps) {
     drawKey = key
     moneyEl.textContent = `$${money}`
     for (const r of rows) {
-      const q = quoteBuy(money, lo, r.key)
+      const q = quoteBuy(money, lo, r.key, deps.eco?.())
       const def = WEAPONS.find(w => w.key === r.key)!
       const old = lo.slots[CATEGORY_SLOT[def.category]] ?? null
       const owned = !q.ok && q.reason === 'already_owned'
@@ -143,7 +145,7 @@ export function createShop(deps: ShopDeps) {
   function buyIndex(i: number): void {
     const r = rows[i - 1]
     if (!r || !deps.canShop()) return
-    const q = quoteBuy(deps.money(), asLoadout(), r.key)
+    const q = quoteBuy(deps.money(), asLoadout(), r.key, deps.eco?.())
     if (!q.ok) { feedback(r.key, false); return }
     deps.send(r.key)
   }
@@ -179,6 +181,11 @@ export function createShop(deps: ShopDeps) {
       cart.classList.toggle('on', can)
       if (!can && open) setOpen(false)
       if (open) refresh()
+    },
+    /** Thời gian mua còn lại (ms) cạnh giỏ hàng; null = ẩn */
+    setBuyLeft(ms: number | null): void {
+      const t = ms === null ? '' : ` Mua: ${Math.floor(Math.ceil(ms / 1000) / 60)}:${String(Math.ceil(ms / 1000) % 60).padStart(2, '0')}`
+      if (buyEl.textContent !== t) buyEl.textContent = t
     },
     /** Dùng khi mở bằng click lúc đổi trạng thái tiền: buộc vẽ lại */
     invalidate(): void { drawKey = '' },

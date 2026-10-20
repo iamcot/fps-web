@@ -7,7 +7,7 @@ import { FOOTSTEP_FILES } from './footsteps'
 import { GRENADE_SOUND_FILES } from './grenadeAudio'
 
 export { updateListener, settings, saveSettings } from './context'
-export { playBuyOk, playBuyFail } from './uiAudio'
+export { playBuyOk, playBuyFail, playRoundStart, playRoundWin, playRoundLose, playTick } from './uiAudio'
 export { playShot, playShotOther, playSwing, playDry, playDraw, startReload, cancelReload } from './gunAudio'
 export { playFootstep, playLanding, playFootstepOther, FOOTSTEPS } from './footsteps'
 export { StepTracker } from './audioMath'

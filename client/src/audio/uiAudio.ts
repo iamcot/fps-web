@@ -17,3 +17,35 @@ export function playBuyFail(): void {
   if (!g) return
   tone(g.ctx, g.master, { type: 'square', freq: 220, gainDb: -16, decayMs: 120, when: g.ctx.currentTime })
 }
+
+/** Bắt đầu ván: còi ngắn (square 440Hz, 220ms) */
+export function playRoundStart(): void {
+  const g = getGraph()
+  if (!g) return
+  tone(g.ctx, g.master, { type: 'square', freq: 440, gainDb: -14, decayMs: 220, when: g.ctx.currentTime })
+}
+
+/** Thắng ván: 2 nốt đi lên */
+export function playRoundWin(): void {
+  const g = getGraph()
+  if (!g) return
+  const t = g.ctx.currentTime
+  tone(g.ctx, g.master, { type: 'triangle', freq: 660, gainDb: -12, decayMs: 180, when: t })
+  tone(g.ctx, g.master, { type: 'triangle', freq: 990, gainDb: -12, decayMs: 260, when: t + 0.14 })
+}
+
+/** Thua ván: 2 nốt đi xuống */
+export function playRoundLose(): void {
+  const g = getGraph()
+  if (!g) return
+  const t = g.ctx.currentTime
+  tone(g.ctx, g.master, { type: 'triangle', freq: 520, gainDb: -12, decayMs: 180, when: t })
+  tone(g.ctx, g.master, { type: 'triangle', freq: 330, gainDb: -12, decayMs: 300, when: t + 0.14 })
+}
+
+/** 10 giây cuối mỗi ván: mỗi giây một tiếng tích nhỏ */
+export function playTick(): void {
+  const g = getGraph()
+  if (!g) return
+  tone(g.ctx, g.master, { type: 'square', freq: 1200, gainDb: -22, decayMs: 40, when: g.ctx.currentTime })
+}

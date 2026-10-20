@@ -1,4 +1,4 @@
-import { MsgType, TEAMS, CHARACTER_SETS, DEFAULT_CHARACTER_SET, type JoinRejectReason, type MapInfo, type RoomInfo, type TeamId, type Transport } from '@fps/shared'
+import { MsgType, TEAMS, CHARACTER_SETS, DEFAULT_CHARACTER_SET, DEFAULT_SETTINGS, GAME_MODES, MODE_DESC, MODE_LABEL, SETTINGS_LIMITS, MAX_PLAYERS_LIMITS, type GameMode, type JoinRejectReason, type MapInfo, type RoomConfig, type RoomInfo, type RoomOptions, type TeamId, type Transport } from '@fps/shared'
 import { connectWebSocket, maybeNetsim } from './transport'
 import { getCharacterSet } from '../render/characters'
 
@@ -8,6 +8,9 @@ export interface Session {
   names: Map<number, string>   // id → tên (killfeed); giữ cả người đã rời
   teams: Map<number, TeamId>   // id → đội (TeamAssigned)
   characterSet: string         // bộ nhân vật của phòng (Welcome)
+  config: RoomConfig           // thể thức + cài đặt phòng (Welcome)
+  roomName: string
+  mapName: string
 }
 
 const STORE_KEY = 'fps.lobby'
@@ -42,7 +45,7 @@ function createEventFeed() {
 }
 
 
-interface JoinOpts { name: string; room: string; team: TeamId | 'auto'; characterSet?: string; create?: boolean; mapId?: string }
+interface JoinOpts { name: string; room: string; team: TeamId | 'auto'; characterSet?: string; create?: boolean; mapId?: string; options?: RoomOptions }
 
 function joinRoom(transport: Transport, o: JoinOpts): Promise<Session> {
   return new Promise<Session>((resolve, reject) => {
@@ -57,7 +60,7 @@ function joinRoom(transport: Transport, o: JoinOpts): Promise<Session> {
         welcomed = true
         for (const p of msg.players) names.set(p.id, p.name)
         log(`Vào phòng "${o.room}" với id ${msg.yourId}`)
-        resolve({ transport, yourId: msg.yourId, names, teams, characterSet: msg.characterSet })
+        resolve({ transport, yourId: msg.yourId, names, teams, characterSet: msg.characterSet, config: msg.config, roomName: o.room, mapName: msg.mapName })
       } else if (msg.t === MsgType.JoinRejected && !welcomed) {
         dead = true
         reject(new Error(REJECT_TEXT[msg.reason] ?? 'Không vào được'))
@@ -67,6 +70,7 @@ function joinRoom(transport: Transport, o: JoinOpts): Promise<Session> {
         names.set(msg.id, msg.name)
         log(`${msg.name} (#${msg.id}) vào`)
       } else if (msg.t === MsgType.PlayerLeft) {
+        teams.delete(msg.id)
         log(`${names.get(msg.id) ?? '#' + msg.id} đã rời`)
       }
     })
@@ -74,7 +78,7 @@ function joinRoom(transport: Transport, o: JoinOpts): Promise<Session> {
       if (!welcomed) reject(new Error('Server đóng kết nối'))
       else log('Mất kết nối server')
     })
-    transport.send({ t: MsgType.Join, name: o.name, room: o.room, team: o.team, characterSet: o.characterSet, create: o.create, mapId: o.mapId })
+    transport.send({ t: MsgType.Join, name: o.name, room: o.room, team: o.team, characterSet: o.characterSet, create: o.create, mapId: o.mapId, options: o.options })
   })
 }
 
@@ -183,7 +187,7 @@ export function showLobby(): Promise<Session | null> {
           const name = mk('div', 'position:absolute;left:12px;top:10px;font-size:18px;font-weight:bold;text-shadow:0 0 4px #000;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap', r.id)
           const cnt = mk('div', 'position:absolute;right:10px;top:10px;padding:2px 8px;background:rgba(0,0,0,.6);border-radius:12px;font-weight:bold', `👤 ${r.players}/${r.maxPlayers}`)
           const info = mk('div', 'position:absolute;left:12px;top:40px;font-size:12px;line-height:1.5;text-shadow:0 0 4px #000',
-            `${mapName} · ${getCharacterSet(r.characterSet).label}\n${TEAMS.A.name} ${r.teamA} — ${r.teamB} ${TEAMS.B.name}`)
+            `${MODE_LABEL[r.mode]} · ${r.status}\n${mapName} · ${getCharacterSet(r.characterSet).label}\n${TEAMS.A.name} ${r.teamA} — ${r.teamB} ${TEAMS.B.name}`)
           info.style.whiteSpace = 'pre-line'
           const row = mk('div', 'position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:6px')
           const sel = teamSelect(teamChoice.get(r.id) ?? saved.team)
@@ -207,11 +211,48 @@ export function showLobby(): Promise<Session | null> {
       charSel.innerHTML = CHARACTER_SETS.map(id => `<option value="${id}">Nhân vật: ${getCharacterSet(id).label}</option>`).join('')
       charSel.value = DEFAULT_CHARACTER_SET   // luôn mặc định nhân vật người (Cớm & Cướp)
       const teamSel = teamSelect(saved.team)
+      const maxSel = mk('select', INPUT)
+      for (let n = MAX_PLAYERS_LIMITS[1]; n >= MAX_PLAYERS_LIMITS[0]; n -= 2) maxSel.add(new Option(`Tối đa ${n} người`, String(n)))
+      // Thể thức: 2 thẻ lớn; cài đặt đổi theo thể thức
+      let mode: GameMode = 'elimination'
+      const modeRow = mk('div', 'display:grid;grid-template-columns:1fr 1fr;gap:10px')
+      const modeCards = new Map<GameMode, HTMLElement>()
+      for (const m of GAME_MODES) {
+        const c = mk('div', 'padding:12px;border-radius:8px;cursor:pointer;border:2px solid #556;background:rgba(0,0,0,.35)')
+        c.append(mk('div', 'font-size:18px;font-weight:bold;margin-bottom:4px', MODE_LABEL[m]), mk('div', 'font-size:12px;opacity:.85', MODE_DESC[m]))
+        c.addEventListener('click', () => { mode = m; syncMode() })
+        modeCards.set(m, c); modeRow.appendChild(c)
+      }
+      const numField = (label: string, [lo, hi]: readonly [number, number], def: number) => {
+        const wrapF = mk('label', 'display:flex;flex-direction:column;gap:4px;font-size:12px')
+        const inp = mk('input', INPUT + ';width:110px'); inp.type = 'number'; inp.min = String(lo); inp.max = String(hi); inp.value = String(def)
+        wrapF.append(mk('span', '', `${label} (${lo}–${hi})`), inp)
+        return { wrapF, inp }
+      }
+      const fRounds = numField('Số ván thắng', SETTINGS_LIMITS.roundsToWin, DEFAULT_SETTINGS.elimination.roundsToWin)
+      const fRoundTime = numField('Giây mỗi ván', SETTINGS_LIMITS.roundTimeSec, DEFAULT_SETTINGS.elimination.roundTimeSec)
+      const fKills = numField('Giới hạn mạng', SETTINGS_LIMITS.killLimit, DEFAULT_SETTINGS.tdm.killLimit)
+      const fMinutes = numField('Phút mỗi trận', SETTINGS_LIMITS.timeLimitMin, DEFAULT_SETTINGS.tdm.timeLimitMin)
+      const resetBtn = mk('button', BTN, 'Mặc định'); resetBtn.type = 'button'
+      const setRow = mk('div', 'display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap')
+      setRow.append(fRounds.wrapF, fRoundTime.wrapF, fKills.wrapF, fMinutes.wrapF, resetBtn)
+      function syncMode(): void {
+        for (const [m, c] of modeCards) c.style.borderColor = m === mode ? '#6fa0ff' : '#556'
+        fRounds.wrapF.style.display = fRoundTime.wrapF.style.display = mode === 'elimination' ? '' : 'none'
+        fKills.wrapF.style.display = fMinutes.wrapF.style.display = mode === 'tdm' ? '' : 'none'
+      }
+      resetBtn.addEventListener('click', () => {
+        fRounds.inp.value = String(DEFAULT_SETTINGS.elimination.roundsToWin); fRoundTime.inp.value = String(DEFAULT_SETTINGS.elimination.roundTimeSec)
+        fKills.inp.value = String(DEFAULT_SETTINGS.tdm.killLimit); fMinutes.inp.value = String(DEFAULT_SETTINGS.tdm.timeLimitMin)
+      })
+      syncMode()
+      const selRow = mk('div', 'display:flex;gap:8px;flex-wrap:wrap')
+      selRow.append(mapSel, maxSel, charSel, teamSel)
       const btns = mk('div', 'display:flex;gap:8px')
       const ok = mk('button', BTN, 'Tạo phòng')
       const cancel = mk('button', BTN, 'Cancel')
       btns.append(ok, cancel)
-      form.append(nameIn, mapSel, charSel, teamSel, btns)
+      form.append(nameIn, modeRow, setRow, selRow, btns)
       createBox.append(openBtn, form)
       const defaultRoomName = () => { let i = 1; while (rooms.some(r => r.id === `ROOM ${i}`)) i++; return `ROOM ${i}` }
       openBtn.addEventListener('click', () => {
@@ -222,7 +263,10 @@ export function showLobby(): Promise<Session | null> {
       ok.addEventListener('click', () => {
         const room = nameIn.value.trim()
         if (!room) { err.textContent = 'Nhập tên phòng'; return }
-        enter({ name: saved.name, room, team: teamSel.value as TeamId | 'auto', characterSet: charSel.value, create: true, mapId: mapSel.value })
+        const options: RoomOptions = { mode, maxPlayers: Number(maxSel.value), settings: mode === 'elimination'
+          ? { roundsToWin: Number(fRounds.inp.value), roundTimeSec: Number(fRoundTime.inp.value) }
+          : { killLimit: Number(fKills.inp.value), timeLimitMin: Number(fMinutes.inp.value) } }
+        enter({ name: saved.name, room, team: teamSel.value as TeamId | 'auto', characterSet: charSel.value, create: true, mapId: mapSel.value, options })
       })
       nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') ok.click(); else if (e.key === 'Escape') cancel.click() })
 

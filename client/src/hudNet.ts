@@ -64,9 +64,11 @@ export function createDeathScreen() {
   let until = 0
   let lastSec = -1
   return {
+    /** respawnInMs < 0: không hồi sinh (Sinh Tử) → không hiện đồng hồ */
     show(killerName: string, respawnInMs: number): void {
       who.textContent = killerName ? `Bị ${killerName} hạ` : 'Bạn đã chết'
-      until = performance.now() + respawnInMs
+      until = respawnInMs < 0 ? 0 : performance.now() + respawnInMs
+      timer.textContent = ''
       lastSec = -1
       el.style.display = 'flex'
     },
@@ -127,6 +129,24 @@ export function createBountyBanner() {
       el.style.opacity = '1'
       clearTimeout(timer)
       timer = window.setTimeout(() => { el.style.opacity = '0' }, 1500)
+    },
+  }
+}
+
+/** Dòng dưới giữa khi đang xem đồng đội: "Đang xem: tên  ♥ 80". set(undefined) = ẩn; set(null) = camera bay (không ai để xem) */
+export function createSpectateLabel() {
+  const el = document.createElement('div')
+  el.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:none;color:#fff;font:bold 20px monospace;' +
+    'background:rgba(0,0,0,.55);padding:6px 16px;border-radius:6px;pointer-events:none;z-index:16;text-shadow:0 0 4px #000;text-align:center'
+  document.body.appendChild(el)
+  let last = ''
+  return {
+    set(name: string | null | undefined, hp: number): void {
+      const text = name === undefined ? '' : name === null ? 'Không còn đồng đội để xem' : `Đang xem: ${name}   ♥ ${Math.max(0, Math.round(hp))}   (Click / Space: đổi người)`
+      if (text === last) return
+      last = text
+      el.textContent = text
+      el.style.display = text ? 'block' : 'none'
     },
   }
 }

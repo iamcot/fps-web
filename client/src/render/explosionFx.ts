@@ -163,6 +163,14 @@ export function createExplosionFx(scene: THREE.Scene, castRay: () => CastRay | n
       shake.rot = (Math.random() - 0.5) * 2 * SHAKE_MAX_ROT * k
     },
 
+    /** Sang ván mới: xoá mọi hạt, vết cháy và rung đang chạy */
+    clear(): void {
+      for (const p of pools.flash.concat(pools.fire, pools.smoke, pools.spark)) { p.alive = false; p.sprite.visible = false }
+      for (const d of decals) d.mesh.visible = false
+      for (const li of lights) { li.age = 99; li.l.intensity = 0 }
+      shake.amp = 0; shake.t = 99; shake.x = shake.y = shake.rot = 0
+    },
+
     /** Độ lệch rung của frame này (m, rad): cộng vào camera chính, không đụng viewmodel */
     get shake(): { x: number; y: number; rot: number } { return shake },
 

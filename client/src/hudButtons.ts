@@ -74,3 +74,34 @@ export function createLeaveButton(onClick: () => void): void {
   b.addEventListener('click', onClick)
   document.body.appendChild(b)
 }
+
+/** Góc trên trái, dưới 2 nút: "Sinh Tử · Hai thành · ROOM 1" + nút sao chép link vào thẳng phòng */
+export function createRoomLabel(text: string, link: string, onCopied: () => void): void {
+  const box = document.createElement('div')
+  box.style.cssText = 'position:fixed;left:12px;top:48px;z-index:30;display:flex;gap:8px;align-items:center;color:#fff;font:12px monospace;text-shadow:0 0 4px #000'
+  const t = document.createElement('span'); t.textContent = text
+  const b = document.createElement('button'); b.textContent = 'Sao chép link'; b.style.cssText = BTN + ';padding:2px 8px;font-size:11px'
+  b.addEventListener('click', () => {
+    void navigator.clipboard?.writeText(link).then(onCopied, () => {})
+  })
+  box.append(t, b)
+  document.body.appendChild(box)
+}
+
+/** Ô lệnh debug (chỉ build dev): `/` mở, Enter gửi, Esc đóng */
+export function createCommandBox(onSubmit: (cmd: string) => void) {
+  const input = document.createElement('input')
+  input.style.cssText = 'position:fixed;left:50%;bottom:120px;transform:translateX(-50%);width:360px;z-index:45;display:none;padding:6px 10px;background:rgba(0,0,0,.8);color:#fff;border:1px solid #889;border-radius:6px;font:15px monospace'
+  input.placeholder = '/endround A | /setround 9 | /time 10 | /money 16000 | /hp 30 | /kill'
+  input.addEventListener('keydown', e => {
+    e.stopPropagation()
+    if (e.code === 'Enter' || e.code === 'NumpadEnter') { const v = input.value.trim(); close(); if (v) onSubmit(v) }
+    else if (e.code === 'Escape') close()
+  })
+  document.body.appendChild(input)
+  function close(): void { input.style.display = 'none'; input.blur(); input.value = '' }
+  return {
+    get isOpen(): boolean { return input.style.display !== 'none' },
+    open(): void { input.style.display = 'block'; input.value = '/'; document.exitPointerLock?.(); input.focus() },
+  }
+}

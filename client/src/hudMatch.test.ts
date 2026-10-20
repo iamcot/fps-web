@@ -23,3 +23,18 @@ describe('hudMatch', () => {
     expect(bannerText(MatchPhase.Ended, 3, 3)).toBe('HOÀ')
   })
 })
+
+describe('HUD Sinh Tử', () => {
+  it('banner kết thúc ván + lý do', async () => {
+    const { roundBannerText, REASON_TEXT, clockColor } = await import('./hudMatch')
+    expect(roundBannerText('A', 5)).toBe('CỚM THẮNG VÁN 5')
+    expect(roundBannerText('B', 12)).toBe('CƯỚP THẮNG VÁN 12')
+    expect(roundBannerText(null, 3)).toBe('VÁN HOÀ')
+    expect(REASON_TEXT.elimination).toBe('Tiêu diệt toàn bộ')
+    expect(REASON_TEXT.time_alive).toBe('Hết giờ · còn nhiều người hơn')
+    expect(REASON_TEXT.time_hp).toBe('Hết giờ · còn nhiều máu hơn')
+    expect(clockColor(4, 3000)).toBe('#ffd23c')   // FREEZE vàng
+    expect(clockColor(2, 9000)).toBe('#ff5555')   // LIVE < 10s đỏ
+    expect(clockColor(2, 30_000)).toBe('#fff')
+  })
+})

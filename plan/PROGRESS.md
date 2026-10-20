@@ -144,15 +144,12 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - Chơi qua ngrok: client nối `ws(s)://<host>/ws` (cùng địa chỉ trang), Vite `server`/`preview` proxy `/ws` → `ws://localhost:8081`, thêm `allowedHosts` cho ngrok. Chạy `ngrok http 5173` (dev) hoặc `4173` (`vite preview` sau build). Backend không đổi. Kiểm: lobby + vào phòng qua proxy trong Chromium.
 
 ## 13 – Thể thức Sinh Tử / Hỗn Chiến + tạo phòng
-- [ ] M.1 Tách code thể thức (MatchMode), Hỗn Chiến chạy y như cũ
-- [ ] M.2 Tạo phòng, danh sách phòng, link ?room=
-- [ ] M.3 Sinh Tử: các pha, điều kiện thắng ván, đổi bên, kết thúc trận
-- [ ] M.4 Tiền cuối ván (thắng, thua tăng dần, hoà)
-- [ ] M.5 Chế độ xem đồng đội khi chết
-- [ ] M.6 HUD Sinh Tử (tỉ số, ván, người sống, banner)
-- [ ] M.7 Hỗn Chiến: cài đặt phòng + hoà
-- [ ] M.8 Lệnh debug (dev)
-
-## Sửa lỗi sau plan 12/lobby
-- Map bị nghiêng: `applyCameraRotation` không reset `rotation.z` trong khi rung vụ nổ cộng `+=` mỗi frame → nghiêng cộng dồn sau mỗi lần nổ. Giờ đặt `rotation.z = 0` mỗi frame.
-- Nhảy ra khỏi map: bunny-hop từ viền bệ cao góc map (7.2m) vượt được tường 8m (tái hiện bằng test). Thêm 3 hộp va chạm vô hình cao 32m trên tường (`MapBox.invisible`, client không vẽ) + lưới an toàn: server tính chết khi `y < VOID_Y (-20)`.
+- [x] M.1 Tách code thể thức: `server/src/modes/{index,tdm,elimination}.ts` (interface `MatchMode`), `match.ts` chỉ còn phần dùng chung (setPhase, broadcast, updateMatch). `Room` giữ `config` + `mode`; Hỗn Chiến chuyển nguyên logic (test cũ không sửa). `ECONOMY_TDM`/`ECONOMY_ELIM` + hàm kinh tế nhận thêm tham số `eco` (mặc định Hỗn Chiến).
+- [x] M.2 Tạo phòng: `shared/src/roomConfig.ts` (`RoomConfig`, `SETTINGS_LIMITS`, `sanitizeRoomConfig` — server luôn kẹp). Form tạo phòng có 2 thẻ thể thức, cài đặt đổi theo thể thức, nút Mặc định, số người 2–10. Thẻ phòng hiện thể thức + trạng thái. Trong game: nhãn `Sinh Tử · Map · Tên phòng` + nút Sao chép link (`?room=`).
+- [x] M.3 Sinh Tử (server): WARMUP→FREEZE→LIVE→ROUND_END→(HALFTIME)→…→MATCH_END; hoà/giờ/máu; giữ súng khi sống sót; đổi bên; người vào giữa ván chỉ xem; rời phòng giữa ván; xoá lựu đạn (`RoundReset`). 15 test trong `elimination.test.ts`.
+- [x] M.4 Tiền cuối ván: `roundIncome` (shared, có test: 1500/1900/2300/2700/3000/3000, thắng reset chuỗi, hoà giữ chuỗi, trần $16000).
+- [x] M.5 Chế độ xem đồng đội (`client/src/spectate.ts`): sau 2s camera góc 3 sau lưng đồng đội còn sống, chống xuyên tường bằng castRay, Click/Space đổi người, tự chuyển sau 1.5s khi người đang xem bị hạ, camera bay trên cao khi hết đồng đội; không xem được địch.
+- [x] M.6 HUD Sinh Tử: chấm sống/chết, tỉ số, đồng hồ (vàng ở freeze, đỏ 10s cuối), `Ván n / max`, `Mua: 0:14` cạnh giỏ, banner thắng ván + lý do + tiền nhận, banner đổi bên, màn hình kết thúc trận (MVP), 4 âm thanh synth.
+- [x] M.7 Hỗn Chiến: `killLimit`/`timeLimitMin` đọc từ cài đặt phòng; HUD `Mục tiêu: N mạng`; hoà khi bằng điểm (đã có sẵn `winnerOf`).
+- [x] M.8 Lệnh debug (`server/src/debugCmds.ts`): `/endround A|B|draw`, `/setround n`, `/time s`, `/money n`, `/hp n`, `/kill`. **Mở ô lệnh bằng phím `/`** (không dùng `~` vì `~` đang là "Đổi phe"). Server bỏ qua khi `NODE_ENV=production`; client chỉ gắn phím ở build dev.
+- Lệch plan (có chủ ý): số message theo bảng đang dùng (CreateRoom/ListRooms đi chung `Join{create,options}`/`ListRooms` đã có từ trước nên không thêm `t:6`/`t:7` mới; RoundEnd=122, RoundReset=123, MatchEnd=124, DebugCmd=8); tên phòng chính là mã phòng (không sinh mã 5 ký tự, không có ô nhập mã); banner kết thúc ván hiện suốt `roundEndSec` (5s) chứ không cắt ở 3s.

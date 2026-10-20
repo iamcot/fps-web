@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import {
   loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
   stepWeaponCmd, shotSpread, computeShotDirs, MAX_PELLETS, recoverRecoil,
-  CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
+  CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
@@ -23,9 +23,10 @@ import { Prediction } from './net/prediction'
 import { createGhosts } from './render/ghosts'
 import { createTracers } from './render/tracers'
 import { createDebugShots } from './render/debugShots'
-import { createKillfeed, createDeathScreen, createHurtIndicator, createBountyBanner } from './hudNet'
+import { createKillfeed, createDeathScreen, createHurtIndicator, createBountyBanner, createSpectateLabel } from './hudNet'
 import { createShop } from './shop'
-import { createTopButtons, createConfirmPrompt, createToast, createLeaveButton } from './hudButtons'
+import { createTopButtons, createConfirmPrompt, createToast, createLeaveButton, createRoomLabel, createCommandBox } from './hudButtons'
+import { createSpectator, type SpecCandidate } from './spectate'
 import { createMatchHud, createScoreboard } from './hudMatch'
 import { MsgType, MatchPhase, NetFlag, type TeamId } from '@fps/shared'
 import { initTuningPanel } from './tuning'
@@ -42,7 +43,7 @@ import { initHUD } from './hud'
 import {
   initAudio, updateListener, playShot, playDry, playDraw, startReload, cancelReload,
   playHit, playHurt, setHealthForAudio, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS, playBuyOk, playBuyFail,
-  playPin, playSpoon, playThrowSwish, playBounce, playExplode,
+  playPin, playSpoon, playThrowSwish, playBounce, playExplode, playRoundStart, playRoundWin, playRoundLose, playTick,
 } from './audio'
 import { initAudioTuning } from './audio/tuning'
 import mapFileRaw from '@assets/maps/deathmatch.json'
@@ -231,20 +232,32 @@ const hurtIndicator = createHurtIndicator()
 const bountyBanner = createBountyBanner()
 let sideSwapped = false
 let matchPhaseNow: MatchPhase = MatchPhase.Playing
+let buyEndsAt: number | null = null   // Sinh Tử: hết giờ mua (serverTime); null = không giới hạn
+let deadAt = 0                        // performance.now() lúc chết, để chờ 2 giây trước khi chuyển sang xem đồng đội
 // Cửa hàng (H.7): chỉ hiển thị/gửi lệnh; server quyết định tiền, loadout, khu mua
 const shop = createShop({
   money: () => snapStore?.money ?? 0,
   loadout: () => snapStore?.loadout ?? [],
+  eco: () => (sessionRef?.config.settings.mode === 'elimination' ? ECONOMY_ELIM : ECONOMY),
   canShop: () => {
     const s = sessionRef, pos = prediction?.predicted.pos
-    if (!s || !pos || dead || matchPhaseNow === MatchPhase.Ended) return false
+    if (!s || !pos || dead || matchPhaseNow === MatchPhase.Ended || matchPhaseNow === MatchPhase.Halftime) return false
+    if (buyEndsAt !== null && clock.serverNow() >= buyEndsAt) return false
     const team = s.teams.get(s.yourId)
     return team !== undefined && inBuyZone(loadedMap, team, sideSwapped, pos)
   },
   send: key => sessionRef?.transport.send({ t: MsgType.Buy, key }),
   sounds: { ok: playBuyOk, fail: playBuyFail },
 })
-const matchHud = createMatchHud()
+const matchHud = createMatchHud({ start: playRoundStart, win: playRoundWin, lose: playRoundLose, tick: playTick })
+const spectator = createSpectator(() => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
+let spectatingId = -2   // -2 = không xem; -1 = camera bay trên cao; ≥0 = đang xem người đó
+const specBuf: SpecCandidate[] = []
+const specLabel = createSpectateLabel()
+let hudShown = true
+const specNext = () => { if (spectatingId !== -2) spectator.next(specBuf) }
+document.addEventListener('mousedown', e => { if (e.button === 0) specNext() })
+document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat) specNext() })
 const scoreboard = createScoreboard()
 let tabHeld = false
 let scoreToggle = false   // nút "Xem thành tích" bật/tắt bảng điểm
@@ -293,6 +306,13 @@ sessionP.then(session => {
   })
   playerId = session.yourId
   sessionRef = session
+  matchHud.setConfig(session.config)
+  createRoomLabel(`${MODE_LABEL[session.config.settings.mode]} · ${session.mapName} · ${session.roomName}`,
+    `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast('Đã sao chép link phòng'))
+  if (import.meta.env.DEV) {   // lệnh debug (M.8): phím / mở ô lệnh; server bỏ qua khi chạy production
+    const cmdBox = createCommandBox(cmd => session.transport.send({ t: MsgType.DebugCmd, cmd }))
+    document.addEventListener('keydown', e => { if (e.code === 'Slash' && !e.repeat && !cmdBox.isOpen && !teamPrompt.isOpen) { e.preventDefault(); cmdBox.open() } })
+  }
   startPing(session.transport, netStats)
   session.transport.onMessage(msg => {
     if (msg.t === MsgType.HitConfirm) {
@@ -344,8 +364,9 @@ sessionP.then(session => {
       }
       if (msg.victimId === me) {
         dead = true
+        deadAt = performance.now()
         setDead(true)
-        deathScreen.show(name(msg.killerId), RESPAWN_DELAY_MS - clock.oneWayMs)
+        deathScreen.show(name(msg.killerId), matchHud.mode === 'elimination' ? -1 : RESPAWN_DELAY_MS - clock.oneWayMs)
       }
     } else if (msg.t === MsgType.GrenadeSpawn) {
       // serverTime của tick 0 suy từ snapshot (serverTime = start + tick·TICK_MS); chưa có snapshot thì dùng giờ server ước lượng
@@ -365,6 +386,7 @@ sessionP.then(session => {
       dead = false
       setDead(false)
       deathScreen.hide()
+      spectator.reset(); spectatingId = -2
       prediction?.teleport({
         pos: [msg.pos[0], msg.pos[1], msg.pos[2]], vel: [0, 0, 0], yaw: msg.yaw, pitch: 0,
         grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0,
@@ -380,10 +402,18 @@ sessionP.then(session => {
       ws.nade.phase = 'idle'; ws.nade.quick = false; ws.quickHeld = false; ws.switchBackAtMs = 0
       cancelReload()
     } else if (msg.t === MsgType.MatchState) {
-      matchHud.setMatch(msg.phase, msg.phaseEndsAt, msg.scoreA, msg.scoreB, msg.sideSwapped)
+      matchHud.setMatch(msg)
       setMatchPhase(msg.phase)
       matchPhaseNow = msg.phase
       sideSwapped = msg.sideSwapped
+      buyEndsAt = msg.buyEndsAt
+    } else if (msg.t === MsgType.RoundEnd) {
+      matchHud.onRoundEnd(msg, session.teams.get(session.yourId))
+    } else if (msg.t === MsgType.RoundReset) {
+      // Ván mới: xoá lựu đạn đang bay, vết cháy, đường đạn, máu
+      grenades.clear(); explosionFx.clear(); blood.clear()
+    } else if (msg.t === MsgType.MatchEnd) {
+      matchHud.onMatchEnd(msg, msg.mvpId !== null ? session.names.get(msg.mvpId) ?? '' : '')
     } else if (msg.t === MsgType.Scoreboard) {
       scoreboard.setRows(msg.rows, session.yourId)
     } else if (msg.t === MsgType.BuyResult) {
@@ -391,6 +421,7 @@ sessionP.then(session => {
       const def = weaponByKey(msg.key)
       if (msg.ok && def && !def.consumable) setWantedWeapon(CATEGORY_SLOT[def.category])   // server đã cho cầm súng vừa mua: cmd tiếp theo mang đúng ô (lựu đạn thì không tự cầm)
     } else if (msg.t === MsgType.MoneyEvent) {
+      matchHud.onMoney(msg.delta, msg.reason)
       if (msg.reason === 'kill' || msg.reason === 'bounty') hudRef?.bottom.floatMoney(msg.delta, msg.reason === 'bounty')
     } else if (msg.t === MsgType.Hurt) {
       const dx = msg.origin[0] - camera.position.x, dy = msg.origin[1] - camera.position.y, dz = msg.origin[2] - camera.position.z
@@ -410,12 +441,15 @@ sessionP.then(session => {
     interpolator.push(s.serverTime, s.players, s.yourId)
     if (s.hp !== lastHp) { lastHp = s.hp; hudRef?.setHealth(s.hp); setHealthForAudio(s.hp) }
     hudRef?.bottom.setMoney(s.money)
+    if ((s.flags & NetFlag.Dead) !== 0 && !dead && matchHud.mode === 'elimination') {   // vào giữa ván: chỉ xem
+      dead = true; deadAt = performance.now() - 2000; setDead(true)
+    }
     if (s.self) prediction?.onSnapshot(s.ack, s.self, s.wpn)
     if (s.wpn && prediction) reconcileWeapon(ws, s.wpn, prediction.pending)
   })
   session.transport.onClose(() => {
     setNetHooks(null); snapStore = null; prediction = null
-    dead = false; matchPhaseNow = MatchPhase.Playing; shop.close()
+    dead = false; matchPhaseNow = MatchPhase.Playing; buyEndsAt = null; shop.close(); spectator.reset(); spectatingId = -2
     setDead(false); deathScreen.hide(); setMatchPhase(MatchPhase.Playing); matchHud.clear(); sessionRef = null
     interpolator.push(0, []); playersRenderer.clear(); ghosts.clear(); grenades.clear()
   })
@@ -515,7 +549,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     vm.setAim(aiming, !!ads?.scope)
     const scoped = !!ads?.scope && aiming && vm.aimAmount > 0.9
     scopeOverlay.setVisible(scoped)
-    hud.setCrosshairVisible(!scoped)   // súng trường ngắm vẫn giữ tâm; chỉ scope mới ẩn
+    hud.setCrosshairVisible(!scoped && spectatingId === -2)   // súng trường ngắm vẫn giữ tâm; chỉ scope mới ẩn
     hud.setCrosshairFov(camera.fov)
 
     // Viewmodel đi theo súng đang cầm của logic (ws.current), dù đổi do phím, con lăn, mua hay hồi sinh
@@ -549,12 +583,35 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     vm.update(dt)
     hud.tick(dt * 1000)
 
+    {   // Sinh Tử: chết thì sau 2 giây xem đồng đội còn sống (không xem được địch); hết người thì camera bay trên cao
+      const sess = sessionRef
+      const specNow = !!sess && dead && matchHud.mode === 'elimination' && matchPhaseNow !== MatchPhase.Waiting && performance.now() - deadAt >= 2000
+      if (specNow) {
+        const myT = sess.teams.get(sess.yourId)
+        specBuf.length = 0
+        for (const o of lastSampled) if (o.id !== sess.yourId && sess.teams.get(o.id) === myT && (o.flags & NetFlag.Dead) === 0) specBuf.push(o)
+        spectatingId = spectator.apply(camera, specBuf, dt, performance.now())
+        deathScreen.hide()
+        const tgt = snapStore?.players.find(p => p.id === spectatingId)
+        specLabel.set(spectatingId >= 0 ? sess.names.get(spectatingId) ?? `#${spectatingId}` : null, tgt?.hp ?? 0)
+      } else if (spectatingId !== -2) { spectatingId = -2; specLabel.set(undefined, 0) }
+      const showHud = spectatingId === -2
+      if (showHud !== hudShown) { hudShown = showHud; hud.bottom.setVisible(showHud) }
+      if (sess) {
+        let na = 0, nb = 0
+        for (const t of sess.teams.values()) { if (t === 'A') na++; else nb++ }
+        matchHud.setTeamSizes(na, nb)
+      }
+      const now = clock.serverNow()
+      const inBuyPhase = matchPhaseNow === MatchPhase.Freeze || matchPhaseNow === MatchPhase.Playing || matchPhaseNow === MatchPhase.RoundEnd
+      shop.setBuyLeft(buyEndsAt !== null && inBuyPhase && !dead && now < buyEndsAt ? buyEndsAt - now : null)
+    }
     sky.update(camera.position)
     renderer.clear()
     if (poseEditor.orbitOn) poseEditor.applyOrbit(camera, state.pos[0], state.pos[1], state.pos[2])   // F10: camera quanh người mình
     renderer.render(scene, camera)
     renderer.clearDepth()
-    if (!poseEditor.orbitOn) renderer.render(vm.scene, vm.cam)
+    if (!poseEditor.orbitOn && spectatingId === -2) renderer.render(vm.scene, vm.cam)
 
     // Người khác: vẽ trễ (INTERP_DELAY_MS + trễ một chiều) bằng nội suy; chưa vào phòng thì danh sách rỗng
     if (snapStore) ghosts.update(snapStore.players, snapStore.yourId)
