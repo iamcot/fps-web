@@ -40,6 +40,10 @@
     <li id="ck-mat"  class="unk">[ ] Màu hiện đúng</li>
   </ul>
   <div id="info" style="margin-top:6px;font-size:11px;color:#888"></div>
+  <div id="anim-box" style="display:none;margin-top:6px;pointer-events:auto">
+    Animation: <select id="anim-select" style="font:12px monospace;background:#222;color:#ddd;border:1px solid #555"></select>
+    <div id="anim-info" style="font-size:11px;color:#888"></div>
+  </div>
 </div>
 <script type="module">
 import * as THREE from 'three';
@@ -108,6 +112,7 @@ loader.load(
   (gltf) => {
     const model = gltf.scene;
     scene.add(model);
+    if (gltf.animations.length) { setupAnimations(gltf, model); return showCharacterInfo(model); }
 
     // bounding box
     const box = new THREE.Box3().setFromObject(model);
@@ -200,6 +205,51 @@ loader.load(
   }
 );
 
+// --- animation (nhân vật): dropdown chọn clip, đo trôi vị trí của Hips ---
+let mixer = null;
+function setupAnimations(gltf, model) {
+  document.getElementById('checklist').style.display = 'none';
+  model.traverse(o => { if (o.isSkinnedMesh) o.frustumCulled = false; });
+  mixer = new THREE.AnimationMixer(model);
+  const box = document.getElementById('anim-box');
+  const sel = document.getElementById('anim-select');
+  box.style.display = 'block';
+  for (const c of gltf.animations) sel.add(new Option(`${c.name} (${c.duration.toFixed(2)}s)`, c.name));
+  const hips = model.getObjectByName('mixamorigHips');
+  let cur = null, maxDrift = 0;
+  const p0 = new THREE.Vector3(), p = new THREE.Vector3();
+  const play = (name) => {
+    if (cur) cur.stop();
+    cur = mixer.clipAction(THREE.AnimationClip.findByName(gltf.animations, name));
+    cur.reset().play();
+    maxDrift = 0; p0.set(0, 0, 0);
+  };
+  sel.onchange = () => play(sel.value);
+  play(gltf.animations[0].name);
+  viewerTick = (dt) => {
+    mixer.update(dt);
+    if (hips) {
+      model.updateMatrixWorld(true);
+      hips.getWorldPosition(p);
+      if (p0.lengthSq() === 0) p0.copy(p);
+      maxDrift = Math.max(maxDrift, Math.hypot(p.x - p0.x, p.z - p0.z));
+      document.getElementById('anim-info').textContent =
+        `hips y=${p.y.toFixed(2)}m  lệch ngang tối đa=${maxDrift.toFixed(2)}m`;
+    }
+  };
+}
+function showCharacterInfo(model) {
+  const box = new THREE.Box3().setFromObject(model), size = new THREE.Vector3();
+  box.getSize(size);
+  document.getElementById('info').textContent =
+    `tris: ${countTris(model)}  |  size: ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)}m`;
+  controls.target.set(0, 0.9, 0);
+  camera.position.set(1.2, 1.2, 2.4);
+  controls.update();
+}
+let viewerTick = null;
+const clock = new THREE.Clock();
+
 function countTris(obj) {
   let n = 0;
   obj.traverse(o => {
@@ -214,6 +264,7 @@ function countTris(obj) {
 // --- render loop ---
 function animate() {
   requestAnimationFrame(animate);
+  if (viewerTick) viewerTick(clock.getDelta());
   controls.update();
   renderer.render(scene, camera);
 }

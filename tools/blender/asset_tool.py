@@ -4,6 +4,7 @@ Dùng:
   blender -b <file.blend> --python tools/blender/asset_tool.py -- normalize <params.json> <out.glb>
   blender -b --python tools/blender/asset_tool.py -- inspect-character <model.glb> [<preview_dir>]
   blender -b --python tools/blender/asset_tool.py -- prep-mixamo <in.glb> <out.fbx>
+  blender -b --python tools/blender/asset_tool.py -- build-character <team_rigged.fbx> <anims_dir> <out.glb>
 (gun_tool.py cũ chỉ còn là lối tắt gọi file này.)
 """
 import bpy, sys, json, os
@@ -311,8 +312,133 @@ def check_fbx(path):
           "height", round(mx.z - mn.z, 4), "feet", round(mn.z, 4), "bbox", [round(v, 3) for v in mn], [round(v, 3) for v in mx],
           "images", [(i.name, list(i.size)) for i in bpy.data.images if i.type == 'IMAGE'])
 
+# ---------------------------------------------------------------- build-character
+ROOT_MOTION_LIMIT = 0.3   # m: chỉ khử trôi gốc ở animation có hips lệch ngang lớn hơn mức này (death_*)
+
+def _action_fcurves(act):
+    for layer in act.layers:
+        for strip in layer.strips:
+            for cb in strip.channelbags:
+                for fc in cb.fcurves:
+                    yield fc
+
+def build_character(rigged_path, anims_dir, out_path):
+    import glob
+    from mathutils import Vector
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.fbx(filepath=rigged_path)
+    scene = bpy.context.scene
+    arm = next(o for o in scene.objects if o.type == 'ARMATURE')
+    body = next(o for o in scene.objects if o.type == 'MESH')
+    for ac in list(bpy.data.actions):          # action kèm file rigged (1 khung T-pose) không dùng
+        bpy.data.actions.remove(ac)
+    # Mixamo gắn ảnh rác 0x0 vào Emission (+ Normal Map không ảnh): sẽ ra nhân vật trắng toát. Gỡ hết.
+    for mat in bpy.data.materials:
+        if not mat.use_nodes:
+            continue
+        tree = mat.node_tree
+        bsdf = next(n for n in tree.nodes if n.type == 'BSDF_PRINCIPLED')
+        for n in [n for n in tree.nodes if n.type == 'TEX_IMAGE' and (n.image is None or n.image.size[0] == 0)]:
+            tree.nodes.remove(n)
+        for n in [n for n in tree.nodes if n.type == 'NORMAL_MAP']:
+            tree.nodes.remove(n)
+        for sock in ('Emission Color',):
+            for l in list(bsdf.inputs[sock].links):
+                tree.links.remove(l)
+        bsdf.inputs['Emission Color'].default_value = (0, 0, 0, 1)
+        bsdf.inputs['Emission Strength'].default_value = 0.0
+        bsdf.inputs['Metallic'].default_value = 0.0
+        bsdf.inputs['Roughness'].default_value = 0.9
+    for im in list(bpy.data.images):           # ảnh rác 0x0 do Mixamo tạo
+        if im.size[0] == 0:
+            bpy.data.images.remove(im)
+
+    # 1) Apply transform: armature scale 0.01 / xoay 90° (cm, Y-up của FBX) -> mét, Z-up
+    mw = body.matrix_world.copy()
+    body.parent = None
+    body.matrix_world = mw
+    for o in (arm, body):
+        bpy.ops.object.select_all(action='DESELECT')
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    body.parent = arm
+    body.matrix_parent_inverse = Matrix.Identity(4)
+    for m in body.modifiers:
+        if m.type == 'ARMATURE':
+            m.object = arm
+    body.name = "char1"; arm.name = "Armature"
+    for im in bpy.data.images:
+        if im.type == 'IMAGE' and im.packed_file is None:
+            im.pack()
+
+    # 2) Nạp từng animation: lấy action, đổi tên theo file, xoá armature tạm
+    ad = arm.animation_data_create()
+    hips_rest = arm.data.bones['mixamorig:Hips'].matrix_local.to_3x3()
+    report = []
+    for f in sorted(glob.glob(os.path.join(anims_dir, "*.fbx"))):
+        name = os.path.splitext(os.path.basename(f))[0]
+        before_a = set(bpy.data.actions); before_o = set(bpy.data.objects)
+        bpy.ops.import_scene.fbx(filepath=f)
+        new = [a for a in bpy.data.actions if a not in before_a]
+        for o in [o for o in bpy.data.objects if o not in before_o]:
+            bpy.data.objects.remove(o, do_unlink=True)
+        if not new:
+            print("WARN no action in", f); continue
+        act = new[0]; act.name = name; act.use_fake_user = True
+        # đơn vị: keyframe vị trí của file anim tính bằng cm, armature giờ tính bằng mét
+        for fc in _action_fcurves(act):
+            if fc.data_path.endswith(".location"):
+                for kp in fc.keyframe_points:
+                    kp.co.y *= 0.01; kp.handle_left.y *= 0.01; kp.handle_right.y *= 0.01
+                fc.update()
+        # 3) Khử trôi gốc ở xương Hips (theo hệ armature, chỉ trục ngang), giữ chiều cao
+        fcs = {fc.array_index: fc for fc in _action_fcurves(act) if fc.data_path == 'pose.bones["mixamorig:Hips"].location'}
+        drift = 0.0
+        if len(fcs) == 3:
+            n = len(fcs[0].keyframe_points)
+            vecs = [hips_rest @ Vector((fcs[0].keyframe_points[i].co.y, fcs[1].keyframe_points[i].co.y, fcs[2].keyframe_points[i].co.y)) for i in range(n)]
+            hx = [v.x for v in vecs]; hy = [v.y for v in vecs]
+            drift = max(max(hx) - min(hx), max(hy) - min(hy))
+            if drift > ROOT_MOTION_LIMIT:
+                inv = hips_rest.inverted()
+                x0, y0 = vecs[0].x, vecs[0].y
+                for i, v in enumerate(vecs):
+                    loc = inv @ Vector((x0, y0, v.z))
+                    for k in range(3):
+                        kp = fcs[k].keyframe_points[i]
+                        kp.co.y = loc[k]; kp.handle_left.y = loc[k]; kp.handle_right.y = loc[k]
+                for k in range(3): fcs[k].update()
+        report.append((name, round(act.frame_range[1] - act.frame_range[0] + 1), round(drift, 2), drift > ROOT_MOTION_LIMIT))
+
+    # 4) Mỗi action một NLA strip (tắt) để exporter xuất đủ
+    for name, *_ in report:
+        act = bpy.data.actions[name]
+        ad.action = act
+        ad.action_slot = act.slots[0]
+        tr = ad.nla_tracks.new(); tr.name = name
+        st = tr.strips.new(name, 1, act)
+        st.action_slot = act.slots[0]
+        st.mute = True
+    ad.action = None
+
+    # 5) Nén texture về tối đa 2048
+    for im in bpy.data.images:
+        if im.type == 'IMAGE' and max(im.size) > 2048:
+            im.scale(2048, 2048)
+
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    bpy.ops.export_scene.gltf(filepath=out_path, export_format='GLB', export_yup=True,
+                              export_animations=True, export_nla_strips=True,
+                              export_image_format='WEBP', export_apply=False)
+    for r in report:
+        print("ANIM", r)
+    print("BUILT", out_path)
+
 if mode == "inspect":
     inspect()
+elif mode == "build-character":
+    build_character(argv[1], argv[2], argv[3])
 elif mode == "prep-mixamo":
     prep_mixamo(argv[1], argv[2])
 elif mode == "check-fbx":
