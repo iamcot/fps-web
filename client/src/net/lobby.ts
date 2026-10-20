@@ -28,7 +28,7 @@ const REJECT_TEXT: Record<JoinRejectReason, string> = {
 function createEventFeed() {
   const el = document.createElement('div')
   el.style.cssText =
-    'position:fixed;top:8px;right:8px;color:#fff;font:13px/1.5 monospace;' +
+    'position:fixed;top:52px;right:8px;color:#fff;font:13px/1.5 monospace;' +
     'text-align:right;pointer-events:none;z-index:20'
   document.body.appendChild(el)
   return (text: string) => {
@@ -77,6 +77,9 @@ function joinRoom(transport: Transport, o: JoinOpts): Promise<Session> {
     transport.send({ t: MsgType.Join, name: o.name, room: o.room, team: o.team, characterSet: o.characterSet, create: o.create, mapId: o.mapId })
   })
 }
+
+/** Đặt trước khi tải lại trang để lobby bỏ qua bước nhập tên */
+export const BACK_KEY = 'fps.backToLobby'
 
 const BTN = 'padding:8px 14px;background:#2a3550;color:#fff;border:1px solid #556;border-radius:6px;cursor:pointer;font:inherit'
 const INPUT = 'padding:7px 8px;background:#111;color:#fff;border:1px solid #556;border-radius:6px;font:inherit'
@@ -135,6 +138,10 @@ export function showLobby(): Promise<Session | null> {
       })
       el.appendChild(form)
       nameIn.focus()
+      // Quay về từ "Về phòng chờ": đã có tên thì đi thẳng tới danh sách phòng
+      let back = false
+      try { back = sessionStorage.getItem(BACK_KEY) === '1'; sessionStorage.removeItem(BACK_KEY) } catch { /* bỏ qua */ }
+      if (back && saved.name) form.requestSubmit()
     }
 
     // ── Bước 2: danh sách phòng + tạo phòng ──────────────────────────────────

@@ -10,7 +10,7 @@ export function connectWebSocket(url: string): Promise<Transport> {
       try { const m = decode(e.data as ArrayBuffer); for (const cb of msgCbs) cb(m) } catch { /* gói hỏng: bỏ qua */ }
     }
     // Reload/đóng tab: đóng socket chủ động để server thấy ngay thay vì chờ timeout
-    window.addEventListener('pagehide', () => ws.close(1001))
+    window.addEventListener('pagehide', () => ws.close(1000))
     ws.onclose = () => { for (const cb of closeCbs) cb() }
     ws.onerror = () => reject(new Error(`WebSocket lỗi: ${url}`))
     ws.onopen = () => resolve({

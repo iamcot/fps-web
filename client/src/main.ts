@@ -12,7 +12,7 @@ import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
 import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setSpeedMul, setDead, setMatchPhase } from './loop'
 import { initDebugOverlay } from './debug'
-import { showLobby, type Session } from './net/lobby'
+import { showLobby, BACK_KEY, type Session } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
 import { clock } from './net/clock'
 import { attachSnapshots, type SnapshotStore } from './net/snapshots'
@@ -25,7 +25,7 @@ import { createTracers } from './render/tracers'
 import { createDebugShots } from './render/debugShots'
 import { createKillfeed, createDeathScreen, createHurtIndicator, createBountyBanner } from './hudNet'
 import { createShop } from './shop'
-import { createTopButtons, createConfirmPrompt, createToast } from './hudButtons'
+import { createTopButtons, createConfirmPrompt, createToast, createLeaveButton } from './hudButtons'
 import { createMatchHud, createScoreboard } from './hudMatch'
 import { MsgType, MatchPhase, NetFlag, type TeamId } from '@fps/shared'
 import { initTuningPanel } from './tuning'
@@ -252,6 +252,14 @@ let topButtons: ReturnType<typeof createTopButtons> | null = null
 let askSwitchTeam: () => void = () => {}
 const teamPrompt = createConfirmPrompt()
 const toast = createToast()
+// Về phòng chờ: tải lại trang (đóng kết nối nên server cho rời phòng), lobby bỏ qua bước nhập tên
+createLeaveButton(() => {
+  if (teamPrompt.isOpen) return
+  teamPrompt.open('Về phòng chờ? Bạn sẽ rời trận này.', () => {
+    try { sessionStorage.setItem(BACK_KEY, '1') } catch { /* bỏ qua */ }
+    location.reload()
+  })
+})
 document.addEventListener('keydown', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = true } })
 document.addEventListener('keyup', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = false } })
 window.addEventListener('blur', () => { tabHeld = false })

@@ -65,3 +65,12 @@ export function createToast() {
     clearTimeout(timer); timer = window.setTimeout(() => { el.style.display = 'none' }, 3000)
   }
 }
+
+/** Nút góc trên phải: về màn hình chọn phòng */
+export function createLeaveButton(onClick: () => void): void {
+  const b = document.createElement('button')
+  b.textContent = 'Về phòng chờ'
+  b.style.cssText = BTN + ';position:fixed;right:12px;top:12px;z-index:30'
+  b.addEventListener('click', onClick)
+  document.body.appendChild(b)
+}
