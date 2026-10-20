@@ -95,7 +95,7 @@ export function createRoomLabel(text: string, link: string | null, onCopied: () 
 export function createCommandBox(onSubmit: (cmd: string) => void) {
   const input = document.createElement('input')
   input.style.cssText = 'position:fixed;left:50%;bottom:120px;transform:translateX(-50%);width:360px;z-index:45;display:none;padding:6px 10px;background:rgba(0,0,0,.8);color:#fff;border:1px solid #889;border-radius:6px;font:15px monospace'
-  input.placeholder = '/endround A | /setround 9 | /time 10 | /money 16000 | /hp 30 | /kill'
+  input.placeholder = '/endround A | /setround 9 | /time 10 | /money 16000 | /hp 30 | /kill | /zombie | /human | /wave 9 | /clearwave'
   input.addEventListener('keydown', e => {
     e.stopPropagation()
     if (e.code === 'Enter' || e.code === 'NumpadEnter') { const v = input.value.trim(); close(); if (v) onSubmit(v) }

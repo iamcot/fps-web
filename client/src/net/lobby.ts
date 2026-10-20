@@ -62,6 +62,7 @@ function joinRoom(transport: Transport, o: JoinOpts): Promise<Session> {
       if (msg.t === MsgType.Welcome && !welcomed) {
         welcomed = true
         for (const p of msg.players) names.set(p.id, p.name)
+        names.set(msg.yourId, o.name)   // tên của chính mình (bảng thống kê cuối trận)
         log(`Vào phòng "${o.room}" với id ${msg.yourId}`)
         resolve({ transport, yourId: msg.yourId, names, teams, characterSet: msg.characterSet, config: msg.config, roomName: o.room, mapName: msg.mapName })
       } else if (msg.t === MsgType.JoinRejected && !welcomed) {

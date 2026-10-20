@@ -536,6 +536,7 @@ sessionP.then(session => {
       zombieHud.onWaveClear(msg)
     } else if (msg.t === MsgType.DefenseEnd) {
       zombieHud.onDefenseEnd(msg, id => session.names.get(id) ?? `#${id}`)
+      deathScreen.hide()
     } else if (msg.t === MsgType.Telegraph) {
       zoverlay.telegraph(msg, t => performance.now() + (t - clock.serverNow()))
     } else if (msg.t === MsgType.Scoreboard) {
@@ -784,7 +785,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     deathScreen.tick()
     matchHud.tick(clock.serverNow())
     zombieHud.tick(clock.serverNow())
-    scoreboard.show(tabHeld || scoreToggle || (snapStore !== null && matchHud.phase === MatchPhase.Ended))
+    scoreboard.show(tabHeld || scoreToggle || (snapStore !== null && matchHud.phase === MatchPhase.Ended && matchHud.mode !== 'defense'))   // Thủ Thành: màn thống kê riêng (hudZombie)
     hurtIndicator.tick(dt * 1000)
     clock.tick()
     updateDebug(state, fps)

@@ -211,7 +211,30 @@ export function createScoreboard() {
     return t
   }
 
+  // Thủ Thành: bảng chung một đội (zombie hạ, sát thương, số lần cứu)
+  function defenseTable(): HTMLElement {
+    const t = document.createElement('table')
+    t.style.cssText = 'border-collapse:collapse;min-width:420px'
+    const head = document.createElement('caption')
+    head.textContent = 'Thủ Thành'
+    head.style.cssText = 'font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:#6fa0ff'
+    t.appendChild(head)
+    const hr = t.insertRow()
+    for (const h of ['Tên', '$', 'Zombie hạ', 'Sát thương', 'Cứu', 'Ping']) {
+      const c = hr.insertCell(); c.textContent = h
+      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Tên' ? 'left' : 'right')
+    }
+    for (const r of rows.slice().sort((a, b) => (b.zk ?? 0) - (a.zk ?? 0) || a.id - b.id)) {
+      const tr = t.insertRow()
+      if (r.id === myId) tr.style.background = 'rgba(255,255,255,0.22)'
+      const cells: [string, string][] = [[r.name, 'left'], [r.money === undefined ? '—' : `$${r.money}`, 'right'], [String(r.zk ?? 0), 'right'], [String(r.dmg ?? 0), 'right'], [String(r.rev ?? 0), 'right'], [String(r.ping), 'right']]
+      for (const [txt, al] of cells) { const c = tr.insertCell(); c.textContent = txt; c.style.cssText = `padding:2px 8px;text-align:${al}` }
+    }
+    return t
+  }
+
   function rebuild(): void {
+    if (rows.some(r => r.dmg !== undefined)) { box.replaceChildren(defenseTable()); dirty = false; return }
     if (rows.some(r => r.pts !== undefined)) { box.replaceChildren(infectionTable()); dirty = false; return }
     box.replaceChildren(table('A'), table('B'))
     dirty = false

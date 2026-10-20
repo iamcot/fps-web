@@ -28,8 +28,9 @@ export function createSky(scene: THREE.Scene, sunDir: THREE.Vector3) {
         c += vec3(1.0, 0.92, 0.75) * (pow(s, 600.0) * 1.2 + pow(s, 12.0) * 0.18) * (1.0 - night);
         if (night > 0.5) {   // đêm: gradient tối + vài ngôi sao (ô lưới 3D ngẫu nhiên) + quầng trăng mờ
           c = mix(vec3(0.02, 0.03, 0.06), vec3(0.0, 0.005, 0.02), pow(h, 0.5));
-          vec3 g = floor(normalize(vDir) * 90.0);
-          float star = step(0.9965, hash(g)) * smoothstep(0.05, 0.4, h);
+          vec3 q = normalize(vDir) * 280.0;
+          vec3 g = floor(q);
+          float star = step(0.994, hash(g)) * smoothstep(0.05, 0.4, h) * (1.0 - smoothstep(0.07, 0.16, length(fract(q) - 0.5)));   // chấm nhỏ giữa ô lưới
           c += vec3(0.8, 0.85, 1.0) * star;
           c += vec3(0.35, 0.42, 0.6) * (pow(s, 900.0) * 1.0 + pow(s, 14.0) * 0.06);
         }

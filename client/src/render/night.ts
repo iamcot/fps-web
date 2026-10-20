@@ -15,7 +15,7 @@ export const NIGHT = {
   fogColor: 0x070c16, fogDensity: 0.035,
   background: 0x05080f,
   lampColor: 0xffb468, lampIntensity: 140, lampRange: 26,
-  flashIntensity: 520, flashColor: 0xfff2d6,
+  flashIntensity: 80, flashColor: 0xfff2d6,
   zombieAmbientMul: 3,
   zombieOverlay: 'rgba(150,20,20,0.16)',
 }
@@ -67,7 +67,7 @@ export function createNight(scene: THREE.Scene, hemi: THREE.HemisphereLight, sun
   // Đèn pin: [0] của mình, [1..4] của người khác gần nhất
   const spots: THREE.SpotLight[] = []
   for (let i = 0; i <= MAX_OTHER_SPOTS; i++) {
-    const s = new THREE.SpotLight(NIGHT.flashColor, 0, FLASH_RANGE, FLASH_ANGLE, 0.45, 1.3)
+    const s = new THREE.SpotLight(NIGHT.flashColor, 0, FLASH_RANGE, FLASH_ANGLE, 0.45, 1.6)
     s.castShadow = false
     scene.add(s); scene.add(s.target)
     spots.push(s)
