@@ -142,3 +142,13 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - Trong game: góc trên trái 2 nút `Xem thành tích (TAB)` (bật/tắt bảng điểm) và `Đổi phe (~)` (phím ` mở hộp hỏi, Enter/Đồng ý đổi, Esc/Hủy bỏ); toast báo đã đổi / bị từ chối / bị chuyển để cân bằng. Kiểm bằng Chromium + server thật: tạo phòng, phòng hiện ở lobby người thứ 2, vào phòng, đổi phe OK. ⚠️ Chưa thử test chuyển phe tự động bằng 2 người thật bắn nhau (có unit test), chưa thử phòng nhiều hơn 2 người.
 - Nút góc trên phải "Về phòng chờ" (hỏi xác nhận Enter/Esc): tải lại trang, lobby bỏ qua bước nhập tên và vào thẳng danh sách phòng (`sessionStorage fps.backToLobby`); dòng sự kiện mạng dời xuống top:52px. Sửa `ws.close(1001)` (mã không hợp lệ, ném lỗi) → 1000 khi rời trang.
 - Chơi qua ngrok: client nối `ws(s)://<host>/ws` (cùng địa chỉ trang), Vite `server`/`preview` proxy `/ws` → `ws://localhost:8081`, thêm `allowedHosts` cho ngrok. Chạy `ngrok http 5173` (dev) hoặc `4173` (`vite preview` sau build). Backend không đổi. Kiểm: lobby + vào phòng qua proxy trong Chromium.
+
+## 13 – Thể thức Sinh Tử / Hỗn Chiến + tạo phòng
+- [ ] M.1 Tách code thể thức (MatchMode), Hỗn Chiến chạy y như cũ
+- [ ] M.2 Tạo phòng, danh sách phòng, link ?room=
+- [ ] M.3 Sinh Tử: các pha, điều kiện thắng ván, đổi bên, kết thúc trận
+- [ ] M.4 Tiền cuối ván (thắng, thua tăng dần, hoà)
+- [ ] M.5 Chế độ xem đồng đội khi chết
+- [ ] M.6 HUD Sinh Tử (tỉ số, ván, người sống, banner)
+- [ ] M.7 Hỗn Chiến: cài đặt phòng + hoà
+- [ ] M.8 Lệnh debug (dev)
