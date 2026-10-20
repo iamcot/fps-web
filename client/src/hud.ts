@@ -102,6 +102,7 @@ function buildCrosshair() {
   let gap = CROSS_MIN_GAP
   let fovDeg = 75   // FOV dọc hiện tại của camera chính (đổi khi zoom ngắm)
   let dynamic = true
+  let adsT = 0   // ngắm: 4 vạch mờ dần, còn lại một chấm (như Krunker)
   function place(g: number) {
     // 0 trái, 1 phải, 2 trên, 3 dưới
     bars[0]!.style.transform = `translate(${-g - CROSS_LEN}px,-1px)`
@@ -116,15 +117,18 @@ function buildCrosshair() {
   return {
     setFov(deg: number) { fovDeg = deg },
     setVisible(v: boolean) { root.style.display = v ? '' : 'none' },
-    setFade(t: number) { root.style.opacity = String(1 - Math.min(1, Math.max(0, t))) },
+    setAds(t: number) { adsT = Math.min(1, Math.max(0, t)) },
     setDynamic(v: boolean) { dynamic = v },
     /** spreadDeg: nửa góc nón hiện tại; coneDeg > 0 (shotgun) vẽ thêm vòng cho nón chùm; dotOnly: ẩn 4 vạch, chỉ chấm */
     tick(spreadDeg: number, dtMs: number, coneDeg = 0, dotOnly = false) {
       const target = dynamic ? Math.max(CROSS_MIN_GAP, degToPx(spreadDeg)) : CROSS_FIXED_GAP
       gap += (target - gap) * (1 - Math.exp(-dtMs / GAP_TAU_MS))
       place(gap)
+      for (const b of bars) b.style.opacity = String(1 - adsT)
+      dot.style.opacity = dotOnly ? '1' : String(adsT)
+      if (adsT > 0 && !dotOnly) { dot.style.display = '' ; dotShown = true }
       if (barsShown === dotOnly) { barsShown = !dotOnly; for (const b of bars) b.style.display = barsShown ? '' : 'none' }
-      if (dotShown !== dotOnly) { dotShown = dotOnly; dot.style.display = dotOnly ? '' : 'none' }
+      if (!(adsT > 0 && !dotOnly) && dotShown !== dotOnly) { dotShown = dotOnly; dot.style.display = dotOnly ? '' : 'none' }
       const wantRing = coneDeg > 0 && dynamic
       if (wantRing !== ringShown) { ringShown = wantRing; ring.style.display = wantRing ? '' : 'none' }
       if (wantRing) {
@@ -143,7 +147,7 @@ export interface HUDHandle {
   clearBulletHoles(): void
   tick(dtMs: number): void
   setSpread(spreadDeg: number, dtMs: number, coneDeg?: number, dotOnly?: boolean): void
-  setCrosshairFade(adsT: number): void
+  setCrosshairFade(adsT: number): void   // ngắm: vạch → chấm
   setCrosshairDynamic(on: boolean): void
   setCrosshairVisible(v: boolean): void
   setCrosshairFov(deg: number): void
@@ -164,7 +168,7 @@ export function initHUD(scene: THREE.Scene): HUDHandle {
     clearBulletHoles: () => bh.clear(),
     tick:          (ms)  => { hm.tick(ms); st.tick(ms) },
     setSpread:     (d, ms, cone, dot) => ch.tick(d, ms, cone, dot),
-    setCrosshairFade: (t) => ch.setFade(t),
+    setCrosshairFade: (t) => ch.setAds(t),
     setCrosshairDynamic: (on) => ch.setDynamic(on),
     setCrosshairVisible: (v) => ch.setVisible(v),
     setCrosshairFov: (d) => ch.setFov(d),

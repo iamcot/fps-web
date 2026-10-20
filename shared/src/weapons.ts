@@ -108,28 +108,28 @@ export const WEAPONS: WeaponDef[] = [
     fireIntervalMs: 100, magSize: 30, reloadMs: 2500, range: 180,
     spread: { standDeg: 0.35, crouchDeg: 0.20, moveDeg: 1.0, accurateSpeed: 3, airDeg: 3.0, bloomPerShotDeg: 0.25, bloomMaxDeg: 2.0, bloomRecoverDegPerSec: 6, bloomRecoverDelayMs: 150 },
     recoilPitchDeg: 0.95, recoilYawDeg: 0.45, recoilRecoverDegPerSec: 8,
-    ads: { spreadMult: 0.25, moveMult: 0.7, fovMult: 0.8, inMs: 180, outMs: 120, scope: false },   // súng trường: ngắm qua đầu ruồi, zoom nhẹ, không che màn hình
+    ads: { spreadMult: 0.25, moveMult: 0.55, fovMult: 0.8, inMs: 180, outMs: 120, scope: false },   // súng trường: ngắm qua đầu ruồi, zoom nhẹ, không che màn hình
   },
   {
     id: 1, key: 'm16', name: 'M16', category: 'long', price: 3100, buyable: true, moveSpeedMul: 0.93, auto: true, damage: 30, headMult: 4, legMult: 0.75,
     fireIntervalMs: 80, magSize: 30, reloadMs: 2200, range: 220,
     spread: { standDeg: 0.25, crouchDeg: 0.15, moveDeg: 0.8, accurateSpeed: 3, airDeg: 2.5, bloomPerShotDeg: 0.18, bloomMaxDeg: 1.5, bloomRecoverDegPerSec: 7, bloomRecoverDelayMs: 150 },
     recoilPitchDeg: 0.56, recoilYawDeg: 0.25, recoilRecoverDegPerSec: 10,
-    ads: { spreadMult: 0.25, moveMult: 0.7, fovMult: 0.8, inMs: 180, outMs: 120, scope: false },
+    ads: { spreadMult: 0.25, moveMult: 0.55, fovMult: 0.8, inMs: 180, outMs: 120, scope: false },
   },
   {
     id: 2, key: 'colt', name: 'COLT', category: 'pistol', price: 300, buyable: true, moveSpeedMul: 1.0, auto: false, damage: 32, headMult: 3, legMult: 0.75,
     fireIntervalMs: 160, magSize: 7, reloadMs: 1600, range: 90,
     spread: { standDeg: 0.25, crouchDeg: 0.15, moveDeg: 0.6, accurateSpeed: 3, airDeg: 2.0, bloomPerShotDeg: 0.40, bloomMaxDeg: 1.6, bloomRecoverDegPerSec: 5, bloomRecoverDelayMs: 250 },
     recoilPitchDeg: 1.5, recoilYawDeg: 0.3, recoilRecoverDegPerSec: 12,
-    ads: { spreadMult: 0.4, moveMult: 0.85, fovMult: 0.88, inMs: 120, outMs: 90, scope: false },
+    ads: { spreadMult: 0.4, moveMult: 0.7, fovMult: 0.88, inMs: 120, outMs: 90, scope: false },
   },
   {
     id: 3, key: 'rulo', name: 'ROULEAU', category: 'pistol', price: 700, buyable: true, moveSpeedMul: 1.0, auto: false, damage: 55, headMult: 3, legMult: 0.75,
     fireIntervalMs: 400, magSize: 6, reloadMs: 3000, range: 110,
     spread: { standDeg: 0.15, crouchDeg: 0.10, moveDeg: 1.0, accurateSpeed: 3, airDeg: 3.0, bloomPerShotDeg: 0.80, bloomMaxDeg: 2.4, bloomRecoverDegPerSec: 4, bloomRecoverDelayMs: 500 },
     recoilPitchDeg: 2.5, recoilYawDeg: 0.4, recoilRecoverDegPerSec: 10,
-    ads: { spreadMult: 0.4, moveMult: 0.85, fovMult: 0.88, inMs: 120, outMs: 90, scope: false },
+    ads: { spreadMult: 0.4, moveMult: 0.7, fovMult: 0.88, inMs: 120, outMs: 90, scope: false },
   },
   {
     // Sniper: 1 phát/1,2s, 90 sát thương (đầu ×2 = 180), tản đạn rất lớn khi không ngắm; scope 2 mức zoom
@@ -147,7 +147,7 @@ export const WEAPONS: WeaponDef[] = [
     // pelletConeDeg: nón cố định của 8 viên chì; spread di chuyển/trên không chỉ dịch tâm chùm
     spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0.6, accurateSpeed: 3, airDeg: 2.0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0, pelletConeDeg: 4.5 },
     recoilPitchDeg: 4, recoilYawDeg: 0.6, recoilRecoverDegPerSec: 12, recoilRecoverDelayMs: 120,
-    ads: { spreadMult: 0.7, moveMult: 0.8, fovMult: 0.9, inMs: 160, outMs: 120, scope: false },
+    ads: { spreadMult: 0.7, moveMult: 0.65, fovMult: 0.9, inMs: 160, outMs: 120, scope: false },
     pellets: 8, falloff: { fullM: 6, endM: 30, minMult: 0.2 },
   },
   {
@@ -164,7 +164,7 @@ export const WEAPONS: WeaponDef[] = [
     auto: true, damage: 20, headMult: 3, legMult: 0.75,
     fireIntervalMs: 70, magSize: 30, reloadMs: 1800, range: 100,
     spread: { standDeg: 0.60, crouchDeg: 0.40, moveDeg: 0.5, accurateSpeed: 3, airDeg: 2.5, bloomPerShotDeg: 0.15, bloomMaxDeg: 1.5, bloomRecoverDegPerSec: 8, bloomRecoverDelayMs: 120 },
-    ads: { spreadMult: 0.35, moveMult: 0.8, fovMult: 0.85, inMs: 140, outMs: 100, scope: false },
+    ads: { spreadMult: 0.35, moveMult: 0.65, fovMult: 0.85, inMs: 140, outMs: 100, scope: false },
     recoilPitchDeg: 0.45, recoilYawDeg: 0.35, recoilRecoverDegPerSec: 10,
     falloff: { fullM: 15, endM: 40, minMult: 0.6 },
   },
