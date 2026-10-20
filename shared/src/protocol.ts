@@ -5,6 +5,7 @@ import { SLOT_COUNT, type WeaponState } from './weapons'
 import type { OwnedWeapon } from './economy'
 import type { MatchPhase, TeamId } from './teams'
 import type { CharacterSetId } from './characters'
+import type { ThrowMode } from './grenade'
 
 // Phân loại message theo plan/04-phase3-netcode-move.md (C2S 1-3, S2C 101-105)
 export const MsgType = {
@@ -32,6 +33,9 @@ export const MsgType = {
   Scoreboard: 114,
   BuyResult: 115,    // plan ghi 114 nhưng 114 là Scoreboard
   MoneyEvent: 116,
+  GrenadeSpawn: 117,   // plan 12 ghi 116–118 nhưng 116 đã là MoneyEvent
+  GrenadeExplode: 118,
+  GrenadeAnim: 119,
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -117,7 +121,7 @@ export interface SnapshotMsg {
   players: NetPlayer[]
   wpn?: WeaponState    // WeaponState của chính client nhận gói này, sau cmd `ack` (client replay cmd chưa ack lên trên)
   money?: number       // tiền của chính client nhận gói này
-  loadout?: (OwnedWeapon | null)[]   // súng đã mua ở 4 ô (kèm số tiền đã trả → hiển thị giá bán lại)
+  loadout?: (OwnedWeapon | null)[]   // súng đã mua ở 5 ô (kèm số tiền đã trả → hiển thị giá bán lại; ô 5 có thêm count lựu đạn)
 }
 
 export interface PlayerJoinedMsg {
@@ -222,6 +226,35 @@ export interface MoneyEventMsg {
   reason: MoneyReason
 }
 
+// Lựu đạn rời tay (cả phòng). Client tự mô phỏng quỹ đạo (grenadePhysics tất định) từ pos/vel/spawnTick;
+// throwSeq = WeaponState.throwSeq lúc ném, để chủ nhân nhận ra quả đã dự đoán của mình.
+export interface GrenadeSpawnMsg {
+  t: typeof MsgType.GrenadeSpawn
+  id: number
+  ownerId: number
+  mode: ThrowMode
+  pos: [number, number, number]
+  vel: [number, number, number]
+  spawnTick: number
+  throwSeq: number
+}
+
+// Nổ (nguồn chân lý: nổ đúng chỗ này, xoá quả local). hits = sát thương đã áp cho từng người
+export interface GrenadeExplodeMsg {
+  t: typeof MsgType.GrenadeExplode
+  id: number
+  pos: [number, number, number]
+  hits: { id: number; damage: number }[]
+}
+
+// Động tác của người khác để vẽ 3rd person: rút chốt / ném / huỷ
+export interface GrenadeAnimMsg {
+  t: typeof MsgType.GrenadeAnim
+  playerId: number
+  phase: 'pulling' | 'throw' | 'cancel'
+  mode?: ThrowMode   // pulling/throw: ném mạnh hay thấp
+}
+
 export interface PongMsg {
   t: typeof MsgType.Pong
   clientTime: number
@@ -230,7 +263,7 @@ export interface PongMsg {
 
 export type AnyMsg =
   | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)
@@ -245,7 +278,7 @@ export function isValidCmd(c: unknown): c is InputCmd {
     (m.buttons & ~ALL_BUTTONS) === 0 &&
     typeof m.yaw === 'number' && Number.isFinite(m.yaw) &&
     typeof m.pitch === 'number' && Math.abs(m.pitch) <= MAX_PITCH &&
-    typeof m.weapon === 'number' && Number.isInteger(m.weapon) && m.weapon >= 0 && m.weapon < SLOT_COUNT &&   // ô 0–3
+    typeof m.weapon === 'number' && Number.isInteger(m.weapon) && m.weapon >= 0 && m.weapon < SLOT_COUNT &&   // ô 0–4
     
     (m.fireRenderTime === undefined || (typeof m.fireRenderTime === 'number' && Number.isFinite(m.fireRenderTime)))
   )

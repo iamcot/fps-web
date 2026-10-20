@@ -1,4 +1,4 @@
-import { ECONOMY, MatchPhase, MsgType, SWITCH_MS, TICK_RATE, applyBuy, inBuyZone, loadoutWeaponIds, quoteBuy, weaponByKey } from '@fps/shared'
+import { ECONOMY, MatchPhase, MsgType, SWITCH_MS, TICK_RATE, applyBuy, grenadeCount, inBuyZone, loadoutWeaponIds, quoteBuy, weaponByKey } from '@fps/shared'
 import type { Player, Room } from './room'
 
 function fail(p: Player, key: string, reason: string): void {
@@ -28,6 +28,7 @@ export function handleBuy(room: Room, p: Player, key: string): void {
   const def = weaponByKey(key)!
   ws.slots = loadoutWeaponIds(p.loadout)
   if (def.consumable) {   // lựu đạn: chỉ cất vào ô 5, không tự cầm (đang cầm súng gì thì giữ nguyên)
+    ws.ammo[def.id] = grenadeCount(p.loadout)
     p.transport.send({ t: MsgType.BuyResult, ok: true, key })
     p.transport.send({ t: MsgType.MoneyEvent, delta: -q.price, reason: 'buy' })
     return

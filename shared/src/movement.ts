@@ -7,7 +7,8 @@ export const Btn = {
   Crouch:  1 << 5,
   Fire:    1 << 6,
   Reload:  1 << 7,
-  Aim:     1 << 8,   // giữ chuột phải: ngắm (ADS / scope)
+  Aim:     1 << 8,   // giữ chuột phải: ngắm (ADS / scope); khi cầm lựu đạn = ném thấp (lăn)
+  QuickNade: 1 << 9, // phím G: cầm lựu đạn + rút chốt luôn, thả = ném mạnh rồi tự đổi về súng trước
 } as const
 
 export interface InputCmd {

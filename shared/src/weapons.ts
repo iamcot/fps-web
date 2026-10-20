@@ -1,4 +1,4 @@
-import { GRENADE } from './grenade'
+import { GRENADE, makeThrowState, type ThrowState } from './grenade'
 
 export type WeaponCategory = 'knife' | 'pistol' | 'mid' | 'long' | 'grenade'
 /** Ô vũ khí (phím 1–5) của từng dòng. Ô 5 = lựu đạn (hàng tiêu hao, không tính vào 4 dòng súng) */
@@ -59,7 +59,12 @@ export interface WeaponState {
   slots: number[]         // id súng ở 5 ô (theo CATEGORY_SLOT; ô 4 = lựu đạn), -1 = trống. Server giữ, snapshot gửi cho chính người đó
   slot: number            // ô đang cầm
   wantSlot: number        // cmd.weapon của cmd gần nhất: chỉ đổi súng khi cmd.weapon ĐỔI (cmd cũ còn bay trên đường không kéo ngược lại ô vừa mua)
-  ammo: number[]          // theo id súng
+  ammo: number[]          // theo id súng; ammo[GRENADE_ID] = số lựu đạn đang mang
+  nade: ThrowState        // trạng thái rút chốt/ném lựu đạn
+  throwSeq: number        // số quả đã ném (gắn vào GrenadeSpawn để client nhận ra quả dự đoán của mình)
+  quickHeld: boolean      // phím G đang giữ (nhận cạnh lên)
+  prevSlot: number        // ô cầm trước khi chuyển sang lựu đạn (G / phím 5), để tự đổi về
+  switchBackAtMs: number  // > 0: tới thời điểm này (thang seq) tự đổi về prevSlot nếu vẫn đang cầm lựu đạn
   reloadEndMs: number
   nextFireMs: number
   shotSeq: number
@@ -147,6 +152,8 @@ export const WEAPONS: WeaponDef[] = [
 ]
 
 export const WEAPON_BY_KEY: ReadonlyMap<string, WeaponDef> = new Map(WEAPONS.map(w => [w.key, w]))
+/** id của lựu đạn trong WEAPONS */
+export const GRENADE_ID = WEAPON_BY_KEY.get(GRENADE.key)!.id
 export function weaponByKey(key: string): WeaponDef | undefined { return WEAPON_BY_KEY.get(key) }
 
 /** Số tia tối đa mỗi phát (mảng hướng bắn cấp phát sẵn theo số này; seed dành 6 bit cho chỉ số tia) */
@@ -164,6 +171,11 @@ export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS): Weap
     slot,
     wantSlot:    DEFAULT_SLOT,
     ammo:        WEAPONS.map(w => w.magSize),
+    nade:        makeThrowState(),
+    throwSeq:    0,
+    quickHeld:   false,
+    prevSlot:    DEFAULT_SLOT,
+    switchBackAtMs: 0,
     reloadEndMs: 0,
     nextFireMs:  0,
     shotSeq:     0,

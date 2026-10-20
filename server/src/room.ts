@@ -1,6 +1,8 @@
-import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, ECONOMY, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, addMoney, defaultLoadout, killReward, loadoutWeaponIds, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId } from '@fps/shared'
+import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, ECONOMY, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, addMoney, defaultLoadout, killReward, loadoutWeaponIds, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
+import type { RoomGrenade } from './grenades'
+import { dropOnDeath } from './grenades'
 
 export const EMPTY_ROOM_TTL_MS = 60_000
 export const MAX_NAME_LEN = 16
@@ -46,6 +48,9 @@ export class Room {
   emptySince: number | null
   readonly history = new LagHistory()
   serverNow = 0   // serverTime của tick đang chạy (stepRoom đặt)
+  tick = 0        // số tick của phòng (TickLoop truyền vào stepRoom; thiếu thì tự tăng) — mốc thời gian của lựu đạn
+  grenades: RoomGrenade[] = []
+  nextGrenadeId = 1
   private nextId = 1
 
   // Trận đấu (5.2): máy trạng thái chạy trong match.ts
@@ -172,6 +177,8 @@ export class Room {
     ws.slot = ws.slots[slot]! >= 0 ? slot : Math.max(0, ws.slots.findIndex(id => id >= 0))
     ws.current = ws.slots[ws.slot]!
     ws.ammo = WEAPONS.map(w => w.magSize)
+    ws.ammo[GRENADE_ID] = grenadeCount(p.loadout)
+    ws.nade.phase = 'idle'; ws.nade.quick = false; ws.quickHeld = false; ws.switchBackAtMs = 0
     ws.reloadEndMs = 0
     ws.nextFireMs = 0
     ws.triggerHeld = false
@@ -191,6 +198,7 @@ export class Room {
   finalizeDeaths(): void {
     for (const p of this.players.values()) {
       if (!p.alive || p.hp > 0) continue
+      dropOnDeath(this, p)   // đang rút chốt: ready → lựu đạn rơi tại chỗ, pulling → huỷ
       p.alive = false
       p.hp = 0
       // WAITING hồi sinh ngay; còn lại theo RESPAWN_DELAY_MS

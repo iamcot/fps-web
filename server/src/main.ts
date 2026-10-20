@@ -31,7 +31,7 @@ setInterval(() => rooms.sweep(), 5000)
 let ticksThisWindow = 0
 const loop = new TickLoop(() => performance.now(), (tick, serverTime) => {
   for (const room of rooms.rooms.values()) {
-    stepRoom(room, cfg, serverTime)
+    stepRoom(room, cfg, serverTime, tick)
     sendSnapshots(room, tick, serverTime)
   }
   ticksThisWindow++

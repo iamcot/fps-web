@@ -5,6 +5,7 @@ import {
 } from '@fps/shared'
 import type { Player, Room } from './room'
 import { resolveShot } from './shooting'
+import { spawnThrown, stepGrenades } from './grenades'
 import { updateMatch } from './match'
 
 // Khi không có input mới, giữ hướng di chuyển nhưng không lặp hành động một lần
@@ -47,10 +48,17 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
     p.lastProcessedSeq = cmd.seq
     p.lastCmd = cmd
     // Chạy cả khi chết (nút đã bị mask nên không bắn được): wantSlot/hoàn tất nạp khớp với dự đoán của client
-    if (stepWeaponCmd(p.weapon, eff) === 'fired' && p.alive) {
+    const ev = stepWeaponCmd(p.weapon, eff)
+    if (ev === 'fired' && p.alive) {
       p.shotsFired++
       p.invulnUntil = 0   // bắn phát hợp lệ đầu tiên thì hết bất tử
       if (room) resolveShot(p, room, eff, cfg)
+    } else if (room && p.alive && (ev === 'pull' || ev === 'cancel' || ev === 'threw')) {
+      // Lựu đạn: động tác cho người khác vẽ; ném thật thì tạo quả (state đã là sau cmd này)
+      const mode = p.weapon.nade.mode
+      if (ev === 'threw') { p.invulnUntil = 0; spawnThrown(room, p, mode, cfg) }
+      const anim = { t: MsgType.GrenadeAnim, playerId: p.id, phase: ev === 'pull' ? 'pulling' : ev === 'threw' ? 'throw' : 'cancel', mode } as const
+      for (const o of room.players.values()) o.transport.send(anim)
     }
     recoverRecoil(p.recoil, WEAPONS[p.weapon.current]!, p.weapon, cmd.seq * 1000 / TICK_RATE, DT)
     ran++
@@ -74,10 +82,12 @@ export function stepPlayer(p: Player, cfg: MovementConfig, room: Room | null = n
 }
 
 // serverTime = thời điểm của tick này; lịch sử hitbox ghi theo mốc này sau khi mọi người đã bước
-export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serverNow): void {
+export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serverNow, tick?: number): void {
   room.serverNow = serverTime
+  room.tick = tick ?? room.tick + 1
   for (const p of room.players.values()) stepPlayer(p, cfg, room)
   room.finalizeDeaths()
+  stepGrenades(room)   // sau finalizeDeaths: lựu đạn rơi từ người vừa chết đã vào danh sách
   room.respawnDue()
   updateMatch(room)
   room.history.record(serverTime, room.players.values())

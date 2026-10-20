@@ -23,6 +23,19 @@ export const GRENADE = {
   shakeRadius: 15,
   warnRadius: 8,           // hiện cảnh báo lựu đạn gần
   autoSwitchBackMs: 450,   // ném quả cuối xong tự đổi về súng trước đó
+  throwCooldownMs: 500,    // sau một lần ném: chưa rút chốt quả mới ngay (khớp animation vung tay + đưa quả mới lên)
 }
 
 export type ThrowMode = 'strong' | 'lob'
+
+// Trạng thái ném của người chơi: nằm trong WeaponState, server và client chạy cùng stepWeaponCmd nên dự đoán khớp nhau
+export interface ThrowState {
+  phase: 'idle' | 'pulling' | 'ready'
+  mode: ThrowMode
+  pressSeq: number   // seq cmd lúc nhấn nút (rút chốt xong sau pinPullMs)
+  quick: boolean     // vào bằng phím G: ném xong tự đổi về súng trước
+}
+
+export function makeThrowState(): ThrowState {
+  return { phase: 'idle', mode: 'strong', pressSeq: 0, quick: false }
+}
