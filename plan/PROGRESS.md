@@ -120,7 +120,7 @@ Làm một mạch P.1 → P.6 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - [ ] C.8 (Người dùng) Kiểm tra license
 
 ## 12 – Lựu đạn M67
-- [ ] G.0 Chuẩn bị model lựu đạn (tách chốt, thìa) + icon
+- [x] G.0 Chuẩn bị model lựu đạn (tách chốt, thìa) + icon — file nguồn thực tế ở `assets/source/guns/m67_hand_granade_-_low_poly.glb` (plan ghi grenades/m67.glb). Inspect: 2 cụm — A (lắp ráp, ~y<2) và B (bộ tháo rời: thìa mở, chốt rút, dịch +y). Dùng cụm A = ưu tiên (a) vì thìa/chốt/vòng đã là object riêng, không cần ghép B. `asset_tool.py build-grenade <src> <out> [0.09]`: node `body` (thân cầu + vạch vàng + ngòi), `spoon`, `pin` (chốt + vòng kéo), Empty `hand_r` (phía thìa, lòng bàn tay áp lên thìa) và `pin_pull` (tâm vòng); không có `clip` (model không có kẹp). Cao đúng 0,090m (đáy thân → đỉnh thìa), thân cầu đường kính 5,8cm, gốc ở tâm thân, ngòi +Y; 98KB, không texture (màu phẳng; vật liệu `Metal` gốc gần đen nên nâng lên màu thép). Xuất `client/public/models/grenades/m67.glb`, icon trắng `client/public/icons/weapons/m67.png` (512×256). Viewer `?model=grenades/m67` có hộp tick bật/tắt từng node + kích thước. Sửa `render_icon.py` (chưa từng chạy được: camera đặt −X nhưng xoay nhìn −X → ảnh trống) + tự phóng to vật nhỏ <0,5m. `asset_tool.py inspect` nhận thêm đường dẫn glb
 - [ ] G.1 Ô thứ 5, cửa hàng, kinh tế hàng tiêu hao
 - [ ] G.2 Vật lý lựu đạn tất định (có test)
 - [ ] G.3 Server: rút chốt, ném, nổ, sát thương, đẩy lùi

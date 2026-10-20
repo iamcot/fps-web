@@ -27,6 +27,23 @@ for o in meshes:
         w = o.matrix_world @ Vector(c)
         mn = Vector((min(mn[i], w[i]) for i in range(3)))
         mx = Vector((max(mx[i], w[i]) for i in range(3)))
+# Vật thể nhỏ (lựu đạn 9cm): phóng to lên cỡ ~1m cho camera/clip mặc định và workbench làm việc bình thường
+span = max((mx - mn)[i] for i in range(3))
+if span < 0.5:
+    k = 1.0 / span
+    root = bpy.data.objects.new("scale_root", None)
+    bpy.context.scene.collection.objects.link(root)
+    for o in list(bpy.context.scene.objects):
+        if o is not root and o.parent is None:
+            o.parent = root
+    root.scale = (k, k, k)
+    bpy.context.view_layer.update()
+    mn = Vector((1e9, 1e9, 1e9)); mx = Vector((-1e9, -1e9, -1e9))
+    for o in meshes:
+        for c in o.bound_box:
+            w = o.matrix_world @ Vector(c)
+            mn = Vector((min(mn[i], w[i]) for i in range(3)))
+            mx = Vector((max(mx[i], w[i]) for i in range(3)))
 center = (mn + mx) / 2
 size = mx - mn
 
@@ -37,7 +54,7 @@ cam_data.ortho_scale = max(size.y, size.z * 2) * 1.1
 cam = bpy.data.objects.new("icon_cam", cam_data)
 bpy.context.scene.collection.objects.link(cam)
 cam.location = Vector((center.x - max(size.x, 1.0) - 5, center.y, center.z))
-cam.rotation_euler = (1.5707963, 0, 1.5707963)   # nhìn về +X, trục lên +Z
+cam.rotation_euler = (1.5707963, 0, -1.5707963)   # nhìn về +X (camera ở −X), trục lên +Z, +Y hiện bên trái (rotZ +90° sẽ nhìn ra xa model)
 bpy.context.scene.camera = cam
 
 sc = bpy.context.scene

@@ -1,12 +1,13 @@
 """
 Dùng:
-  blender -b <file.blend> --python tools/blender/asset_tool.py -- inspect
+  blender -b <file.blend> --python tools/blender/asset_tool.py -- inspect [<file.glb>]
   blender -b <file.blend> --python tools/blender/asset_tool.py -- normalize <params.json> <out.glb>
   blender -b --python tools/blender/asset_tool.py -- inspect-character <model.glb> [<preview_dir>]
   blender -b --python tools/blender/asset_tool.py -- prep-mixamo <in.glb> <out.fbx>
   blender -b --python tools/blender/asset_tool.py -- build-character <team_rigged.fbx> <anims_dir> <out.glb> [donor_rigged.fbx]
   blender -b --python tools/blender/asset_tool.py -- build-fp-arms <team_rigged.fbx> <out.glb> [donor_rigged.fbx] [--keep-upper=0.6]
   (donor: dùng bộ xương 65 của file này, dịch khớp về thân của team_rigged, rồi gắn skin tự động)
+  blender -b --python tools/blender/asset_tool.py -- build-grenade <src.glb> <out.glb> [height_m=0.09]
 (gun_tool.py cũ chỉ còn là lối tắt gọi file này.)
 """
 import bpy, sys, json, os
@@ -33,7 +34,10 @@ def tri_count(o):
     me.calc_loop_triangles()
     return len(me.loop_triangles)
 
-def inspect():
+def inspect(glb_path=None):
+    if glb_path:
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        bpy.ops.import_scene.gltf(filepath=glb_path)
     objs = mesh_objects()
     mn, mx = world_bbox(objs) if objs else (Vector(), Vector())
     report = {
@@ -608,8 +612,97 @@ def build_fp_arms(rigged_path, out_path, donor_path=None, keep_upper=0.6):
                               export_animations=False, export_image_format='WEBP', export_apply=False)
     print("FPARMS verts kept", len(body.data.vertices), "removed", len(kill), "->", out_path)
 
+# ---------------------------------------------------------------- build-grenade
+# Model M67 của người dùng có 2 cụm: A (lắp ráp, thìa/chốt/vòng đã là object riêng) và B (bộ tháo rời, thìa mở + chốt rút).
+# Dùng cụm A (ưu tiên (a) của plan 12): gom thành node body (thân + vạch vàng + ngòi), spoon (thìa), pin (chốt + vòng kéo).
+GRENADE_PARTS = {
+    "body": ("Circle_Main", "Circle_Yellow", "Circle.001_Main"),
+    "spoon": ("Plane_Main",),
+    "pin": ("Cylinder_Main", "Cylinder.001_Metal"),
+}
+GRENADE_STEEL = (0.62, 0.62, 0.65, 1.0)   # vật liệu 'Metal' gốc gần đen (mất độ bóng kim loại khi xuất), nâng lên màu thép
+
+def build_grenade(src, out_path, height=0.09):
+    from mathutils import Vector
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=src)
+    scene = bpy.context.scene
+    meshes = [o for o in scene.objects if o.type == 'MESH']
+    def pick(prefix):
+        # cụm A: gần gốc (y < 2); cụm B là bản tháo rời dịch +y ≥ 2
+        c = [o for o in meshes if o.name.startswith(prefix) and o.matrix_world.translation.y < 2]
+        if not c: raise RuntimeError("không thấy mesh " + prefix)
+        return c
+    groups = {k: [m for pre in v for m in pick(pre)] for k, v in GRENADE_PARTS.items()}
+    keep = {o for g in groups.values() for o in g}
+    for o in list(scene.objects):
+        if o not in keep:
+            bpy.data.objects.remove(o, do_unlink=True)
+    for o in keep:
+        mw = o.matrix_world.copy(); o.parent = None; o.matrix_world = mw
+    # tâm + bán kính cầu thân: đo trên riêng mesh thân tròn (ngòi/thìa lệch tâm làm sai bbox cả nhóm)
+    sphere = groups["body"][0]
+    sv = [sphere.matrix_world @ v.co for v in sphere.data.vertices]
+    cx = (min(v.x for v in sv) + max(v.x for v in sv)) / 2
+    cy = (min(v.y for v in sv) + max(v.y for v in sv)) / 2
+    rad = (max(v.x for v in sv) - min(v.x for v in sv)) / 2
+    cz = min(v.z for v in sv) + rad
+    # gộp mỗi nhóm thành một object
+    joined = {}
+    for name, objs in groups.items():
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in objs: o.select_set(True)
+        bpy.context.view_layer.objects.active = objs[0]
+        if len(objs) > 1: bpy.ops.object.join()
+        j = bpy.context.view_layer.objects.active
+        j.name = name; j.data.name = name
+        joined[name] = j
+    # chuẩn hoá: cao `height` mét (đáy thân → đỉnh cao nhất của thìa/ngòi), gốc ở tâm thân
+    allv = [j.matrix_world @ v.co for j in joined.values() for v in j.data.vertices]
+    zmin = min(v.z for v in allv); zmax = max(v.z for v in allv)
+    k = height / (zmax - zmin)
+    for j in joined.values():
+        j.data.transform(Matrix.Scale(k, 4) @ Matrix.Translation(-Vector((cx, cy, cz))) @ j.matrix_world)
+        j.matrix_world = Matrix.Identity(4)
+    # materials: dựng lại Principled đơn giản (exporter Blender 5 bỏ qua material phức tạp), vật liệu Metal → thép
+    for mat in bpy.data.materials:
+        bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None) if mat.use_nodes else None
+        bc = list(bsdf.inputs['Base Color'].default_value) if bsdf else [0.5, 0.5, 0.5, 1]
+        if mat.name.startswith("Metal"): bc = list(GRENADE_STEEL)
+        mat.use_nodes = True
+        t = mat.node_tree; t.nodes.clear()
+        o_ = t.nodes.new('ShaderNodeOutputMaterial'); b_ = t.nodes.new('ShaderNodeBsdfPrincipled')
+        b_.inputs['Base Color'].default_value = bc; b_.inputs['Metallic'].default_value = 0.0; b_.inputs['Roughness'].default_value = 0.7
+        t.links.new(b_.outputs['BSDF'], o_.inputs['Surface'])
+    # tâm của từng bộ phận nằm tại chính nó (client tách thìa/chốt ra bay độc lập), vị trí thế giới giữ nguyên
+    for name in ("spoon", "pin"):
+        j = joined[name]
+        bpy.ops.object.select_all(action='DESELECT'); j.select_set(True)
+        bpy.context.view_layer.objects.active = j
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+    # Empty: hand_r (lòng bàn tay phải áp lên thìa, phía +Y blender = bên thìa), pin_pull (tâm vòng kéo)
+    def empty(name, loc):
+        e = bpy.data.objects.new(name, None); e.empty_display_size = 0.005
+        scene.collection.objects.link(e); e.location = loc
+    pin_v = [joined["pin"].matrix_world @ v.co for v in joined["pin"].data.vertices]
+    ring_c = Vector((sum(v.x for v in pin_v) / len(pin_v), sum(v.y for v in pin_v) / len(pin_v), sum(v.z for v in pin_v) / len(pin_v)))
+    sp_v = [joined["spoon"].matrix_world @ v.co for v in joined["spoon"].data.vertices]
+    sp_y = max(v.y for v in sp_v)
+    empty("hand_r", Vector((0, sp_y + 0.012, 0)))
+    empty("pin_pull", ring_c)
+    root = bpy.data.objects.new("GrenadeRoot", None); scene.collection.objects.link(root)
+    for o in list(scene.objects):
+        if o is not root and o.parent is None:
+            o.parent = root
+    bpy.ops.export_scene.gltf(filepath=out_path, export_format='GLB', export_yup=True, export_animations=False, export_apply=False)
+    allz = [v.z for j in joined.values() for v in (j.matrix_world @ w.co for w in j.data.vertices)]
+    print("GRENADE", out_path, "k=%.5f" % k, "height=%.4f" % (max(allz) - min(allz)), "tris", sum(tri_count(j) for j in joined.values()),
+          "ring_c", [round(v, 4) for v in ring_c], "sp_y", round(sp_y, 4))
+
 if mode == "inspect":
-    inspect()
+    inspect(argv[1] if len(argv) > 1 else None)
+elif mode == "build-grenade":
+    build_grenade(argv[1], argv[2], float(argv[3]) if len(argv) > 3 else 0.09)
 elif mode == "build-fp-arms":
     ku = 0.6
     pos = [a for a in argv[1:] if not a.startswith("--")]

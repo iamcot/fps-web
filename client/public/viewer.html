@@ -113,6 +113,7 @@ loader.load(
     const model = gltf.scene;
     scene.add(model);
     if (gltf.animations.length) { setupAnimations(gltf, model); return showCharacterInfo(model); }
+    if (modelName.startsWith('grenades/')) return showProp(model);
 
     // bounding box
     const box = new THREE.Box3().setFromObject(model);
@@ -245,6 +246,29 @@ function showCharacterInfo(model) {
     `tris: ${countTris(model)}  |  size: ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)}m`;
   controls.target.set(0, 0.9, 0);
   camera.position.set(1.2, 1.2, 2.4);
+  controls.update();
+}
+// --- vật nhỏ (lựu đạn): hộp tick bật/tắt từng node con, kích thước, camera gần ---
+function showProp(model) {
+  document.getElementById('checklist').style.display = 'none';
+  const box = new THREE.Box3().setFromObject(model), size = new THREE.Vector3(), center = new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  const info = document.getElementById('info');
+  info.textContent = `tris: ${countTris(model)}  |  size: ${size.x.toFixed(3)}×${size.y.toFixed(3)}×${size.z.toFixed(3)}m  (cao ${(size.y * 100).toFixed(1)}cm)`;
+  const wrap = document.getElementById('anim-box');
+  wrap.style.display = 'block';
+  wrap.innerHTML = 'Node:';
+  for (const c of model.children[0]?.children ?? model.children) {
+    if (!c.name) continue;
+    const l = document.createElement('label');
+    l.style.cssText = 'margin-left:8px';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true;
+    cb.onchange = () => { c.visible = cb.checked; };
+    l.append(cb, ' ' + c.name);
+    wrap.append(l);
+  }
+  controls.target.copy(center);
+  camera.position.set(center.x + 0.15, center.y + 0.08, center.z + 0.2);
   controls.update();
 }
 let viewerTick = null;
