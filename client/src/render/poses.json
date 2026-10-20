@@ -80,6 +80,7 @@
       0
     ],
     "armsScale": 1.4,
+    "armsMaxExtension": 0.92,
     "armsPoleR": [
       0.4,
       -0.5,

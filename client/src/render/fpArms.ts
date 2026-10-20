@@ -105,6 +105,7 @@ export class FpArms {
       // lựu đạn: mỗi tay có thể xoay riêng so với hướng quả (poses: first.grenade.handRotDegR/L)
       const q = rot ? _hq.copy(gunQuat).multiply(_hq2.setFromEuler(_he.set(rot[0] * DEG, rot[1] * DEG, rot[2] * DEG, 'XYZ'))) : gunQuat
       arm.resetPose()   // không có mixer: tự reset để IK/ngón không cộng dồn qua các frame
+      arm.slideToReach(target, f.armsMaxExtension)
       arm.upper.getWorldPosition(_sh)
       _pole.set(pole[0], pole[1], pole[2]).add(_sh)
       arm.solve(target, q, _pole, 1)

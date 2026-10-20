@@ -47,10 +47,10 @@ describe('animation thủ tục', () => {
   }
 
   it('đứng yên: chân không đung đưa; chạy: chân đung đưa chéo nhau, theo quãng đường', () => {
-    const idle = getCharacterSet('blocky').build('A')
+    const idle = getCharacterSet('copRobber').build('A')
     run(idle, 0, 60)
     expect(Math.abs(idle.legL.rotation.x)).toBeLessThan(1e-6)
-    const moving = getCharacterSet('blocky').build('A')
+    const moving = getCharacterSet('copRobber').build('A')
     let peak = 0
     const st = makeAnimState()
     let z = 0
@@ -70,19 +70,19 @@ describe('animation thủ tục', () => {
       for (let i = 0; i < 240; i++) { z -= speed / 60; updateAnim(rig, st, { ...base, z }); peak = Math.max(peak, Math.abs(rig.legL.rotation.x)) }
       return peak
     }
-    expect(peakOf('blocky', 8.5)).toBeGreaterThan(peakOf('blocky', 2))
-    expect(peakOf('robot', 8.5)).toBeLessThan(peakOf('blocky', 8.5))
+    expect(peakOf('copRobber', 8.5)).toBeGreaterThan(peakOf('copRobber', 2))
+    expect(peakOf('robot', 8.5)).toBeLessThan(peakOf('copRobber', 8.5))
   })
 
   it('teleport (hồi sinh) không bị tính là chạy', () => {
-    const rig = getCharacterSet('blocky').build('A'); const st = makeAnimState()
+    const rig = getCharacterSet('copRobber').build('A'); const st = makeAnimState()
     updateAnim(rig, st, base)
     updateAnim(rig, st, { ...base, x: 40 })
     expect(st.phase).toBe(0)
   })
 
   it('trượt: ngả ra sau, chân duỗi trước; nhảy: co chân; ngồi: cúi về trước', () => {
-    const settle = (extra: Partial<AnimInput>) => { const rig = getCharacterSet('blocky').build('A'); const st = makeAnimState(); for (let i = 0; i < 60; i++) updateAnim(rig, st, { ...base, ...extra }); return rig }
+    const settle = (extra: Partial<AnimInput>) => { const rig = getCharacterSet('copRobber').build('A'); const st = makeAnimState(); for (let i = 0; i < 60; i++) updateAnim(rig, st, { ...base, ...extra }); return rig }
     const slide = settle({ sliding: true })
     expect(slide.upper.rotation.x).toBeGreaterThan(0.4)
     expect(slide.legL.rotation.x).toBeGreaterThan(0.8)

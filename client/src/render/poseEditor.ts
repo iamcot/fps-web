@@ -106,6 +106,7 @@ export function createPoseEditor(vm: ViewmodelHandle, weaponId: () => number, eq
       vecRows(body, 'armsRoot', () => poses.first.armsRootOffset, -1, 1)
       vecRows(body, 'armsRot°', () => poses.first.armsRootRotDeg, -90, 90, 1)
       numRow(body, 'armsScale', () => poses.first.armsScale, v => { poses.first.armsScale = v }, 0.5, 3, 0.01)
+      numRow(body, 'armsMaxExt', () => poses.first.armsMaxExtension, v => { poses.first.armsMaxExtension = v }, 0.6, 1, 0.01)
       vecRows(body, 'armsPoleR', () => poses.first.armsPoleR, -1, 1)
       vecRows(body, 'armsPoleL', () => poses.first.armsPoleL, -1, 1)
     } else if (tab === 'Third') {

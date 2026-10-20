@@ -41,6 +41,7 @@ export class SkeletonArm {
   private readonly offsetDeg: () => Vec3
   private readonly restBones: THREE.Object3D[]
   private readonly restQuats: THREE.Quaternion[]
+  private readonly restUpperPos = new THREE.Vector3()
 
   /** Phải dựng khi model đang ở T-pose (chưa chạy mixer): đo độ dài xương + khung bàn tay lúc nghỉ. */
   constructor(
@@ -73,6 +74,7 @@ export class SkeletonArm {
     // Tư thế nghỉ (T-pose) của mọi xương mà solve/applyGrip chạm vào, để reset khi không có mixer ghi đè mỗi frame
     this.restBones = [upper, fore, hand, ...FINGER_NAMES.flatMap(n => fingers[n].slice(0, 3))]
     this.restQuats = this.restBones.map(b => b.quaternion.clone())
+    this.restUpperPos.copy(upper.position)
   }
 
   /**
@@ -82,6 +84,24 @@ export class SkeletonArm {
    */
   resetPose(): void {
     for (let i = 0; i < this.restBones.length; i++) this.restBones[i]!.quaternion.copy(this.restQuats[i]!)
+    this.upper.position.copy(this.restUpperPos)
+    this.upper.updateWorldMatrix(false, true)
+  }
+
+  /**
+   * Viewmodel: nếu tâm bàn tay `target` (thế giới) xa vai hơn tầm với (lenA+lenB)·ext + lòng bàn tay thì trượt vai về phía đích cho vừa,
+   * thay vì để tay dừng giữa chừng. Phải gọi sau resetPose() và trước solve(); resetPose() trả vai về chỗ cũ.
+   */
+  slideToReach(target: THREE.Vector3, ext: number): void {
+    this.upper.updateWorldMatrix(true, false)
+    this.upper.getWorldPosition(_sh)
+    const sc = this.upper.getWorldScale(_fing).x
+    const reach = ((this.lenA0 + this.lenB0) * ext + this.palm0 * poses.character.palmCenterFrac) * sc
+    const d = _sh.distanceTo(target)
+    if (d <= reach) return
+    _dirNew.subVectors(target, _sh).normalize()
+    _sh.addScaledVector(_dirNew, d - reach)
+    this.upper.position.copy(this.upper.parent!.worldToLocal(_sh))
     this.upper.updateWorldMatrix(false, true)
   }
 

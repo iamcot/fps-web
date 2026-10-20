@@ -505,6 +505,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
 
     updateTargets(targets, dt)
     const myTeamNow = sessionRef?.teams.get(sessionRef.yourId) ?? 'A'
+    vm.setBlockArms(sessionRef?.characterSet === 'robot')
     if (myTeamNow !== vmTeam) { vmTeam = myTeamNow; vm.setTeam(myTeamNow) }
     poseEditor.tick(dt)
     vm.update(dt)

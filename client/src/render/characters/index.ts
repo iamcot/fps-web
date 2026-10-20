@@ -4,7 +4,7 @@ import { robot } from './robot'
 import type { CharacterSet } from './types'
 
 // Đăng ký bộ nhân vật. Thêm bộ mới: thêm id vào CHARACTER_SETS (shared) + module + một dòng ở đây.
-const REGISTRY: Record<CharacterSetId, CharacterSet> = { blocky, robot }
+const REGISTRY: Record<CharacterSetId, CharacterSet> = { copRobber: blocky, robot }
 
 export function getCharacterSet(id: string): CharacterSet {
   return REGISTRY[id as CharacterSetId] ?? REGISTRY[DEFAULT_CHARACTER_SET]

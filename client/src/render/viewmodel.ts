@@ -229,6 +229,8 @@ export interface ViewmodelHandle {
   readonly aimAmount: number;
   /** Màu tay áo theo đội */
   setTeam(team: TeamId): void;
+  /** true: dùng tay khối thay tay xương (bộ nhân vật robot) */
+  setBlockArms(v: boolean): void;
   /** Lựu đạn: trạng thái logic mỗi frame (pha, chế độ, tiến độ rút chốt 0..1, còn quả sau khi ném không) */
   setGrenade(phase: LogicPhase, mode: 'strong' | 'lob', pullFrac: number, hasMore: boolean): void;
   /** Lựu đạn vừa rời tay (logic ném): vung tay, quả trong tay biến mất */
@@ -284,6 +286,8 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   const fp = new FpArms();
   scene.add(fp.root);
   fp.load();
+  let blockArms = false;   // bộ nhân vật khối hộp (robot): tay viewmodel cũng là tay khối
+  const fpActive = () => fp.ready && !blockArms;
   const shoulderR = new THREE.Vector3(), shoulderL = new THREE.Vector3();
   const poleR = new THREE.Vector3(), poleL = new THREE.Vector3();
   const targetR = new THREE.Vector3(), targetL = new THREE.Vector3();
@@ -308,7 +312,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     const mesh = currentMesh.getObjectByName("mag");
     if (!mesh || !mesh.parent) return;
     magHeld = { mesh, parent: mesh.parent, weapon: currentWeapon, pos: mesh.position.clone(), quat: mesh.quaternion.clone(), scale: mesh.scale.clone() };
-    (fp.ready ? fp.leftHand()! : armL.handMesh).attach(mesh);
+    (fpActive() ? fp.leftHand()! : armL.handMesh).attach(mesh);
   }
   const dbg: ViewmodelDebug = { gunGroup, armR, armL, shoulderR, shoulderL, targetR, targetL, validR: false, validL: false, freezeReload: -1, showReach: false };
   onPosesChange(() => { cam.fov = poses.first.fov; cam.updateProjectionMatrix(); });
@@ -391,7 +395,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     if (!pin) { pinState = state; return; }
     if (state === "onLeftHand") {
       if (!pinHome) pinHome = { parent: pin.parent!, pos: pin.position.clone(), quat: pin.quaternion.clone(), scale: pin.scale.clone() };
-      (fp.ready ? fp.leftHand()! : armL.handMesh).attach(pin);   // attach giữ vị trí thế giới: chốt đi theo bàn tay trái
+      (fpActive() ? fp.leftHand()! : armL.handMesh).attach(pin);   // attach giữ vị trí thế giới: chốt đi theo bàn tay trái
       pin.visible = true;
     } else {
       if (pinHome) { pinHome.parent.add(pin); pin.position.copy(pinHome.pos); pin.quaternion.copy(pinHome.quat); pin.scale.copy(pinHome.scale); }
@@ -563,7 +567,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     poleR.set(shoulderR.x + f.poleR[0], shoulderR.y + f.poleR[1], shoulderR.z + f.poleR[2]);
     poleL.set(shoulderL.x + f.poleL[0], shoulderL.y + f.poleL[1], shoulderL.z + f.poleL[2]);
     const showArms = gunGroup.visible;
-    const useFp = fp.ready;
+    const useFp = fpActive();
     armR.setVisible(showArms && !useFp);
     getAnchor(currentWeapon, "hand_r", targetR).applyMatrix4(M);
     armR.solve(shoulderR, targetR, poleR);
@@ -607,7 +611,8 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       }
       armL.solve(shoulderL, targetL, poleL);
     }
-    if (useFp) {
+    if (!useFp) fp.setVisible(false)
+    else {
       fp.setVisible(showArms)
       fp.setLeftVisible(leftOn)
       fp.place()
@@ -658,6 +663,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     setGrenade(phase, mode, pullFrac, hasMore) { nadeAnim.setLogic(phase, mode, pullFrac, hasMore); },
     onGrenadeThrow() { nadeAnim.onThrow(); },
     get grenadePhase() { return nadeAnim.phase; },
+    setBlockArms(v: boolean) { blockArms = v; },
     setHidden(h: boolean) { hidden = h; },
     debug: dbg,
   };

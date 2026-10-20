@@ -4,8 +4,8 @@ import type { CharacterSet } from './types'
 
 // Cớm (xanh, mũ kê-pi) vs Cướp (áo xám đậm, quần đen, mặt nạ xám, tóc nâu)
 export const blocky: CharacterSet = {
-  id: 'blocky',
-  label: 'Cớm & Cướp (khối hộp)',
+  id: 'copRobber',
+  label: 'Cớm & Cướp',
   build(team) {
     const cop = team === 'A'
     const cloth = cop ? TEAMS.A.color : 0x3a3a3a

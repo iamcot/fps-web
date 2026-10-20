@@ -278,7 +278,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   // Dựng lại khi đội đổi (TeamAssigned đến sau snapshot đầu) hoặc đổi bộ nhân vật
   function ensure(p: RenderPlayer): Actor {
     const team = info?.teamOf(p.id) ?? 'A'
-    const wantSkel = skeletalEnabled() && getCharacterSet(setId).id === 'blocky' && skeletalReady(team)   // bộ mặc định = Cớm & Cướp có xương
+    const wantSkel = skeletalEnabled() && getCharacterSet(setId).id === 'copRobber' && skeletalReady(team)   // bộ mặc định = Cớm & Cướp có xương
     let a = actors.get(p.id)
     if (a && (a.rig.team !== team || !!a.rig.skel !== wantSkel)) { dropActor(p.id, a); a = undefined }
     if (!a) {
