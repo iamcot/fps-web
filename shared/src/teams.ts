@@ -40,6 +40,7 @@ export const MatchPhase = {
   Freeze: 4,
   RoundEnd: 5,
   Halftime: 6,
+  Prep: 7,   // Lây Nhiễm: chuẩn bị (mọi người là người, đi lại/bắn/mua thoải mái)
 } as const
 export type MatchPhase = (typeof MatchPhase)[keyof typeof MatchPhase]
 

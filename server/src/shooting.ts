@@ -27,11 +27,11 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, baseCfg:
   const ws = shooter.weapon
   const def = defOverride ?? WEAPONS[ws.current]!
   const s = shooter.state
-  const cfg = movementFor(baseCfg, shooter.zstats)
+  const cfg = movementFor(baseCfg, shooter.zstats, shooter.speedMult)
   // Vuốt zombie: sát thương theo loại zombie; cào mạnh nhân đôi
   const baseDamage = shooter.zstats && def.category === 'claw'
     ? shooter.zstats.clawDamage * (def.id === CLAW_HEAVY_ID ? ZOMBIE.heavyDamageMult : 1)
-    : def.damage
+    : def.damage * shooter.damageMult
 
   const pellets = computeShotDirs(dirs, shooter.recoil, def, shooter.id, ws.shotSeq - 1, cmd.yaw, cmd.pitch, computeSpreadDeg(s, ws, def, cfg, cmd.seq * 1000 / TICK_RATE, true))
   eye[0] = s.pos[0]; eye[1] = s.pos[1] + (s.crouching ? cfg.eyeCrouch : cfg.eyeStand); eye[2] = s.pos[2]
@@ -62,7 +62,7 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, baseCfg:
         alive = past.alive
       }
       if (!alive) continue
-      for (const box of hitboxesFor(state, movementFor(baseCfg, other.zstats))) {
+      for (const box of hitboxesFor(state, movementFor(baseCfg, other.zstats, other.speedMult))) {
         if (k === 0) debugBoxes?.push(box)
         const d = rayAabb(eye, dir, box, bestDist)
         if (d !== null && d < bestDist) { bestDist = d; hitId = other.id; hitPart = box.part }

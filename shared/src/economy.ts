@@ -1,7 +1,9 @@
 // Luật mua/bán/thưởng (thuần). Server quyết định, client gọi để hiển thị. Không sửa object đầu vào.
 import { CATEGORY_SLOT, SLOT_COUNT, weaponByKey } from './weapons'
 import type { TeamId } from './teams'
+import type { GameMode } from './roomConfig'
 import { GRENADE } from './grenade'
+import { INFECTION } from './infection'
 
 export interface EconomyConfig {
   startMoney: number
@@ -45,6 +47,23 @@ export const ECONOMY_ELIM = {
   resetAtHalftime: true,         // đổi bên: tiền về startMoney, súng về mặc định
 }
 export type EliminationEconomy = typeof ECONOMY_ELIM
+
+/** Lây Nhiễm (plan 16): tiền đầu mỗi ván (không mang sang ván sau), mua ở pha chuẩn bị, đạn dự trữ vô hạn */
+export const ECONOMY_INFECTION: EconomyConfig = {
+  ...ECONOMY,
+  startMoney: INFECTION.startMoney,
+  keepLoadoutOnDeath: true,
+  infiniteReserve: true,
+}
+
+/** Bộ kinh tế theo thể thức (server: mode.economy(); client dùng để hiển thị giá bán lại, tiền tối đa...) */
+export function economyFor(mode: GameMode): EconomyConfig {
+  switch (mode) {
+    case 'elimination': return ECONOMY_ELIM
+    case 'infection': return ECONOMY_INFECTION
+    default: return ECONOMY_TDM
+  }
+}
 
 export const DEFAULT_LOADOUT: Record<TeamId, string[]> = {
   A: ['knife', 'colt', 'm16'],   // Cớm

@@ -52,6 +52,9 @@ export interface Player {
   lastHurtAt: number             // serverTime lần cuối trúng đạn (zombie hồi máu sau regenDelayMs không bị bắn)
   transformUntil: number         // serverTime hết biến hình: trước đó bất tử, không di chuyển/bắn được
   pendingClaw: { at: number; cmd: InputCmd } | null   // cào mạnh đang vung: trúng khi tới `at` (xác định lúc đó)
+  damageMult: number             // anh hùng (Lây Nhiễm) ×1.5
+  speedMult: number              // anh hùng ×1.1 tốc độ chạy
+  hero: boolean
 }
 
 /** Hỗn Chiến theo luật của server (dùng khi phòng tạo không kèm cài đặt, và trong test) */
@@ -94,7 +97,7 @@ export class Room {
     readonly id: string,
     readonly map: LoadedMap,
     private now: () => number,
-    private random: () => number = Math.random,
+    readonly random: () => number = Math.random,
     readonly rules: MatchRules = MATCH,
     readonly characterSet: CharacterSetId = DEFAULT_CHARACTER_SET,   // chọn lúc tạo phòng, không đổi sau đó
     readonly config: RoomConfig = defaultRoomConfig(id, '', rules),
@@ -115,6 +118,8 @@ export class Room {
   // Luật chọn đội: tự động → đội ít người hơn (bằng nhau thì ngẫu nhiên); chọn đội làm chênh lệch quá rules.maxTeamDiff thì bị chuyển sang đội kia.
   // Đội đầy (maxPerTeam) cũng chuyển; cả hai đầy → null (phòng đầy). `except` = người đang đổi đội (không tính vào đội cũ).
   assignTeam(pref: TeamId | 'auto', except: Player | null = null): TeamId | null {
+    const jt = this.mode.joinTeam?.(this)   // thể thức zombie: mọi người vào phe người, chỉ giới hạn tổng số người
+    if (jt !== undefined) return this.players.size - (except ? 1 : 0) >= this.config.maxPlayers ? null : jt
     let a = this.teamCount('A'), b = this.teamCount('B')
     if (except) { if (except.team === 'A') a--; else b-- }
     const count = (t: TeamId) => (t === 'A' ? a : b)
@@ -185,6 +190,9 @@ export class Room {
       lastHurtAt: 0,
       transformUntil: 0,
       pendingClaw: null,
+      damageMult: 1,
+      speedMult: 1,
+      hero: false,
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name, characterSet: this.characterSet,
       config: this.config, players: [...this.players.values()].map(o => ({ id: o.id, name: o.name })) })
@@ -242,11 +250,12 @@ export class Room {
     let anyDeath = false
     for (const p of this.players.values()) {
       if (!p.alive || p.hp > 0) continue
+      if (this.mode.onLethal?.(this, p)) continue   // thể thức tự xử lý (Lây Nhiễm: người chết = bị lây nhiễm, không phải chết)
       anyDeath = true
       dropOnDeath(this, p)   // đang rút chốt: ready → lựu đạn rơi tại chỗ, pulling → huỷ
       p.alive = false
       p.hp = 0
-      const delay = this.mode.respawnDelayMs(this)
+      const delay = this.mode.respawnDelayMs(this, p)
       p.respawnAt = delay === null ? Infinity : this.serverNow + delay
       p.weapon.triggerHeld = false
       const victimStreak = p.killStreak
@@ -279,6 +288,7 @@ export class Room {
     p.hp = PLAYER_MAX_HP
     p.pendingClaw = null
     p.transformUntil = 0
+    p.hero = false; p.damageMult = 1; p.speedMult = 1
     if (p.team !== team) this.setTeam(p, team)
     p.loadout = defaultLoadout(p.team, this.eco)
     this.equip(p)
@@ -313,7 +323,7 @@ export class Room {
 
   // keepLoadout: giữ súng đang mang (người sống sót qua ván Sinh Tử); mặc định chết thì về bộ của đội
   respawn(p: Player, spawn?: { pos: [number, number, number]; yaw: number }, keepLoadout = false): void {
-    const best = spawn ?? this.pickSpawn(p.team, p)
+    const best = spawn ?? this.mode.pickSpawn?.(this, p) ?? this.pickSpawn(p.team, p)
     p.state = {
       pos: [best.pos[0], best.pos[1], best.pos[2]], vel: [0, 0, 0], yaw: best.yaw, pitch: 0,
       grounded: false, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0,

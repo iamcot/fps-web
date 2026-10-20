@@ -5,7 +5,7 @@ import {
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
-import { ZOMBIE_DEFAULT_RUN_SPEED, movementFor } from '@fps/shared'
+import { INFECTION, ZOMBIE, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
@@ -29,6 +29,7 @@ import { createShop } from './shop'
 import { createTopButtons, createConfirmPrompt, createToast, createLeaveButton, createRoomLabel, createCommandBox } from './hudButtons'
 import { createSpectator, type SpecCandidate } from './spectate'
 import { createMatchHud, createScoreboard } from './hudMatch'
+import { createZombieHud } from './hudZombie'
 import { createOfflinePanel } from './hudOffline'
 import { createBotDebug } from './render/botDebug'
 import { MsgType, MatchPhase, NetFlag, DEFAULT_CHARACTER_SET, type TeamId } from '@fps/shared'
@@ -238,23 +239,26 @@ let deadAt = 0                        // performance.now() lúc chết, để ch
 const shop = createShop({
   money: () => snapStore?.money ?? 0,
   loadout: () => snapStore?.loadout ?? [],
-  eco: () => (sessionRef?.config.settings.mode === 'elimination' ? ECONOMY_ELIM : ECONOMY),
+  eco: () => economyFor(sessionRef?.config.settings.mode ?? 'tdm'),
   canShop: () => {
     const s = sessionRef, pos = prediction?.predicted.pos
     if (!s || !pos || dead || matchPhaseNow === MatchPhase.Ended || matchPhaseNow === MatchPhase.Halftime) return false
     if (buyEndsAt !== null && clock.serverNow() >= buyEndsAt) return false
+    if (s.config.settings.mode === 'infection') return matchPhaseNow === MatchPhase.Prep && ((snapStore?.flags ?? 0) & NetFlag.Zombie) === 0   // Lây Nhiễm: mua ở bất cứ đâu trong pha chuẩn bị
     const team = s.teams.get(s.yourId)
     return team !== undefined && inBuyZone(loadedMap, team, sideSwapped, pos)
   },
   send: key => sessionRef?.transport.send({ t: MsgType.Buy, key }),
   sounds: { ok: playBuyOk, fail: playBuyFail },
 })
+const zombieHud = createZombieHud()
 const matchHud = createMatchHud({ start: playRoundStart, win: playRoundWin, lose: playRoundLose, tick: playTick })
 const spectator = createSpectator(() => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
 let spectatingId = -2   // -2 = không xem; -1 = camera bay trên cao; ≥0 = đang xem người đó
 const specBuf: SpecCandidate[] = []
 const specLabel = createSpectateLabel()
 let hudShown = true
+let zombieSelf = false
 const specNext = () => { if (spectatingId !== -2) spectator.next(specBuf) }
 document.addEventListener('mousedown', e => { if (e.button === 0) specNext() })
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat) specNext() })
@@ -401,7 +405,7 @@ sessionP.then(session => {
         dead = true
         deadAt = performance.now()
         setDead(true)
-        deathScreen.show(msg.killerId === me ? '' : name(msg.killerId), matchHud.mode === 'elimination' ? -1 : RESPAWN_DELAY_MS - clock.oneWayMs)
+        deathScreen.show(msg.killerId === me ? '' : name(msg.killerId), matchHud.mode === 'elimination' ? -1 : (matchHud.mode === 'infection' ? INFECTION.zombieRespawnMs : RESPAWN_DELAY_MS) - clock.oneWayMs)
       }
     } else if (msg.t === MsgType.GrenadeSpawn) {
       // serverTime của tick 0 suy từ snapshot (serverTime = start + tick·TICK_MS); chưa có snapshot thì dùng giờ server ước lượng
@@ -438,17 +442,27 @@ sessionP.then(session => {
       cancelReload()
     } else if (msg.t === MsgType.MatchState) {
       matchHud.setMatch(msg)
+      zombieHud.setMatch(msg)
       setMatchPhase(msg.phase)
       matchPhaseNow = msg.phase
       sideSwapped = msg.sideSwapped
       buyEndsAt = msg.buyEndsAt
     } else if (msg.t === MsgType.RoundEnd) {
       matchHud.onRoundEnd(msg, session.teams.get(session.yourId))
+      zombieHud.onRoundEnd(msg)
     } else if (msg.t === MsgType.RoundReset) {
       // Ván mới: xoá lựu đạn đang bay, vết cháy, đường đạn, máu
       grenades.clear(); explosionFx.clear(); blood.clear()
     } else if (msg.t === MsgType.MatchEnd) {
       matchHud.onMatchEnd(msg, msg.mvpId !== null ? session.names.get(msg.mvpId) ?? '' : '')
+      zombieHud.onMatchEnd(msg, msg.mvpId !== null ? session.names.get(msg.mvpId) ?? '' : '')
+    } else if (msg.t === MsgType.Infected) {
+      zombieHud.onInfected(msg, id => session.names.get(id) ?? `#${id}`, session.yourId)
+      if (msg.kind === 'infected' && msg.byId !== null) killfeed.add(session.names.get(msg.byId) ?? `#${msg.byId}`, '🧟', session.names.get(msg.playerId) ?? `#${msg.playerId}`, false, msg.byId === session.yourId, msg.playerId === session.yourId)
+    } else if (msg.t === MsgType.HeroChosen) {
+      zombieHud.onHero(msg, id => session.names.get(id) ?? `#${id}`, session.yourId)
+    } else if (msg.t === MsgType.InfectionCount) {
+      zombieHud.onCount(msg)
     } else if (msg.t === MsgType.Scoreboard) {
       scoreboard.setRows(msg.rows, session.yourId)
     } else if (msg.t === MsgType.BuyResult) {
@@ -494,7 +508,7 @@ sessionP.then(session => {
   session.transport.onClose(() => {
     setNetHooks(null); snapStore = null; prediction = null
     dead = false; matchPhaseNow = MatchPhase.Playing; buyEndsAt = null; shop.close(); spectator.reset(); spectatingId = -2
-    setDead(false); deathScreen.hide(); setMatchPhase(MatchPhase.Playing); matchHud.clear(); sessionRef = null
+    setDead(false); deathScreen.hide(); setMatchPhase(MatchPhase.Playing); matchHud.clear(); zombieHud.clear(); sessionRef = null
     interpolator.push(0, []); playersRenderer.clear(); ghosts.clear(); grenades.clear()
   })
 })
@@ -620,7 +634,13 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       vm.setGrenade(n.phase === 'idle' ? 'idle' : n.phase === 'pulling' ? 'pulling' : 'ready', n.mode, pull, (ws.ammo[GRENADE_ID] ?? 0) > 0)
     }
     hud.setSpread(computeSpreadDeg(state, ws, def, selfCfg, simMs), dt * 1000, def.spread.pelletConeDeg ?? 0, def.spread.unscopedDeg !== undefined && adsT < 0.5)   // cùng hàm với lúc bắn (bloom hiện tại)
-    hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee, !!def.consumable)
+    hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee, !!def.consumable, !!economyFor(sessionRef?.config.settings.mode ?? 'tdm').infiniteReserve)
+    {   // Zombie: thanh máu lớn + chiêu E thay ô vũ khí
+      const me = snapStore?.me
+      const zomb = !!me && ((snapStore!.flags & NetFlag.Zombie) !== 0)
+      zombieHud.setSelf({ zombie: zomb, hp: snapStore?.hp ?? 0, hpMax: me?.hpMax ?? 1, leapCdMs: (state.leapCd ?? 0) * 1000, leapMaxMs: ZOMBIE.leap.cooldownMs })
+      if (zomb !== zombieSelf) { zombieSelf = zomb; hud.bottom.setVisible(!zomb && hudShown) }
+    }
 
     updateTargets(targets, dt)
     const myTeamNow = sessionRef?.teams.get(sessionRef.yourId) ?? 'A'
@@ -644,7 +664,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
         specLabel.set(spectatingId >= 0 ? sess.names.get(spectatingId) ?? `#${spectatingId}` : null, tgt?.hp ?? 0)
       } else { spectatingId = -2; specLabel.set(undefined, 0) }   // luôn ẩn nhãn (đã có kiểm tra trùng chữ): hồi sinh đặt spectatingId trực tiếp nên không dựa vào việc nó đổi
       const showHud = spectatingId === -2
-      if (showHud !== hudShown) { hudShown = showHud; hud.bottom.setVisible(showHud) }
+      if (showHud !== hudShown) { hudShown = showHud; hud.bottom.setVisible(showHud && !zombieSelf) }
       if (sess) {
         let na = 0, nb = 0
         for (const t of sess.teams.values()) { if (t === 'A') na++; else nb++ }
@@ -681,6 +701,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     debugShots.update(dt * 1000)
     deathScreen.tick()
     matchHud.tick(clock.serverNow())
+    zombieHud.tick(clock.serverNow())
     scoreboard.show(tabHeld || scoreToggle || (snapStore !== null && matchHud.phase === MatchPhase.Ended))
     hurtIndicator.tick(dt * 1000)
     clock.tick()

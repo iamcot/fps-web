@@ -137,11 +137,11 @@ export function createBottomHud() {
         }
       }
     },
-    setAmmo(name: string, cur: number, mag: number, reloading: boolean, melee = false, consumable = false): void {
-      const key = `${name}|${cur}|${mag}|${reloading}|${melee}|${consumable}`
+    setAmmo(name: string, cur: number, mag: number, reloading: boolean, melee = false, consumable = false, infinite = false): void {
+      const key = `${name}|${cur}|${mag}|${reloading}|${melee}|${consumable}|${infinite}`
       if (key === ammoKey) return
       ammoKey = key
-      ammoEl.textContent = consumable ? `×${cur}` : melee ? '—' : reloading ? 'RELOAD' : `${cur} / ${mag}`
+      ammoEl.textContent = consumable ? `×${cur}` : melee ? '—' : reloading ? 'RELOAD' : `${cur} / ${infinite ? '∞' : mag}`
       ammoEl.classList.toggle('low', !melee && !consumable && !reloading && mag > 0 && cur <= mag * 0.25)
       wnameEl.textContent = name
     },

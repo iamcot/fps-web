@@ -152,7 +152,7 @@ export interface HUDHandle {
   setCrosshairVisible(v: boolean): void
   setCrosshairFov(deg: number): void
   setHealth(v: number): void
-  setAmmo(name: string, cur: number, mag: number, reloading: boolean, melee?: boolean, consumable?: boolean): void
+  setAmmo(name: string, cur: number, mag: number, reloading: boolean, melee?: boolean, consumable?: boolean, infinite?: boolean): void
   readonly bottom: BottomHud   // tiền, 4 ô vũ khí, nổi +$
 }
 
@@ -173,7 +173,7 @@ export function initHUD(scene: THREE.Scene): HUDHandle {
     setCrosshairVisible: (v) => ch.setVisible(v),
     setCrosshairFov: (d) => ch.setFov(d),
     setHealth:     (v)   => st.setHealth(v),
-    setAmmo:       (n, c, m, r, melee, cons) => st.setAmmo(n, c, m, r, melee, cons),
+    setAmmo:       (n, c, m, r, melee, cons, inf) => st.setAmmo(n, c, m, r, melee, cons, inf),
     bottom:        st,
   }
 }

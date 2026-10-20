@@ -36,7 +36,7 @@ function buttonMask(p: Player, room: Room | null): number {
 
 export function stepPlayer(p: Player, baseCfg: MovementConfig, room: Room | null = null): void {
   if (!p.world) return
-  const cfg = movementFor(baseCfg, p.zstats)
+  const cfg = movementFor(baseCfg, p.zstats, p.speedMult)
   let ran = 0
   while (ran < MAX_INPUTS_PER_TICK && p.inputQueue.length > 0) {
     const cmd = p.inputQueue.shift()!
@@ -127,7 +127,7 @@ export function sendSnapshots(room: Room, tick: number, serverTime: number): voi
   const players: NetPlayer[] = []
   for (const p of room.players.values()) {
     const flags = (p.alive ? 0 : NetFlag.Dead) | (p.alive && serverTime < p.invulnUntil ? NetFlag.Invuln : 0)
-      | (p.zstats ? NetFlag.Zombie : 0) | (serverTime < p.transformUntil ? NetFlag.Transform : 0)
+      | (p.zstats ? NetFlag.Zombie : 0) | (p.hero ? NetFlag.Hero : 0) | (serverTime < p.transformUntil ? NetFlag.Transform : 0)
     const np = stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current, p.killStreak)
     if (p.zstats) { np.hpMax = p.zstats.hpMax; np.runSpeed = p.zstats.runSpeed; np.ztype = p.zstats.type }
     players.push(np)

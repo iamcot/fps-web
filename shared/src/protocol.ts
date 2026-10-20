@@ -48,6 +48,9 @@ export const MsgType = {
   OfflineState: 125,   // plan 15: danh sách bot + tiền vô hạn của phòng offline
   BotDebug: 126,       // plan 15 (F11): trạng thái từng bot, 10 lần/giây, chỉ khi client bật
   NavDebug: 127,       // plan 15 (F11): lưới di chuyển, gửi một lần khi bật
+  Infected: 130,       // plan 16: zombie mẹ xuất hiện / có người bị lây nhiễm
+  HeroChosen: 131,     // plan 16: người cuối cùng thành anh hùng
+  InfectionCount: 132, // plan 16: số người / zombie (khi đổi)
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -167,6 +170,7 @@ export const NetFlag = {
   Sliding:   1 << 2,   // slideTimer > 0; chỉ để hiển thị, không dùng để dựng lại state
   Dead:      1 << 3,   // đã chết, chờ hồi sinh (không có hitbox, không vẽ)
   Invuln:    1 << 4,   // bất tử sau hồi sinh (vẽ nhấp nháy)
+  Hero:      1 << 7,   // anh hùng (Lây Nhiễm): máu 200, damage ×1.5, chạy ×1.1
   Zombie:    1 << 5,   // vai zombie (plan 16): dùng cấu hình di chuyển/vuốt zombie, vẽ model zombie
   Transform: 1 << 6,   // đang biến hình (bất tử, không di chuyển được)
 } as const
@@ -283,7 +287,7 @@ export interface MatchStateMsg {
 }
 
 // Sinh Tử: ván vừa xong. winner null = hoà. Tiền nhận ở MoneyEvent (round_win / round_loss / round_draw)
-export type RoundEndReason = 'elimination' | 'time_alive' | 'time_hp' | 'draw'
+export type RoundEndReason = 'elimination' | 'time_alive' | 'time_hp' | 'draw' | 'infected_all' | 'time_survive'
 export interface RoundEndMsg { t: typeof MsgType.RoundEnd; round: number; winner: TeamId | null; reason: RoundEndReason }
 export interface RoundResetMsg { t: typeof MsgType.RoundReset; round: number }
 export interface MatchEndMsg { t: typeof MsgType.MatchEnd; winner: TeamId | null; scoreA: number; scoreB: number; mvpId: number | null }
@@ -294,7 +298,11 @@ export interface TeamAssignedMsg {
   team: TeamId
 }
 
-export interface ScoreboardRow { id: number; name: string; team: TeamId; kills: number; deaths: number; ping: number; money?: number }   // money chỉ có khi người nhận cùng đội
+export interface ScoreboardRow {
+  id: number; name: string; team: TeamId; kills: number; deaths: number; ping: number; money?: number
+  // Lây Nhiễm: điểm cá nhân, số người đã lây nhiễm, số zombie đã hạ, vai hiện tại
+  pts?: number; inf?: number; zk?: number; role?: 'human' | 'zombie'
+}   // money chỉ có khi người nhận cùng đội
 export interface ScoreboardMsg {
   t: typeof MsgType.Scoreboard
   rows: ScoreboardRow[]
@@ -345,6 +353,11 @@ export interface GrenadeAnimMsg {
   mode?: ThrowMode   // pulling/throw: ném mạnh hay thấp
 }
 
+// Lây Nhiễm (plan 16): byId = zombie đã cào (null = zombie mẹ được chọn / tự rớt khỏi map)
+export interface InfectedMsg { t: typeof MsgType.Infected; playerId: number; byId: number | null; kind: 'mother' | 'infected' }
+export interface HeroChosenMsg { t: typeof MsgType.HeroChosen; playerId: number }
+export interface InfectionCountMsg { t: typeof MsgType.InfectionCount; humans: number; zombies: number }
+
 export interface PongMsg {
   t: typeof MsgType.Pong
   clientTime: number
@@ -353,7 +366,7 @@ export interface PongMsg {
 
 export type AnyMsg =
   | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg | ListRoomsMsg | OfflineCmdMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg | InfectedMsg | HeroChosenMsg | InfectionCountMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)

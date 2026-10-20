@@ -1,5 +1,5 @@
 // HUD trận đấu (5.2/5.3): điểm đội + đồng hồ, đếm ngược, banner kết thúc, bảng điểm giữ Tab. DOM thuần, chỉ ghi khi text đổi.
-import { MatchPhase, TEAMS, winnerOf, type MatchEndMsg, type MatchStateMsg, type RoomConfig, type RoundEndMsg, type RoundEndReason, type ScoreboardRow, type TeamId } from '@fps/shared'
+import { MatchPhase, TEAMS, winnerOf, type GameMode, type MatchEndMsg, type MatchStateMsg, type RoomConfig, type RoundEndMsg, type RoundEndReason, type ScoreboardRow, type TeamId } from '@fps/shared'
 
 export function formatClock(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000))
@@ -22,6 +22,8 @@ export const REASON_TEXT: Record<RoundEndReason, string> = {
   time_alive: 'Hết giờ · còn nhiều người hơn',
   time_hp: 'Hết giờ · còn nhiều máu hơn',
   draw: 'Hai bên cùng hạ gục',
+  infected_all: 'Zombie đã lây nhiễm tất cả',
+  time_survive: 'Hết giờ · còn người sống sót',
 }
 
 /** Tiêu đề kết thúc ván (Sinh Tử) */
@@ -86,7 +88,7 @@ export function createMatchHud(sounds?: MatchSounds) {
   }
 
   function render(serverNow: number): void {
-    if (!online || !st) { top.style.display = 'none'; setText(big, ''); setText(sub, ''); return }
+    if (!online || !st || st.mode === 'infection' || st.mode === 'defense') { top.style.display = 'none'; setText(big, ''); setText(sub, ''); return }   // thể thức zombie có HUD riêng (hudZombie.ts)
     top.style.display = 'block'
     const elim = st.mode === 'elimination'
     const left = st.phaseEndsAt - serverNow
@@ -148,7 +150,7 @@ export function createMatchHud(sounds?: MatchSounds) {
     onMatchEnd(m: MatchEndMsg, mvp: string): void { matchEnd = m; mvpName = mvp },
     tick: render,
     get phase(): MatchPhase { return st?.phase ?? MatchPhase.Waiting },
-    get mode(): 'elimination' | 'tdm' | null { return st?.mode ?? null },
+    get mode(): GameMode | null { return st?.mode ?? null },
     get buyEndsAt(): number | null { return st?.buyEndsAt ?? null },
     get round(): number { return st?.round ?? 0 },
     clear(): void { online = false; st = null; lastEnd = null; matchEnd = null; render(0) },
@@ -187,7 +189,30 @@ export function createScoreboard() {
     return t
   }
 
+  // Lây Nhiễm: một bảng theo điểm cá nhân (điểm, lây nhiễm, hạ zombie, vai hiện tại)
+  function infectionTable(): HTMLElement {
+    const t = document.createElement('table')
+    t.style.cssText = 'border-collapse:collapse;min-width:460px'
+    const head = document.createElement('caption')
+    head.textContent = 'Lây Nhiễm'
+    head.style.cssText = 'font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:#7ed957'
+    t.appendChild(head)
+    const hr = t.insertRow()
+    for (const h of ['Tên', 'Điểm', 'Lây', 'Hạ ZB', 'Vai', 'Ping']) {
+      const c = hr.insertCell(); c.textContent = h
+      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Tên' ? 'left' : 'right')
+    }
+    for (const r of rows.slice().sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0) || a.id - b.id)) {
+      const tr = t.insertRow()
+      if (r.id === myId) tr.style.background = 'rgba(255,255,255,0.22)'
+      const cells: [string, string][] = [[r.name, 'left'], [String(r.pts ?? 0), 'right'], [String(r.inf ?? 0), 'right'], [String(r.zk ?? 0), 'right'], [r.role === 'zombie' ? '🧟' : '🧍', 'right'], [String(r.ping), 'right']]
+      for (const [txt, al] of cells) { const c = tr.insertCell(); c.textContent = txt; c.style.cssText = `padding:2px 8px;text-align:${al}` }
+    }
+    return t
+  }
+
   function rebuild(): void {
+    if (rows.some(r => r.pts !== undefined)) { box.replaceChildren(infectionTable()); dirty = false; return }
     box.replaceChildren(table('A'), table('B'))
     dirty = false
   }

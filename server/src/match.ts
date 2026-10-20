@@ -21,6 +21,7 @@ export function broadcastScoreboard(room: Room): void {
   for (const viewer of ['A', 'B'] as const) {
     for (const p of room.players.values()) {
       const row: ScoreboardRow = { id: p.id, name: p.name, team: p.team, kills: p.kills, deaths: p.deaths, ping: Math.round(p.pingMs) }
+      room.mode.scoreboardRow?.(room, p, row)
       if (p.team === viewer) row.money = p.money
       rows[viewer].push(row)
     }

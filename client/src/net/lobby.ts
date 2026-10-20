@@ -1,4 +1,4 @@
-import { MsgType, TEAMS, CHARACTER_SETS, DEFAULT_CHARACTER_SET, DEFAULT_SETTINGS, GAME_MODES, MODE_DESC, MODE_LABEL, SETTINGS_LIMITS, MAX_PLAYERS_LIMITS, type GameMode, type JoinRejectReason, type MapInfo, type RoomConfig, type RoomInfo, type RoomOptions, type TeamId, type Transport } from '@fps/shared'
+import { isZombieMode, MsgType, TEAMS, CHARACTER_SETS, DEFAULT_CHARACTER_SET, DEFAULT_SETTINGS, GAME_MODES, MODE_DESC, MODE_LABEL, SETTINGS_LIMITS, MAX_PLAYERS_LIMITS, type GameMode, type JoinRejectReason, type MapInfo, type RoomConfig, type RoomInfo, type RoomOptions, type TeamId, type Transport } from '@fps/shared'
 import { connectWebSocket, maybeNetsim } from './transport'
 import { getCharacterSet } from '../render/characters'
 import { createLocalTransport, startOfflineWorker } from './localTransport'
@@ -205,7 +205,7 @@ export function showLobby(): Promise<Session | null> {
           const name = mk('div', 'position:absolute;left:12px;top:10px;font-size:18px;font-weight:bold;text-shadow:0 0 4px #000;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap', r.id)
           const cnt = mk('div', 'position:absolute;right:10px;top:10px;padding:2px 8px;background:rgba(0,0,0,.6);border-radius:12px;font-weight:bold', `👤 ${r.players}/${r.maxPlayers}`)
           const info = mk('div', 'position:absolute;left:12px;top:40px;font-size:12px;line-height:1.5;text-shadow:0 0 4px #000',
-            `${MODE_LABEL[r.mode]} · ${r.status}\n${mapName} · ${getCharacterSet(r.characterSet).label}\n${TEAMS.A.name} ${r.teamA} — ${r.teamB} ${TEAMS.B.name}`)
+            `${MODE_LABEL[r.mode]} · ${r.status}\n${mapName} · ${getCharacterSet(r.characterSet).label}\n${isZombieMode(r.mode) ? `${r.players}/${r.maxPlayers} người chơi` : `${TEAMS.A.name} ${r.teamA} — ${r.teamB} ${TEAMS.B.name}`}`)
           info.style.whiteSpace = 'pre-line'
           const row = mk('div', 'position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:6px')
           const sel = teamSelect(teamChoice.get(r.id) ?? saved.team)
@@ -251,17 +251,37 @@ export function showLobby(): Promise<Session | null> {
       const fRoundTime = numField('Giây mỗi ván', SETTINGS_LIMITS.roundTimeSec, DEFAULT_SETTINGS.elimination.roundTimeSec)
       const fKills = numField('Giới hạn mạng', SETTINGS_LIMITS.killLimit, DEFAULT_SETTINGS.tdm.killLimit)
       const fMinutes = numField('Phút mỗi trận', SETTINGS_LIMITS.timeLimitMin, DEFAULT_SETTINGS.tdm.timeLimitMin)
+      const fInfRounds = numField('Số ván', SETTINGS_LIMITS.infectionRounds, DEFAULT_SETTINGS.infection.rounds)
+      const fInfTime = numField('Giây mỗi ván', SETTINGS_LIMITS.infectionRoundTimeSec, DEFAULT_SETTINGS.infection.roundTimeSec)
+      const fWaves = numField('Số đợt', SETTINGS_LIMITS.waves, DEFAULT_SETTINGS.defense.waves)
+      const fInter = numField('Giây nghỉ giữa đợt', SETTINGS_LIMITS.intermissionSec, DEFAULT_SETTINGS.defense.intermissionSec)
+      const selField = (label: string, opts: [string, string][], def: string) => {
+        const wrapF = mk('label', 'display:flex;flex-direction:column;gap:4px;font-size:12px')
+        const sel = mk('select', INPUT)
+        for (const [v, t] of opts) sel.add(new Option(t, v))
+        sel.value = def
+        wrapF.append(mk('span', '', label), sel)
+        return { wrapF, sel }
+      }
+      const fLight = selField('Ánh sáng', [['night', 'Ban đêm'], ['day', 'Ban ngày']], 'night')
+      const fDiff = selField('Độ khó', [['easy', 'Dễ'], ['normal', 'Thường'], ['hard', 'Khó']], DEFAULT_SETTINGS.defense.difficulty)
       const resetBtn = mk('button', BTN, 'Mặc định'); resetBtn.type = 'button'
       const setRow = mk('div', 'display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap')
-      setRow.append(fRounds.wrapF, fRoundTime.wrapF, fKills.wrapF, fMinutes.wrapF, resetBtn)
+      setRow.append(fRounds.wrapF, fRoundTime.wrapF, fKills.wrapF, fMinutes.wrapF, fInfRounds.wrapF, fInfTime.wrapF, fWaves.wrapF, fInter.wrapF, fDiff.wrapF, fLight.wrapF, resetBtn)
       function syncMode(): void {
         for (const [m, c] of modeCards) c.style.borderColor = m === mode ? '#6fa0ff' : '#556'
         fRounds.wrapF.style.display = fRoundTime.wrapF.style.display = mode === 'elimination' ? '' : 'none'
         fKills.wrapF.style.display = fMinutes.wrapF.style.display = mode === 'tdm' ? '' : 'none'
+        fInfRounds.wrapF.style.display = fInfTime.wrapF.style.display = mode === 'infection' ? '' : 'none'
+        fWaves.wrapF.style.display = fInter.wrapF.style.display = fDiff.wrapF.style.display = mode === 'defense' ? '' : 'none'
+        fLight.wrapF.style.display = mode === 'infection' || mode === 'defense' ? '' : 'none'
       }
       resetBtn.addEventListener('click', () => {
         fRounds.inp.value = String(DEFAULT_SETTINGS.elimination.roundsToWin); fRoundTime.inp.value = String(DEFAULT_SETTINGS.elimination.roundTimeSec)
         fKills.inp.value = String(DEFAULT_SETTINGS.tdm.killLimit); fMinutes.inp.value = String(DEFAULT_SETTINGS.tdm.timeLimitMin)
+        fInfRounds.inp.value = String(DEFAULT_SETTINGS.infection.rounds); fInfTime.inp.value = String(DEFAULT_SETTINGS.infection.roundTimeSec)
+        fWaves.inp.value = String(DEFAULT_SETTINGS.defense.waves); fInter.inp.value = String(DEFAULT_SETTINGS.defense.intermissionSec)
+        fDiff.sel.value = DEFAULT_SETTINGS.defense.difficulty; fLight.sel.value = 'night'
       })
       syncMode()
       const selRow = mk('div', 'display:flex;gap:8px;flex-wrap:wrap')
@@ -281,9 +301,12 @@ export function showLobby(): Promise<Session | null> {
       ok.addEventListener('click', () => {
         const room = nameIn.value.trim()
         if (!room) { err.textContent = 'Nhập tên phòng'; return }
-        const options: RoomOptions = { mode, maxPlayers: Number(maxSel.value), settings: mode === 'elimination'
+        const settings: RoomOptions['settings'] = mode === 'elimination'
           ? { roundsToWin: Number(fRounds.inp.value), roundTimeSec: Number(fRoundTime.inp.value) }
-          : { killLimit: Number(fKills.inp.value), timeLimitMin: Number(fMinutes.inp.value) } }
+          : mode === 'tdm' ? { killLimit: Number(fKills.inp.value), timeLimitMin: Number(fMinutes.inp.value) }
+          : mode === 'infection' ? { rounds: Number(fInfRounds.inp.value), roundTimeSec: Number(fInfTime.inp.value), lighting: fLight.sel.value }
+          : { waves: Number(fWaves.inp.value), intermissionSec: Number(fInter.inp.value), difficulty: fDiff.sel.value, lighting: fLight.sel.value }
+        const options: RoomOptions = { mode, maxPlayers: Number(maxSel.value), settings }
         enter({ name: saved.name, room, team: teamSel.value as TeamId | 'auto', characterSet: charSel.value, create: true, mapId: mapSel.value, options })
       })
       nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') ok.click(); else if (e.key === 'Escape') cancel.click() })

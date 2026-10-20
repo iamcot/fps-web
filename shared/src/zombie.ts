@@ -54,9 +54,20 @@ export function zombieMovement(base: MovementConfig, runSpeed: number): Movement
   return c
 }
 
-/** Cấu hình di chuyển cho một người chơi: zombie có cấu hình riêng. Server và client phải gọi như nhau. */
-export function movementFor(base: MovementConfig, zombie: { runSpeed: number } | null | undefined): MovementConfig {
-  return zombie ? zombieMovement(base, zombie.runSpeed) : base
+// Người nhanh hơn (anh hùng ×1.1): cache riêng, cùng lý do
+const humanCache = new WeakMap<MovementConfig, Map<number, MovementConfig>>()
+function scaledHuman(base: MovementConfig, speedMul: number): MovementConfig {
+  let m = humanCache.get(base)
+  if (!m) { m = new Map(); humanCache.set(base, m) }
+  let c = m.get(speedMul)
+  if (!c) { c = { ...base, runSpeed: base.runSpeed * speedMul }; m.set(speedMul, c) }
+  return c
+}
+
+/** Cấu hình di chuyển cho một người chơi: zombie có cấu hình riêng, anh hùng chạy nhanh hơn. Server và client phải gọi như nhau. */
+export function movementFor(base: MovementConfig, zombie: { runSpeed: number } | null | undefined, speedMul = 1): MovementConfig {
+  if (zombie) return zombieMovement(base, zombie.runSpeed * speedMul)
+  return speedMul === 1 ? base : scaledHuman(base, speedMul)
 }
 
 /** Mặc định cho test / chỗ chưa biết loại zombie */

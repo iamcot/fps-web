@@ -15,7 +15,7 @@ export function handleBuy(room: Room, p: Player, key: string): void {
   if (!weaponByKey(key)) return fail(p, key, 'unknown')
   if (!p.alive) return fail(p, key, 'dead')
   if (!room.mode.canBuy(room, p, now)) return fail(p, key, 'phase')
-  if (!inBuyZone(room.map, p.team, room.sideSwapped, p.state.pos)) return fail(p, key, 'out_of_zone')
+  if (!room.mode.buyAnywhere?.(room, p) && !inBuyZone(room.map, p.team, room.sideSwapped, p.state.pos)) return fail(p, key, 'out_of_zone')
 
   const q = quoteBuy(p.money, p.loadout, key, room.eco)
   if (!q.ok) return fail(p, key, q.reason)
