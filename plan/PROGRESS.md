@@ -85,6 +85,7 @@ Làm một mạch H.0 → H.8 theo yêu cầu (lệch quy tắc "mỗi phiên m�
 - [~] H.5 Icon vũ khí — SVG tạm cho cả 8 súng + script Blender chưa chạy
 - [x] H.6 HUD dưới màn hình (tiền, tim, 4 ô, đạn)
 - [x] H.7 Giỏ hàng + menu cửa hàng
+- [x] Menu cửa hàng 2 cấp (client/shop.ts): cấp 1 phím 2–5 = dòng súng (2 súng ngắn: colt/rulo; 3 súng vừa: shotgun/smg; 4 súng dài: m16/ak47/6 sniper; 5 lựu đạn), cấp 2 chọn loại. B→4→2 mua AK47; mua thành công tự đóng.
 - [x] H.8 Phản hồi tiền thưởng, truy nã
 
 ## 10 – Tay nhân vật & tư thế cầm súng

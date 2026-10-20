@@ -12,18 +12,32 @@ export interface ShopDeps {
   sounds: { ok(): void; fail(): void }
 }
 
-const GROUPS: WeaponCategory[] = ['pistol', 'mid', 'long', 'grenade']
+// Menu 2 cấp: phím số cấp 1 (2–5) chọn dòng súng, cấp 2 chọn loại. Mua AK47 = B 4 2.
+interface GroupDef { num: number; cat: WeaponCategory; items: [number, string][] }
+const GROUPS: GroupDef[] = [
+  { num: 2, cat: 'pistol', items: [[1, 'colt'], [2, 'rulo']] },
+  { num: 3, cat: 'mid', items: [[1, 'shotgun'], [2, 'smg']] },
+  { num: 4, cat: 'long', items: [[1, 'm16'], [2, 'ak47'], [6, 'sniper']] },
+  { num: 5, cat: 'grenade', items: [[1, GRENADE.key]] },
+]
 
 const STYLE = `
 .shop-cart{position:fixed;left:24px;top:50%;transform:translateY(-50%);z-index:26;display:flex;align-items:center;gap:6px;color:#fff;
   font:14px sans-serif;text-shadow:0 0 4px #000;opacity:.3;pointer-events:auto;cursor:pointer;user-select:none;border-radius:10px;padding:6px 8px;transition:opacity 150ms,left 200ms ease}
 .shop-cart svg{width:36px;height:36px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.shop-cart.shift{left:364px}
+.shop-cart.shift{left:224px}
+.shop-cart.shift2{left:564px}
 .shop-cart.on{opacity:1;animation:shop-glow 2.4s ease-in-out infinite}
 @keyframes shop-glow{0%,100%{box-shadow:0 0 0 rgba(255,255,255,0)}50%{box-shadow:0 0 14px rgba(255,255,255,.55)}}
-.shop-panel{position:fixed;left:0;top:15%;width:340px;max-height:70vh;overflow:auto;z-index:25;box-sizing:border-box;padding:14px 14px 10px;
+.shop-panel{position:fixed;left:0;top:15%;width:200px;max-height:70vh;overflow:auto;z-index:25;box-sizing:border-box;padding:14px 14px 10px;
   background:rgba(10,12,16,.88);border-radius:0 12px 12px 0;color:#fff;font:14px sans-serif;transform:translateX(-100%);transition:transform 200ms ease;pointer-events:none}
 .shop-panel.open{transform:translateX(0);pointer-events:auto}
+.shop-sub{left:200px;width:340px;border-radius:0 12px 12px 0;border-left:1px solid rgba(255,255,255,.2);z-index:24;transform:translateX(calc(-100% - 200px))}
+.shop-sub.open{transform:translateX(0)}
+.shop-grp{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:6px;cursor:pointer;font-weight:700}
+.shop-grp:hover,.shop-grp.sel{background:rgba(255,255,255,.14)}
+.shop-grp .badge{flex:none;min-width:24px;text-align:center;font:bold 12px monospace;border:1px solid rgba(255,255,255,.5);border-radius:5px;padding:1px 0}
+.shop-grp .cur{display:block;font-size:10.5px;font-weight:400;color:#9aa0aa}
 .shop-head{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:16px;margin-bottom:6px}
 .shop-head .m{color:#5fd16b}
 .shop-line{border-top:1px solid rgba(255,255,255,.25);margin-top:8px}
@@ -69,36 +83,54 @@ export function createShop(deps: ShopDeps) {
   const moneyEl = head.querySelector('.m') as HTMLElement
   panel.appendChild(head)
 
+  const sub = document.createElement('div')
+  sub.className = 'shop-panel shop-sub'
+  document.body.appendChild(sub)
+
   interface Row { key: string; el: HTMLElement; pr: HTMLElement; sub: HTMLElement }
+  interface Grp { def: GroupDef; el: HTMLElement; cur: HTMLElement; box: HTMLElement; rows: Map<number, Row> }
   const rows: Row[] = []
-  let idx = 0
-  for (const cat of GROUPS) {
-    const line = document.createElement('div'); line.className = 'shop-line'
-    const label = document.createElement('div'); label.className = 'shop-cat'; label.textContent = CATEGORY_LABEL[cat]
-    panel.append(line, label)
-    for (const w of WEAPONS.filter(x => x.category === cat && x.buyable).sort((a, b) => a.price - b.price)) {
-      idx++
+  const groups: Grp[] = []
+  for (const g of GROUPS) {
+    const gel = document.createElement('div'); gel.className = 'shop-grp'
+    const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = `(${g.num})`
+    const txt = document.createElement('span')
+    txt.textContent = CATEGORY_LABEL[g.cat]
+    const cur = document.createElement('span'); cur.className = 'cur'
+    txt.appendChild(cur)
+    gel.append(badge, txt)
+    panel.appendChild(gel)
+    const box = document.createElement('div'); box.style.display = 'none'
+    sub.appendChild(box)
+    const grp: Grp = { def: g, el: gel, cur, box, rows: new Map() }
+    gel.addEventListener('click', () => openGroup(grp))
+    for (const [num, key] of g.items) {
+      const w = WEAPONS.find(x => x.key === key)
+      if (!w || !w.buyable) continue
       const el = document.createElement('div')
       el.className = 'shop-row'
-      const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = `(${idx})`
+      const bd = document.createElement('span'); bd.className = 'badge'; bd.textContent = `(${num})`
       const ico = document.createElement('span'); ico.className = 'ico'; ico.appendChild(weaponIcon(w.key, WEAPON_LABEL[w.key] ?? w.name))
       const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = WEAPON_LABEL[w.key] ?? w.name
       const pr = document.createElement('span'); pr.className = 'pr'
-      const sub = document.createElement('span'); sub.className = 'sub'
-      el.append(badge, ico, nm, pr, sub)
-      el.addEventListener('click', () => buyIndex(rows.findIndex(r => r.el === el) + 1))
-      panel.appendChild(el)
-      rows.push({ key: w.key, el, pr, sub })
+      const sb = document.createElement('span'); sb.className = 'sub'
+      el.append(bd, ico, nm, pr, sb)
+      el.addEventListener('click', () => buyKey(key))
+      box.appendChild(el)
+      const row: Row = { key: w.key, el, pr, sub: sb }
+      rows.push(row); grp.rows.set(num, row)
     }
+    groups.push(grp)
   }
   const foot = document.createElement('div')
   foot.className = 'shop-line'
   const footTxt = document.createElement('div')
   footTxt.className = 'shop-foot'
-  footTxt.textContent = `Mỗi dòng súng chỉ mang được 1 loại. Mua trùng dòng sẽ tự động bán súng đang có với giá ${Math.round((deps.eco?.() ?? ECONOMY).sellRatio * 100)}%.\nLựu đạn mang tối đa ${GRENADE.maxCarry} quả, không bán lại.`
+  footTxt.textContent = `Mỗi dòng súng chỉ mang được 1 loại. Mua trùng dòng sẽ tự bán súng đang có (${Math.round((deps.eco?.() ?? ECONOMY).sellRatio * 100)}%).\nLựu đạn tối đa ${GRENADE.maxCarry} quả, không bán lại.`
   footTxt.style.whiteSpace = 'pre-line'
   panel.append(foot, footTxt)
 
+  let selected: Grp | null = null
   let open = false
   let drawKey = ''
   const asLoadout = (): Loadout => ({ slots: deps.loadout() })
@@ -106,10 +138,19 @@ export function createShop(deps: ShopDeps) {
   function setOpen(v: boolean): void {
     if (v === open) return
     open = v
+    if (!v) selectGroup(null)
     panel.classList.toggle('open', v)
-    cart.classList.toggle('shift', v)   // menu rộng 340px trượt ra từ mép trái: đẩy giỏ sang phải để không bị đè
+    cart.classList.toggle('shift', v)   // menu trượt ra từ mép trái: đẩy giỏ sang phải để không bị đè
     deps.onOpenChange?.(v)
   }
+
+  function selectGroup(g: Grp | null): void {
+    selected = g
+    for (const x of groups) { x.el.classList.toggle('sel', x === g); x.box.style.display = x === g ? '' : 'none' }
+    sub.classList.toggle('open', g !== null)
+    cart.classList.toggle('shift2', g !== null)
+  }
+  function openGroup(g: Grp): void { if (open) { drawKey = ''; selectGroup(g) } }
 
   function refresh(): void {
     const money = deps.money()
@@ -118,6 +159,10 @@ export function createShop(deps: ShopDeps) {
     if (key === drawKey) return
     drawKey = key
     moneyEl.textContent = `$${money}`
+    for (const g of groups) {
+      const w = lo.slots[CATEGORY_SLOT[g.def.cat]]
+      g.cur.textContent = w ? (WEAPON_LABEL[w.key] ?? w.key) + (w.count ? ` ×${w.count}` : '') : '—'
+    }
     for (const r of rows) {
       const q = quoteBuy(money, lo, r.key, deps.eco?.())
       const def = WEAPONS.find(w => w.key === r.key)!
@@ -142,12 +187,11 @@ export function createShop(deps: ShopDeps) {
     }
   }
 
-  function buyIndex(i: number): void {
-    const r = rows[i - 1]
-    if (!r || !deps.canShop()) return
-    const q = quoteBuy(deps.money(), asLoadout(), r.key, deps.eco?.())
-    if (!q.ok) { feedback(r.key, false); return }
-    deps.send(r.key)
+  function buyKey(key: string): void {
+    if (!deps.canShop()) return
+    const q = quoteBuy(deps.money(), asLoadout(), key, deps.eco?.())
+    if (!q.ok) { feedback(key, false); return }
+    deps.send(key)
   }
 
   function feedback(key: string, ok: boolean): void {
@@ -168,13 +212,20 @@ export function createShop(deps: ShopDeps) {
     get isOpen(): boolean { return open },
     toggle(): void { if (open) setOpen(false); else if (deps.canShop()) setOpen(true) },
     close(): void { setOpen(false) },
-    /** Phím số khi menu mở: mua súng thứ n (1…). true nếu đã xử lý (không đổi súng) */
+    /** Phím số khi menu mở: cấp 1 chọn dòng súng (2–5), cấp 2 chọn loại. true nếu đã xử lý (không đổi súng) */
     digit(n: number): boolean {
       if (!open) return false
-      buyIndex(n)
+      if (!selected) {
+        const g = groups.find(x => x.def.num === n)
+        if (g) openGroup(g)
+        return true
+      }
+      const r = selected.rows.get(n)
+      if (r) buyKey(r.key)
+      else { const g = groups.find(x => x.def.num === n); if (g) openGroup(g) }   // bấm số dòng khác khi đang ở cấp 2: nhảy sang dòng đó
       return true
     },
-    onBuyResult(ok: boolean, key: string): void { feedback(key, ok) },
+    onBuyResult(ok: boolean, key: string): void { feedback(key, ok); if (ok) setOpen(false) },   // mua xong tự đóng cửa hàng
     /** Gọi mỗi frame: tự đóng khi ra khỏi khu mua / chết / hết trận, cập nhật giỏ + danh sách */
     tick(): void {
       const can = deps.canShop()

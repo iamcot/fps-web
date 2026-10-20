@@ -13,7 +13,7 @@ export interface OfflinePanelDeps {
 
 export function createOfflinePanel(deps: OfflinePanelDeps) {
   const box = document.createElement('div')
-  box.style.cssText = 'position:fixed;left:12px;top:76px;z-index:30;display:flex;flex-direction:column;gap:6px;color:#fff;font:12px monospace;' +
+  box.style.cssText = 'position:fixed;right:12px;top:76px;z-index:30;display:flex;flex-direction:column;gap:6px;color:#fff;font:12px monospace;' +
     'background:rgba(0,0,0,.35);padding:8px;border-radius:8px;max-width:360px;pointer-events:none'
   const mkBtn = (text: string, on: (e: MouseEvent) => void): HTMLButtonElement => {
     const b = document.createElement('button'); b.textContent = text; b.style.cssText = BTN
