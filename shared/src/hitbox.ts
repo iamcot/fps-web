@@ -11,17 +11,19 @@ const WIDE_HALF  = 0.30   // half 0.6m cho legs/body
 const HEAD_HALF  = 0.175  // half 0.35m cho head
 const DEPTH_HALF = 0.15   // 0.3m trước/sau
 
-export function hitboxesFor(state: PlayerState, cfg: MovementConfig): HitBox[] {
+// `size` = hệ số cỡ (zombie to: boss 2.2): nhân mọi kích thước hộp quanh chân
+export function hitboxesFor(state: PlayerState, cfg: MovementConfig, size = 1): HitBox[] {
   const [x, y, z] = state.pos
-  const scale  = state.crouching ? cfg.crouchHeight / cfg.standHeight : 1
+  const scale  = (state.crouching ? cfg.crouchHeight / cfg.standHeight : 1) * size
   const legTop  = y + 0.80 * scale
   const bodyTop = y + 1.45 * scale
   const headTop = y + cfg.standHeight * scale  // = crouchHeight khi ngồi
+  const wide = WIDE_HALF * size, head = HEAD_HALF * size, depth = DEPTH_HALF * size
 
   return [
-    { min: [x - WIDE_HALF,  y,       z - DEPTH_HALF], max: [x + WIDE_HALF,  legTop,   z + DEPTH_HALF], part: 'legs' },
-    { min: [x - WIDE_HALF,  legTop,  z - DEPTH_HALF], max: [x + WIDE_HALF,  bodyTop,  z + DEPTH_HALF], part: 'body' },
-    { min: [x - HEAD_HALF,  bodyTop, z - DEPTH_HALF], max: [x + HEAD_HALF,  headTop,  z + DEPTH_HALF], part: 'head' },
+    { min: [x - wide,  y,       z - depth], max: [x + wide,  legTop,   z + depth], part: 'legs' },
+    { min: [x - wide,  legTop,  z - depth], max: [x + wide,  bodyTop,  z + depth], part: 'body' },
+    { min: [x - head,  bodyTop, z - depth], max: [x + head,  headTop,  z + depth], part: 'head' },
   ]
 }
 

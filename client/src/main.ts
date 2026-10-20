@@ -5,14 +5,14 @@ import {
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
-import { INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
+import { flagSpeedMul, INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { setFlashlightAllowed, flashlightOn, initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
 import { createNight } from './render/night'
-import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase, setTransforming } from './loop'
+import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase, setTransforming, setDowned } from './loop'
 import { initDebugOverlay } from './debug'
 import { showLobby, BACK_KEY, type Session } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
@@ -506,9 +506,10 @@ sessionP.then(session => {
     }
     {   // vai trò (người/zombie) quyết định cấu hình di chuyển; đổi trước khi reconcile để replay dùng đúng cấu hình
       const zr = (s.flags & NetFlag.Zombie) !== 0 ? (s.me?.runSpeed ?? ZOMBIE_DEFAULT_RUN_SPEED) : null
-      const want = movementFor(cfg, zr !== null ? { runSpeed: zr } : null)
+      const want = movementFor(cfg, zr !== null ? { runSpeed: zr } : null, zr !== null ? 1 : flagSpeedMul(s.flags, cfg.runSpeed))
       if (want !== selfCfg) { selfCfg = want; prediction?.setConfig(want) }
       setTransforming((s.flags & NetFlag.Transform) !== 0)
+      setDowned((s.flags & NetFlag.Downed) !== 0)
     }
     if (s.self) prediction?.onSnapshot(s.ack, s.self, s.wpn)
     if (s.wpn && prediction) reconcileWeapon(ws, s.wpn, prediction.pending)

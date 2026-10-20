@@ -62,7 +62,7 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, baseCfg:
         alive = past.alive
       }
       if (!alive) continue
-      for (const box of hitboxesFor(state, movementFor(baseCfg, other.zstats, other.speedMult))) {
+      for (const box of hitboxesFor(state, movementFor(baseCfg, other.zstats, other.speedMult), other.zstats?.scale ?? 1)) {
         if (k === 0) debugBoxes?.push(box)
         const d = rayAabb(eye, dir, box, bestDist)
         if (d !== null && d < bestDist) { bestDist = d; hitId = other.id; hitPart = box.part }
@@ -71,7 +71,8 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, baseCfg:
     dists.push(bestDist)
 
     if (hitId >= 0) {
-      const mult = hitPart === 'head' ? def.headMult : hitPart === 'legs' ? def.legMult : 1
+      const hm = room.players.get(hitId)?.zstats?.headMult ?? def.headMult   // zombie Thủ Thành: đầu ×2 (boss ×3) bất kể súng
+      const mult = hitPart === 'head' ? hm : hitPart === 'legs' ? def.legMult : 1
       const dmg = Math.round(baseDamage * mult * damageFalloff(def, bestDist))
       const tot = hitTotals.get(hitId)
       if (tot) { tot.damage += dmg; tot.headshot ||= hitPart === 'head' }
@@ -91,10 +92,11 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, baseCfg:
     const headshot = tot.headshot
     // Bất tử tính theo giờ hiện tại của server (không tua). Chỉ trừ máu người còn sống và chưa bị chốt chết.
     const invuln = room.serverNow < target.invulnUntil
-    const applied = invuln || !target.alive || target.hp <= 0 ? 0 : damage
+    const applied = invuln || !target.alive || target.hp <= 0 ? 0 : Math.round(damage * target.takenMult)
     if (applied > 0) {
       target.hp -= applied
       target.lastHurtAt = room.serverNow
+      room.mode.onDamage?.(room, shooter, target, applied)
       if (target.zstats && !def.melee) {   // zombie trúng đạn bị đẩy lùi (shotgun đẩy rất mạnh), kèm hiện tượng văng khỏi gờ khi đang trên không
         const dx = target.state.pos[0] - s.pos[0], dz = target.state.pos[2] - s.pos[2]
         const dl = Math.hypot(dx, dz) || 1
@@ -103,6 +105,10 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, baseCfg:
       }
       if (target.hp <= 0) { target.killerId = shooter.id; target.killWeapon = def.id; target.killHeadshot = headshot }
       target.transport.send({ t: MsgType.Hurt, origin: [eye[0], eye[1], eye[2]], damage: applied })
+      if (shooter.zstats?.shoveSpeed && def.melee && !target.zstats) {   // brute: cào trúng đẩy người lùi (khỏi gờ tường!)
+        const dx = target.state.pos[0] - s.pos[0], dz = target.state.pos[2] - s.pos[2], dl = Math.hypot(dx, dz) || 1
+        target.state.vel[0] += dx / dl * shooter.zstats.shoveSpeed; target.state.vel[2] += dz / dl * shooter.zstats.shoveSpeed
+      }
     }
     shooter.transport.send({ t: MsgType.HitConfirm, damage: applied, headshot, targetId: hitId })
   }

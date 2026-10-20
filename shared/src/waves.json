@@ -1,0 +1,299 @@
+{
+  "spawnPoints": {
+    "baseB": "toàn bộ node mặt đất trong căn cứ B",
+    "laneLeft": "node mặt đất ở mép trái map, phía x > 0",
+    "laneRight": "node mặt đất ở mép phải map, phía x > 0"
+  },
+  "scaling": {
+    "countPerExtraPlayer": 0.6,
+    "hpPerExtraPlayer": 0.35,
+    "difficulty": {
+      "easy": {
+        "count": 0.7,
+        "hp": 0.7,
+        "damage": 0.7
+      },
+      "normal": {
+        "count": 1.0,
+        "hp": 1.0,
+        "damage": 1.0
+      },
+      "hard": {
+        "count": 1.3,
+        "hp": 1.3,
+        "damage": 1.25
+      }
+    }
+  },
+  "maxAlive": 28,
+  "waves": [
+    {
+      "title": "ĐỢT 1",
+      "hint": "Làm quen nào",
+      "groups": [
+        {
+          "type": "walker",
+          "count": 10,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 1500
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 2",
+      "hint": "Chúng chạy nhanh đấy",
+      "groups": [
+        {
+          "type": "walker",
+          "count": 10,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 1200
+        },
+        {
+          "type": "runner",
+          "count": 6,
+          "from": [
+            "laneLeft",
+            "laneRight"
+          ],
+          "everyMs": 2500,
+          "delayMs": 8000
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 3",
+      "hint": "Canh các lỗ bắn!",
+      "groups": [
+        {
+          "type": "walker",
+          "count": 12,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 1000
+        },
+        {
+          "type": "crawler",
+          "count": 8,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 2000,
+          "delayMs": 5000
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 4",
+      "hint": "Cẩn thận zombie nhảy lên gờ",
+      "groups": [
+        {
+          "type": "walker",
+          "count": 12,
+          "from": [
+            "baseB",
+            "laneLeft"
+          ],
+          "everyMs": 1000
+        },
+        {
+          "type": "leaper",
+          "count": 6,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 3000,
+          "delayMs": 6000
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 5",
+      "hint": "Một con trâu đang tới",
+      "groups": [
+        {
+          "type": "walker",
+          "count": 14,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 900
+        },
+        {
+          "type": "runner",
+          "count": 8,
+          "from": [
+            "laneLeft",
+            "laneRight"
+          ],
+          "everyMs": 1800
+        },
+        {
+          "type": "brute",
+          "count": 1,
+          "from": [
+            "baseB"
+          ],
+          "delayMs": 15000
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 6",
+      "hint": "Hạ con gào trước!",
+      "groups": [
+        {
+          "type": "walker",
+          "count": 14,
+          "from": [
+            "baseB",
+            "laneRight"
+          ],
+          "everyMs": 800
+        },
+        {
+          "type": "screamer",
+          "count": 2,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 10000,
+          "delayMs": 5000
+        },
+        {
+          "type": "crawler",
+          "count": 8,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 1500
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 7",
+      "hint": "Chúng tới từ mọi phía",
+      "groups": [
+        {
+          "type": "runner",
+          "count": 14,
+          "from": [
+            "laneLeft",
+            "laneRight"
+          ],
+          "everyMs": 1000
+        },
+        {
+          "type": "leaper",
+          "count": 8,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 2000
+        },
+        {
+          "type": "brute",
+          "count": 2,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 12000,
+          "delayMs": 10000
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 8",
+      "hint": "Giữ vững!",
+      "groups": [
+        {
+          "type": "walker",
+          "count": 20,
+          "from": [
+            "baseB",
+            "laneLeft",
+            "laneRight"
+          ],
+          "everyMs": 600
+        },
+        {
+          "type": "crawler",
+          "count": 10,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 1200
+        },
+        {
+          "type": "screamer",
+          "count": 2,
+          "from": [
+            "laneLeft",
+            "laneRight"
+          ],
+          "everyMs": 8000
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 9",
+      "hint": "Đợt cuối trước khi đại ca tới",
+      "groups": [
+        {
+          "type": "runner",
+          "count": 16,
+          "from": [
+            "laneLeft",
+            "laneRight"
+          ],
+          "everyMs": 700
+        },
+        {
+          "type": "leaper",
+          "count": 10,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 1500
+        },
+        {
+          "type": "brute",
+          "count": 3,
+          "from": [
+            "baseB"
+          ],
+          "everyMs": 9000
+        }
+      ]
+    },
+    {
+      "title": "ĐỢT 10",
+      "hint": "ĐẠI CA ZOMBIE",
+      "groups": [
+        {
+          "type": "boss",
+          "count": 1,
+          "from": [
+            "baseB"
+          ]
+        },
+        {
+          "type": "walker",
+          "count": 16,
+          "from": [
+            "baseB",
+            "laneLeft",
+            "laneRight"
+          ],
+          "everyMs": 2500,
+          "delayMs": 10000
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { HITBOX_HISTORY_MS, TICK_RATE } from '@fps/shared'
 
-const MAX_SLOTS = 32   // người chơi tối đa lưu trong mỗi mục lịch sử
+const MAX_SLOTS = 48   // người chơi tối đa lưu trong mỗi mục lịch sử
 const CAPACITY = Math.ceil(HITBOX_HISTORY_MS * TICK_RATE / 1000) + 2
 
 interface Entry {

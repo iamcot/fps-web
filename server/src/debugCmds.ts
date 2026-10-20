@@ -32,6 +32,10 @@ export function handleDebugCmd(room: Room, p: Player, raw: string): boolean {
       if (!p.alive) return false
       p.killerId = p.id; p.hp = 0
       return true
+    case '/wave':
+      return Number.isFinite(num) && (room.mode.devSetWave?.(room, num) ?? false)
+    case '/clearwave':
+      return room.mode.devClearWave?.(room) ?? false
     case '/zombie':
     case '/human':
       return room.mode.devSetRole?.(room, p, name === '/zombie' ? 'zombie' : 'human') ?? false

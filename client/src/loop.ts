@@ -1,4 +1,4 @@
-import { DEFAULT_SLOT, DT, TICK_RATE, MatchPhase, phaseButtonMask } from '@fps/shared'
+import { DEFAULT_SLOT, DT, TICK_RATE, MatchPhase, phaseButtonMask, DOWNED_BUTTON_MASK, DOWNED_WEAPON_SLOT } from '@fps/shared'
 import { stepMovement, lerpState, defaultMovement } from '@fps/shared'
 import type { PlayerState, MovementConfig, InputCmd, AdsMove } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
@@ -29,12 +29,14 @@ let _phase: MatchPhase = MatchPhase.Playing   // offline = đang chơi
 export function setDead(v: boolean): void { _dead = v }
 let _transforming = false   // đang biến hình (zombie): server bỏ mọi nút
 export function setTransforming(v: boolean): void { _transforming = v }
+let _downed = false         // gục (Thủ Thành): không nhảy/ngồi/ném, chỉ súng ngắn — server áp cùng luật
+export function setDowned(v: boolean): void { _downed = v }
 export function setMatchPhase(v: MatchPhase): void { _phase = v }
 
 function _buildCmd(): InputCmd {
-  let buttons = _transforming ? 0 : sampleButtons() & phaseButtonMask(_phase, !_dead)   // chết / đếm ngược / hết trận / biến hình: server cũng bỏ nút này
+  let buttons = _transforming ? 0 : sampleButtons() & phaseButtonMask(_phase, !_dead) & (_downed ? DOWNED_BUTTON_MASK : ~0)   // chết / đếm ngược / hết trận / biến hình: server cũng bỏ nút này
   if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload | Btn.Aim)   // chưa khoá chuột thì không bắn/nạp/ngắm
-  return { seq: _seq++, buttons, yaw, pitch, weapon: _weapon }
+  return { seq: _seq++, buttons, yaw, pitch, weapon: _downed ? DOWNED_WEAPON_SLOT : _weapon }
 }
 
 // Chế độ online (3.6): state do Prediction giữ; loop chỉ tạo cmd, gọi step và vẽ.

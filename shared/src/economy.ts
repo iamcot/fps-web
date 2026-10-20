@@ -4,6 +4,7 @@ import type { TeamId } from './teams'
 import type { GameMode } from './roomConfig'
 import { GRENADE } from './grenade'
 import { INFECTION } from './infection'
+import { DEFENSE } from './defense'
 
 export interface EconomyConfig {
   startMoney: number
@@ -61,8 +62,18 @@ export function economyFor(mode: GameMode): EconomyConfig {
   switch (mode) {
     case 'elimination': return ECONOMY_ELIM
     case 'infection': return ECONOMY_INFECTION
+    case 'defense': return ECONOMY_DEFENSE
     default: return ECONOMY_TDM
   }
+}
+
+/** Thủ Thành (plan 17): tiền ban đầu thấp, giữ súng khi chết, đạn dự trữ vô hạn; tiền hạ zombie theo từng loại (ZOMBIE_TYPES.reward), thưởng hết đợt: DEFENSE */
+export const ECONOMY_DEFENSE: EconomyConfig = {
+  ...ECONOMY,
+  startMoney: DEFENSE.startMoney,
+  keepLoadoutOnDeath: true,
+  infiniteReserve: true,
+  killReward: 0, bountyStreak: 1e9, bountyReward: 0,   // không có truy nã; tiền hạ zombie tính riêng theo loại
 }
 
 export const DEFAULT_LOADOUT: Record<TeamId, string[]> = {

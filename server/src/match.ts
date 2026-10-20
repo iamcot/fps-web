@@ -20,13 +20,14 @@ export function broadcastScoreboard(room: Room): void {
   const rows: Record<'A' | 'B', ScoreboardRow[]> = { A: [], B: [] }
   for (const viewer of ['A', 'B'] as const) {
     for (const p of room.players.values()) {
+      if (p.npc) continue   // zombie NPC không vào bảng điểm
       const row: ScoreboardRow = { id: p.id, name: p.name, team: p.team, kills: p.kills, deaths: p.deaths, ping: Math.round(p.pingMs) }
       room.mode.scoreboardRow?.(room, p, row)
       if (p.team === viewer) row.money = p.money
       rows[viewer].push(row)
     }
   }
-  for (const p of room.players.values()) p.transport.send({ t: MsgType.Scoreboard, rows: rows[p.team] })
+  for (const p of room.players.values()) if (!p.npc) p.transport.send({ t: MsgType.Scoreboard, rows: rows[p.team] })
 }
 
 // Gọi mỗi tick sau khi chốt chết/hồi sinh

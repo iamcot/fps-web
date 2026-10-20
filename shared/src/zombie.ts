@@ -31,6 +31,10 @@ export interface ZombieStats {
   clawDamage: number
   knockbackResist: number
   regenPerSec: number
+  windupMs?: number     // vuốt thường báo trước chừng này ms rồi mới trúng (zombie NPC của Thủ Thành: 250)
+  headMult?: number     // hệ số đầu cố định thay cho hệ số của súng (zombie Thủ Thành: 2, boss 3)
+  scale?: number        // cỡ hitbox so với người (boss 2.2)
+  shoveSpeed?: number   // cào trúng người thì đẩy người lùi chừng này m/s (brute)
 }
 
 // Cấu hình di chuyển của zombie: cache theo (cfg người, runSpeed) để không cấp phát mỗi tick

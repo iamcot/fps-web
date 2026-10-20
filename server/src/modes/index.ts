@@ -4,6 +4,7 @@ import type { Player, Room } from '../room'
 import { TdmMode } from './tdm'
 import { EliminationMode } from './elimination'
 import { InfectionMode } from './infection'
+import { DefenseMode } from './defense'
 
 export interface MatchMode {
   readonly mode: GameMode
@@ -33,6 +34,8 @@ export interface MatchMode {
   onLethal?(room: Room, p: Player): boolean
   /** Điểm hồi sinh riêng; null/thiếu = luật mặc định */
   pickSpawn?(room: Room, p: Player): { pos: [number, number, number]; yaw: number } | null
+  /** Sau mỗi lần một người/zombie nhận sát thương `applied` từ `shooter` (thống kê đợt) */
+  onDamage?(room: Room, shooter: Player, target: Player, applied: number): void
   /** Thêm cột riêng của thể thức vào một dòng bảng điểm */
   scoreboardRow?(room: Room, p: Player, row: ScoreboardRow): void
   /** Lệnh debug riêng của thể thức (M.8); undefined nếu không hỗ trợ */
@@ -40,6 +43,9 @@ export interface MatchMode {
   devSetRound?(room: Room, round: number): boolean
   /** /zombie, /human (plan 16): đổi vai người chơi để thử */
   devSetRole?(room: Room, p: Player, role: 'zombie' | 'human'): boolean
+  /** /wave n, /clearwave (Thủ Thành) */
+  devSetWave?(room: Room, wave: number): boolean
+  devClearWave?(room: Room): boolean
 }
 
 export function createMode(config: RoomConfig): MatchMode {
@@ -47,6 +53,7 @@ export function createMode(config: RoomConfig): MatchMode {
   switch (s.mode) {
     case 'elimination': return new EliminationMode(s)
     case 'infection': return new InfectionMode(s)
+    case 'defense': return new DefenseMode(s)
     default: return new TdmMode()
   }
 }
