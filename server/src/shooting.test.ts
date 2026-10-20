@@ -12,6 +12,7 @@ function worldWithWall(wallDist: number | null): CollisionWorld {
     moveCharacter: (pos, d) => ({ pos: [pos[0] + d[0], Math.max(0, pos[1] + d[1]), pos[2] + d[2]], grounded: true, hitCeiling: false }),
     canStand: () => true,
     castRay: (_o, _d, max) => (wallDist !== null && wallDist < max ? { dist: wallDist, normal: [0, 0, 1] } : null),
+    castSphere: () => null,
     debugRender: () => ({ vertices: new Float32Array(0), colors: new Float32Array(0) }),
     dispose: () => {},
   }

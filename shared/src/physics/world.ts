@@ -5,6 +5,7 @@ import type { LoadedMap } from '../map/types'
 // An interaction is allowed if (memberA & filterB) != 0 && (memberB & filterA) != 0
 const MAP_FILTER    = (0x0001 << 16) | 0xFFFF  // member=1, collides with all
 const PLAYER_FILTER = (0x0002 << 16) | 0x0001  // member=2, collides with map only
+const GRENADE_FILTER = (0x0004 << 16) | 0x0001 // member=4, chỉ va chạm với map (không chạm người chơi: xem plan 12, G.2)
 
 // Controller có thể để chân lún ~1e-4 dưới mặt sàn; không nâng shape lên thì canStand
 // luôn false (sàn cắt capsule) và người chơi kẹt ở trạng thái ngồi khi nhả Ctrl.
@@ -21,6 +22,17 @@ export interface CollisionWorld {
     origin: [number, number, number],
     dir: [number, number, number],
     maxDist: number,
+  ): { dist: number; normal: [number, number, number] } | null
+  /**
+   * Quét hình cầu bán kính `radius` từ `origin` theo hướng đơn vị `dir` tối đa `maxDist` (liên tục, không xuyên tường nhỏ-nhanh).
+   * Chỉ va chạm với collider map. `normal` = pháp tuyến bề mặt, hướng ra phía quả cầu (ngược với `dir`).
+   * dist = 0 khi đã chồng lấn ngay từ đầu.
+   */
+  castSphere(
+    origin: [number, number, number],
+    dir: [number, number, number],
+    maxDist: number,
+    radius: number,
   ): { dist: number; normal: [number, number, number] } | null
   debugRender(): { vertices: Float32Array; colors: Float32Array }
   dispose(): void   // giải phóng bộ nhớ WASM; không dùng world sau khi gọi
@@ -133,6 +145,32 @@ class PhysicsWorld implements CollisionWorld {
     }
   }
 
+  private _balls = new Map<number, RAPIER.Ball>()
+  private _qid = { x: 0, y: 0, z: 0, w: 1 }
+
+  castSphere(
+    origin: [number, number, number],
+    dir: [number, number, number],
+    maxDist: number,
+    radius: number,
+  ): { dist: number; normal: [number, number, number] } | null {
+    let ball = this._balls.get(radius)
+    if (!ball) { ball = new RAPIER.Ball(radius); this._balls.set(radius, ball) }
+    const hit = this._w.castShape(
+      { x: origin[0], y: origin[1], z: origin[2] }, this._qid,
+      { x: dir[0], y: dir[1], z: dir[2] },
+      ball, maxDist, true,
+      RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
+      GRENADE_FILTER,
+      this._col,
+    )
+    if (!hit) return null
+    let nx = hit.normal2.x, ny = hit.normal2.y, nz = hit.normal2.z
+    // chuẩn hoá hướng: pháp tuyến luôn ngược chiều di chuyển (hướng ra phía quả cầu)
+    if (nx * dir[0] + ny * dir[1] + nz * dir[2] > 0) { nx = -nx; ny = -ny; nz = -nz }
+    return { dist: hit.toi, normal: [nx, ny, nz] }
+  }
+
   debugRender(): { vertices: Float32Array; colors: Float32Array } {
     return this._w.debugRender()
   }
@@ -197,5 +235,7 @@ export async function createWorld(
     )
   }
 
+  // Cập nhật pipeline truy vấn một lần: không có thì castRay/castShape trước lần moveCharacter đầu không thấy collider nào (lựu đạn dùng castSphere độc lập)
+  world.step()
   return new PhysicsWorld(world, standHeight, crouchHeight, radius)
 }

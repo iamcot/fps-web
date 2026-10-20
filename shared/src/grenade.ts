@@ -14,6 +14,7 @@ export const GRENADE = {
   friction: 0.6,           // ma sát tiếp tuyến mỗi lần chạm
   rollDrag: 2.5,           // m/s² giảm tốc khi lăn trên sàn
   restSpeed: 0.25,         // dưới tốc độ này thì nằm yên
+  bounceMinSpeed: 1.0,     // m/s: va chạm nhanh hơn mức này mới tính là nảy (phát sự kiện 'bounce'); chậm hơn trên sàn = lăn
   damageMax: 98,
   innerRadius: 1.0,        // trong bán kính này: full damage
   outerRadius: 7.0,

@@ -12,7 +12,7 @@ const flatWorld: CollisionWorld = {
     return { pos: [pos[0] + d[0], y, pos[2] + d[2]], grounded: y === 0, hitCeiling: false }
   },
   canStand: () => true,
-  castRay: () => null,
+  castRay: () => null, castSphere: () => null,
   debugRender: () => ({ vertices: new Float32Array(0), colors: new Float32Array(0) }),
   dispose: () => {},
 }

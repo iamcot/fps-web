@@ -272,7 +272,7 @@ describe('vũ khí mới (H.1)', () => {
   it('movement: speedMul nhân tốc độ chạy; mặc định 1 giữ nguyên hành vi cũ', () => {
     const flat = {
       moveCharacter: (pos: [number, number, number], d: [number, number, number]) => ({ pos: [pos[0] + d[0], Math.max(0, pos[1] + d[1]), pos[2] + d[2]] as [number, number, number], grounded: true, hitCeiling: false }),
-      canStand: () => true, castRay: () => null, debugRender: () => ({ vertices: new Float32Array(0), colors: new Float32Array(0) }), dispose: () => {},
+      canStand: () => true, castRay: () => null, castSphere: () => null, debugRender: () => ({ vertices: new Float32Array(0), colors: new Float32Array(0) }), dispose: () => {},
     }
     const speedAfter = (mul?: number) => {
       let st: PlayerState = { pos: [0, 0, 0], vel: [0, 0, 0], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0 }
