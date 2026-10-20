@@ -27,6 +27,11 @@ export function handleBuy(room: Room, p: Player, key: string): void {
   const ws = p.weapon
   const def = weaponByKey(key)!
   ws.slots = loadoutWeaponIds(p.loadout)
+  if (def.consumable) {   // lựu đạn: chỉ cất vào ô 5, không tự cầm (đang cầm súng gì thì giữ nguyên)
+    p.transport.send({ t: MsgType.BuyResult, ok: true, key })
+    p.transport.send({ t: MsgType.MoneyEvent, delta: -q.price, reason: 'buy' })
+    return
+  }
   ws.slot = q.slot
   ws.current = def.id
   ws.ammo[def.id] = def.magSize

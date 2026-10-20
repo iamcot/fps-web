@@ -1,6 +1,7 @@
 // Luật mua/bán/thưởng (thuần). Server quyết định, client gọi để hiển thị. Không sửa object đầu vào.
 import { CATEGORY_SLOT, SLOT_COUNT, weaponByKey } from './weapons'
 import type { TeamId } from './teams'
+import { GRENADE } from './grenade'
 
 export const ECONOMY = {
   startMoney: 2000,
@@ -19,10 +20,10 @@ export const DEFAULT_LOADOUT: Record<TeamId, string[]> = {
   B: ['knife', 'rulo', 'ak47'],  // Cướp
 }
 
-export interface OwnedWeapon { key: string; paid: number }   // paid = số tiền đã trả (súng cấp sẵn = 0)
+export interface OwnedWeapon { key: string; paid: number; count?: number }   // paid = số tiền đã trả (súng cấp sẵn = 0); count chỉ có ở hàng tiêu hao (lựu đạn)
 export interface Loadout { slots: (OwnedWeapon | null)[] }    // luôn đúng SLOT_COUNT phần tử, theo CATEGORY_SLOT
 
-export type BuyFailReason = 'not_buyable' | 'already_owned' | 'not_enough_money'
+export type BuyFailReason = 'not_buyable' | 'already_owned' | 'not_enough_money' | 'max_carry'
 export type BuyQuote =
   | { ok: true; price: number; refund: number; net: number; slot: number }
   | { ok: false; reason: BuyFailReason; price: number; refund: number; net: number }
@@ -36,9 +37,25 @@ export function defaultLoadout(team: TeamId): Loadout {
   return { slots }
 }
 
-/** Giá bán lại một súng đang có */
+/** Giá bán lại một súng đang có (hàng tiêu hao không bán lại) */
 export function resaleValue(w: OwnedWeapon): number {
+  if (weaponByKey(w.key)?.consumable) return 0
   return Math.floor(w.paid * ECONOMY.sellRatio)
+}
+
+/** Số lựu đạn đang mang */
+export function grenadeCount(loadout: Loadout): number {
+  return loadout.slots[CATEGORY_SLOT.grenade]?.count ?? 0
+}
+
+/** Dùng một quả: count − 1, về 0 thì ô trống. Không sửa đầu vào; hết lựu đạn → trả nguyên loadout. */
+export function consumeGrenade(loadout: Loadout): Loadout {
+  const slot = CATEGORY_SLOT.grenade
+  const g = loadout.slots[slot]
+  if (!g || (g.count ?? 0) <= 0) return loadout
+  const slots = loadout.slots.slice()
+  slots[slot] = g.count! - 1 > 0 ? { ...g, count: g.count! - 1 } : null
+  return { slots }
 }
 
 export function quoteBuy(money: number, loadout: Loadout, key: string): BuyQuote {
@@ -46,6 +63,12 @@ export function quoteBuy(money: number, loadout: Loadout, key: string): BuyQuote
   if (!def || !def.buyable) return { ok: false, reason: 'not_buyable', price: def?.price ?? 0, refund: 0, net: def?.price ?? 0 }
   const slot = CATEGORY_SLOT[def.category]
   const old = loadout.slots[slot] ?? null
+  if (def.consumable) {   // hàng tiêu hao: cộng dồn tới maxCarry, không bán đổi
+    const net = def.price
+    if ((old?.count ?? 0) >= GRENADE.maxCarry) return { ok: false, reason: 'max_carry', price: def.price, refund: 0, net }
+    if (money < net) return { ok: false, reason: 'not_enough_money', price: def.price, refund: 0, net }
+    return { ok: true, price: def.price, refund: 0, net, slot }
+  }
   const refund = old ? resaleValue(old) : 0
   const net = def.price - refund
   if (old && old.key === key) return { ok: false, reason: 'already_owned', price: def.price, refund, net }
@@ -57,7 +80,9 @@ export function applyBuy(money: number, loadout: Loadout, key: string): { money:
   const q = quoteBuy(money, loadout, key)
   if (!q.ok) return null
   const slots = loadout.slots.slice()
-  slots[q.slot] = { key, paid: q.price }
+  const old = slots[q.slot]
+  const consumable = !!weaponByKey(key)?.consumable
+  slots[q.slot] = consumable ? { key, paid: (old?.paid ?? 0) + q.price, count: (old?.count ?? 0) + 1 } : { key, paid: q.price }
   return { money: addMoney(money, -q.net), loadout: { slots } }
 }
 

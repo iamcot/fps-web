@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { Btn, makeWeaponState, stepWeaponCmd, type InputCmd } from '@fps/shared'
 import { reconcileWeapon, weaponSyncStats } from './weaponSync'
 
-const AK = [6, 2, -1, 0]   // AK47 ở ô 3
+const AK = [6, 2, -1, 0, -1]   // AK47 ở ô 3, ô 4 (lựu đạn) trống
 const cmd = (seq: number, buttons: number, weapon = 3): InputCmd => ({ seq, buttons, yaw: 0, pitch: 0, weapon })
 
 describe('reconcileWeapon', () => {

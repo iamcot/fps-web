@@ -10,7 +10,7 @@ import { moveSpeedMul, stepWeaponCmd, selectSlot, copyWeaponState, weaponStatesE
 import { weaponByKey, CATEGORY_SLOT } from './weapons'
 import { stepMovement, defaultMovement } from './movement'
 
-const AK_SLOTS = [6, 2, -1, 0]   // AK47 ở ô 3
+const AK_SLOTS = [6, 2, -1, 0, -1]   // AK47 ở ô 3, ô 4 (lựu đạn) trống
 const AK = WEAPONS[0]!
 const COLT = WEAPONS[2]!
 
@@ -193,8 +193,8 @@ describe('vũ khí mới (H.1)', () => {
   const SHOTGUN = weaponByKey('shotgun')!, SMG = weaponByKey('smg')!, KNIFE = weaponByKey('knife')!, SNIPER = weaponByKey('sniper')!
 
   it('mỗi súng có dòng/ô hợp lệ, dao không mua được, giá khớp bảng', () => {
-    const price: Record<string, number> = { knife: 0, colt: 300, rulo: 700, shotgun: 1100, smg: 1250, ak47: 2700, m16: 3100, sniper: 4750 }
-    expect(WEAPONS.length).toBe(8)
+    const price: Record<string, number> = { knife: 0, colt: 300, rulo: 700, shotgun: 1100, smg: 1250, ak47: 2700, m16: 3100, sniper: 4750, m67: 300 }
+    expect(WEAPONS.length).toBe(9)   // 8 súng + lựu đạn M67
     for (const w of WEAPONS) {
       expect(price[w.key], w.key).toBe(w.price)
       expect(CATEGORY_SLOT[w.category]).toBeGreaterThanOrEqual(0)
@@ -248,7 +248,7 @@ describe('vũ khí mới (H.1)', () => {
   })
 
   it('cmd.weapon là ô: chỉ đổi khi giá trị đổi; ô trống bị bỏ qua; cmd cũ không kéo ngược ô vừa mua', () => {
-    const ws = makeWeaponState([KNIFE.id, 2, -1, 0])   // ô 3 = AK47
+    const ws = makeWeaponState([KNIFE.id, 2, -1, 0, -1])   // ô 3 = AK47
     const cmd = (seq: number, weapon: number) => ({ seq, buttons: 0, yaw: 0, pitch: 0, weapon })
     stepWeaponCmd(ws, cmd(0, 2))      // ô vừa trống
     expect(ws.slot).toBe(3)

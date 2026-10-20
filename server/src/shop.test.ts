@@ -59,6 +59,21 @@ describe('mua súng (H.3)', () => {
     expect(a.msgs.filter(m => m.t === MsgType.MoneyEvent)).toContainEqual({ t: MsgType.MoneyEvent, delta: 1000, reason: 'sell' })
   })
 
+  it('mua lựu đạn (G.1): $300/quả, tối đa 2, không tự cầm, lần 3 bị từ chối max_carry', () => {
+    const { room, a } = setup()
+    at(a.p, -25, 0, 0)
+    const cur = a.p.weapon.current, slot = a.p.weapon.slot
+    handleBuy(room, a.p, 'm67'); room.serverNow += 300
+    expect(a.p.money).toBe(1700); expect(a.p.loadout.slots[4]).toEqual({ key: 'm67', paid: 300, count: 1 })
+    expect(a.p.weapon.slots[4]).toBe(weaponByKey('m67')!.id)
+    expect(a.p.weapon.current).toBe(cur); expect(a.p.weapon.slot).toBe(slot)   // vẫn cầm súng cũ
+    handleBuy(room, a.p, 'm67'); room.serverNow += 300
+    expect(a.p.money).toBe(1400); expect(a.p.loadout.slots[4]!.count).toBe(2)
+    handleBuy(room, a.p, 'm67')
+    expect(last(a.msgs, MsgType.BuyResult)).toMatchObject({ ok: false, reason: 'max_carry' })
+    expect(a.p.money).toBe(1400)
+  })
+
   it('từ chối: ngoài khu (giữa map / trên gờ tường / đỉnh tháp), chết, hết trận, thiếu tiền, đã có', () => {
     const { room, a } = setup()
     const reason = () => { room.serverNow += 300; return (last(a.msgs, MsgType.BuyResult) as { ok: boolean; reason?: string }).reason }   // cách nhau > 1/5s để không dính giới hạn spam
@@ -154,8 +169,8 @@ describe('thưởng, chuỗi hạ, mất súng khi chết (H.3)', () => {
     expect(a.p.money).toBe(3250)
     kill(room, b.p, a.p)
     room.respawn(a.p)
-    expect(a.p.loadout.slots.map(w => w?.key ?? null)).toEqual(['knife', 'colt', null, 'm16'])
-    expect(a.p.weapon.slots).toEqual([weaponByKey('knife')!.id, weaponByKey('colt')!.id, -1, weaponByKey('m16')!.id])
+    expect(a.p.loadout.slots.map(w => w?.key ?? null)).toEqual(['knife', 'colt', null, 'm16', null])
+    expect(a.p.weapon.slots).toEqual([weaponByKey('knife')!.id, weaponByKey('colt')!.id, -1, weaponByKey('m16')!.id, -1])
     expect(a.p.weapon).toMatchObject({ slot: 3, current: weaponByKey('m16')!.id })
     expect(a.p.money).toBe(3250 + 500 * 0)   // a là nạn nhân: không đổi
   })

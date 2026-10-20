@@ -1,11 +1,15 @@
-export type WeaponCategory = 'knife' | 'pistol' | 'mid' | 'long'
-/** Ô vũ khí (phím 1–4) của từng dòng */
-export const CATEGORY_SLOT: Record<WeaponCategory, 0 | 1 | 2 | 3> = { knife: 0, pistol: 1, mid: 2, long: 3 }
+import { GRENADE } from './grenade'
+
+export type WeaponCategory = 'knife' | 'pistol' | 'mid' | 'long' | 'grenade'
+/** Ô vũ khí (phím 1–5) của từng dòng. Ô 5 = lựu đạn (hàng tiêu hao, không tính vào 4 dòng súng) */
+export const CATEGORY_SLOT: Record<WeaponCategory, 0 | 1 | 2 | 3 | 4> = { knife: 0, pistol: 1, mid: 2, long: 3, grenade: 4 }
 export const CATEGORY_LABEL: Record<WeaponCategory, string> = {
-  knife: 'Dao', pistol: 'Súng ngắn', mid: 'Súng vừa', long: 'Súng dài',
+  knife: 'Dao', pistol: 'Súng ngắn', mid: 'Súng vừa', long: 'Súng dài', grenade: 'Lựu đạn',
 }
-export const SLOT_COUNT = 4
-/** Ô mặc định khi hồi sinh / vào trận: súng dài */
+export const SLOT_COUNT = 5
+/** Ô lựu đạn */
+export const GRENADE_SLOT = CATEGORY_SLOT.grenade
+/** Ô mặc định khi hồi sinh / vào trận: súng dài (ô 4 của 0–4 là lựu đạn, không bao giờ là mặc định) */
 export const DEFAULT_SLOT = 3
 
 export interface WeaponDef {
@@ -33,6 +37,7 @@ export interface WeaponDef {
   recoilRecoverDelayMs?: number   // hồi recoil sau phát bắn bấy nhiêu ms (mặc định: sau fireIntervalMs). Súng chậm như sniper cần hồi sớm
   pellets?: number                // số tia mỗi phát (mặc định 1). Mỗi tia có spread riêng, seed theo shotSeq + chỉ số tia
   falloff?: DamageFalloff         // sát thương giảm theo khoảng cách (mặc định: không giảm)
+  consumable?: boolean    // lựu đạn: hàng tiêu hao (mua thêm tới maxCarry, không bán lại, không đạn/bắn)
   aimSpreadDeg?: number   // spread khi ngắm + đứng yên/ngồi trên mặt đất (thay các mức stand/crouch)
 }
 
@@ -51,7 +56,7 @@ export interface AdsDef {
 
 export interface WeaponState {
   current: number         // id súng đang cầm (WEAPONS[current])
-  slots: number[]         // id súng ở 4 ô (theo CATEGORY_SLOT), -1 = trống. Server giữ, snapshot gửi cho chính người đó
+  slots: number[]         // id súng ở 5 ô (theo CATEGORY_SLOT; ô 4 = lựu đạn), -1 = trống. Server giữ, snapshot gửi cho chính người đó
   slot: number            // ô đang cầm
   wantSlot: number        // cmd.weapon của cmd gần nhất: chỉ đổi súng khi cmd.weapon ĐỔI (cmd cũ còn bay trên đường không kéo ngược lại ô vừa mua)
   ammo: number[]          // theo id súng
@@ -131,6 +136,14 @@ export const WEAPONS: WeaponDef[] = [
     recoilPitchDeg: 0.4, recoilYawDeg: 0.35, recoilRecoverDegPerSec: 10,
     falloff: { fullM: 15, endM: 40, minMult: 0.6 },
   },
+  {
+    // Lựu đạn M67: không dùng các trường bắn (xem grenade.ts / grenadePhysics.ts)
+    id: 8, key: GRENADE.key, name: 'M67', category: 'grenade', price: GRENADE.price, buyable: true, moveSpeedMul: 1.0, consumable: true,
+    auto: false, damage: 0, headMult: 1, legMult: 1,
+    fireIntervalMs: 0, magSize: 0, reloadMs: 0, range: 0,
+    spreadDeg: { stand: 0, move: 0, air: 0, crouch: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
 ]
 
 export const WEAPON_BY_KEY: ReadonlyMap<string, WeaponDef> = new Map(WEAPONS.map(w => [w.key, w]))
@@ -140,8 +153,8 @@ export function weaponByKey(key: string): WeaponDef | undefined { return WEAPON_
 export const MAX_PELLETS = 16
 
 
-/** Bộ mặc định lúc chưa biết đội (Cớm): Dao, Colt, —, M16 */
-export const FALLBACK_SLOTS: readonly number[] = [6, 2, -1, 1]
+/** Bộ mặc định lúc chưa biết đội (Cớm): Dao, Colt, —, M16, (không lựu đạn) */
+export const FALLBACK_SLOTS: readonly number[] = [6, 2, -1, 1, -1]
 
 export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS): WeaponState {
   const slot = slots[DEFAULT_SLOT]! >= 0 ? DEFAULT_SLOT : Math.max(0, slots.findIndex(id => id >= 0))
