@@ -191,26 +191,32 @@ Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
 - `bots.json` chốt sau khi chạy bench (khác bảng mẫu của plan): medium `reactionMs [400,650]`, `aimErrorDeg [2.5,5]`, `aimErrorDecayPerSec 3`, `aimJitterDeg 0.9`, `trackingLagMs 40`, `headChance 0`, `fireThresholdDeg 3.0`, `recoilCompensation 0.85`; hard `reactionMs [100,200]`, `aimErrorDeg [1,2]`, `aimErrorDecayPerSec 6`, `aimJitterDeg 0.65`, `trackingLagMs 25`, `headChance 0.15`, `fireThresholdDeg 1.6`, `recoilCompensation 0.9`. Lý do: thời gian từ thấy → phát đầu cộng dồn phản xạ + thời gian hạ sai số ngắm, và bot gần như không lệch ngang ở bia đứng nên phải tăng rung; trúng đầu cao vì giật chưa bù hết kéo tâm lên (ngắm giữa thân `CHEST_Y 1.0` + bù giật cao để giữ ≤ 15%).
 
 ## 16 – Zombie: nền chung + Lây Nhiễm
-- [ ] ZF.1 Model zombie + biến thể (tint, cỡ, mắt đỏ)
-- [ ] ZF.2 Vai trò zombie: cào, bò qua lỗ, nhảy E, đẩy lùi, hồi máu
-- [ ] ZF.3 Ban đêm + đèn pin
-- [ ] ZF.4 Góc nhìn zombie 1st/3rd + biến hình
-- [ ] ZF.5 Âm thanh zombie
-- [ ] ZF.6 HUD zombie
-- [ ] ZF.7 Kiểm tra hiệu năng
-- [ ] I.1 InfectionMode: zombie mẹ, lây nhiễm, anh hùng, điểm
-- [ ] I.2 Cân bằng chống cắm tháp
-- [ ] I.3 Chiêu đánh hơi của zombie
-- [ ] I.4 HUD + thông báo Lây Nhiễm
-- [ ] I.5 Bot trong Lây Nhiễm
+- [~] ZF.1 Hình dáng zombie — `shared/zombieModels.json` + `zombieVariation(id)` (tất định: cỡ ±6%, tint, tint xanh xám cố định cho người bị lây), `render/zombieLook.ts` (tint giữ texture, mắt đỏ sprite cộng sáng bám xương đầu, tắt mắt ngoài 40m). **Chưa có GLB zombie**: `zombie_*.fbx` + `anims/z_*.fbx` đã nằm trong `assets/source/characters/mixamo_out/` nhưng máy này không có Blender nên chưa chạy `build-character` (xem "Cần người dùng" bên dưới). Đang dùng chính model người + tint (đúng phương án dự phòng của plan). Viewer chưa phát được `z_*`.
+- [x] ZF.2 Vai trò zombie — `shared/zombie.ts` (ZOMBIE, `zombieMovement`, `movementFor`, knockback, `leapFlight`), vuốt thường/mạnh (id 9/10, chuột trái/phải, cào mạnh vung 0,3s rồi mới trúng), `PlayerState.leapCd` + `Btn.Ability` (E: vel.y 13.8 + 5 m/s, hồi 8s, tất định), `CollisionWorld.setCrouchHeight` (capsule ngồi 0,85m), không trượt, mỗi lần nhảy mất 30% tốc độ ngang, đẩy lùi theo `knockbackPerDamage` (kẹp 14 m/s, ×1,5 trên không), hồi máu sau 4s không bị bắn, `Player.role/zstats`, `room.makeZombie/makeHuman`, zombie = đội B (không friendly fire). Test: bò qua khe 1,0m (zombie lọt, người không), đỉnh nhảy 4,33m, determinism 600 tick. ⚠️ Map hiện tại không có "lỗ" như plan (xem dưới).
+- [x] ZF.3 Ban đêm + đèn pin — `render/night.ts` (hemi/trăng/FogExp2/trời có sao, 6 đèn đường PointLight, đèn pin SpotLight của mình + tối đa 4 của người khác + nón sáng giả cho phần còn lại; số đèn cố định, tắt bằng intensity để khỏi biên dịch lại shader), phím F (mức, gửi trong `Btn.Flashlight`, server báo `NetFlag.Flashlight`), zombie nhìn đêm (ambient ×3 + lọc đỏ). Chưa đo FPS 8 đèn trên GPU thật.
+- [~] ZF.4 Góc nhìn zombie — 1st person: tay trần của model người buông hai bên (chưa có tay zombie cắt riêng/keyframe `poses.json → zombie.swipe`), 3rd person: tint + mắt, dùng animation của người (chưa có `z_*`). Biến hình: chớp xanh + blur, bất tử + đứng yên `transformMs` (server); chưa có clip `z_transform`.
+- [x] ZF.5 Âm thanh zombie — `audio/zombieAudio.ts`: gầm gừ 3–8s theo vị trí, gào (biến hình/mẹ/nhảy E/boss), cào, bước chân nặng +4dB, hurt (≤1 lần/0,3s/zombie), chết, `infect_sting`, nền đêm (gió + côn trùng), tim đập khi zombie trong 8m ngoài tầm nhìn. File thiếu → âm tổng hợp thô (chưa có file nào).
+- [x] ZF.6 HUD zombie — `hudZombie.ts`: thanh máu lớn + E (vòng hồi chiêu) + Q, ẩn ô súng/tiền, đạn `25 / ∞`, hitmarker kèm số damage nổi.
+- [ ] ZF.7 Kiểm tra hiệu năng — tick server 28 zombie + 4 người ≈ 1,9ms (test `defensePerf`); FPS client với 20 zombie + 8 đèn pin **chưa đo** (cần GPU thật). Đã làm: tắt mắt ngoài 40m; chưa làm: animation 30Hz cho zombie xa, chia sẻ material theo tint.
+- [x] I.1 InfectionMode — `server/modes/infection.ts`: WARMUP(≥3)→PREP→chọn mẹ (không lặp)→LIVE→ROUND_END→…→MATCH_END; lây tại chỗ, `transformMs`, hồi sinh zombie 5s ở điểm xa người nhất, máu zombie theo số người, anh hùng (200hp, ×1,5, ×1,1), điểm cá nhân, vào giữa ván = zombie, mẹ rời → chọn mẹ mới; `/zombie` `/human`. `MatchPhase.Prep`, msg 130–133. Test `infection.test.ts` (14).
+- [ ] I.2 Cân bằng chống cắm tháp — cần chơi thử bằng người (3–4 người trên tháp vs 2 mẹ). Núm sẵn trong `shared/infection.ts`; cờ `towerDecay` có trong config, **chưa bật/chưa cài logic**.
+- [x] I.3 Đánh hơi — Q: 18m/2,5s, hồi 15s; người trong tầm nhận `Sniffed` (icon mũi 2s + tiếng gầm), zombie thấy capsule đỏ xuyên tường (`render/sniffFx.ts`, `depthTest:false` thay vì shader viền).
+- [x] I.4 HUD + thông báo Lây Nhiễm — `🧍 5 · 2:13 · 🧟 3`, `Ván n/8`, banner mẹ/bị lây/anh hùng/thắng, killfeed `Tèo 🧟 Mít`, đếm ngược PREP, bảng điểm 1 bảng (điểm/lây/hạ ZB/vai).
+- [x] I.5 Bot trong Lây Nhiễm — bot zombie dùng `ZombieBrain` (đi theo nav, Hole/Leap, cào thường/mạnh, đánh hơi sau 10s không có người ≤12m); bot người dùng hành vi bot sẵn có (**chưa có hành vi "giữ chỗ"** riêng). Offline Lây Nhiễm tự thêm 5 bot. Test host: có zombie mẹ + lây nhiễm trong 2 phút.
 
 ## 17 – Thủ Thành
-- [ ] T.1 DefenseMode: đợt, nghỉ, thắng/thua, kinh tế
-- [ ] T.2 Các loại zombie (zombieTypes.json)
-- [ ] T.3 Đợt zombie (waves.json)
-- [ ] T.4 AI zombie + cạnh nav đặc biệt (lỗ, nhảy)
-- [ ] T.5 Boss Đại Ca Zombie
-- [ ] T.6 Gục và cứu đồng đội
-- [ ] T.7 HUD Thủ Thành
-- [ ] T.8 Không khí, dọn xác
-- [ ] T.9 Cân bằng
+- [x] T.1 DefenseMode — `server/modes/defense.ts`: WARMUP→PREP→ĐỢT n→NGHỈ→…→VICTORY/DEFEAT(→WARMUP), tự bắt đầu khi có người (chưa có nút "Bắt đầu" của chủ phòng), thưởng 800+100n, `ECONOMY_DEFENSE`, hồi sinh/cứu hết ở giờ nghỉ, DEFEAT khi không còn ai đứng được, `/wave n`, `/clearwave`, msg 140–143. Offline: lobby chọn "Offline: Thủ Thành".
+- [x] T.2 Loại zombie — `shared/zombieTypes.json` (7 loại như plan + `regenPerSec`, `modelOverride`), shove/rally/leap/crawl_holes, đầu ×2 (boss ×3), hitbox nhân theo `scale`.
+- [x] T.3 Đợt — `shared/waves.json` (10 đợt như plan), số lượng/máu theo độ khó + số người, `maxAlive` 28, điểm sinh theo zone/lane của nav và không nằm trong tầm nhìn người chơi. Chưa hot-reload JSON ở dev.
+- [x] T.4 AI zombie — zombie là `Player` NPC (`room.addNpc`, không phải thực thể riêng — xem "Quyết định"), `zombies/brain.ts` + `zombies/npc.ts`: A* theo loại (cạnh `Hole`, `Leap` thêm vào `bots/nav.ts` qua `navZombie.ts`), chọn người gần nhất theo đường, tách đám, báo trước vuốt 0,25s, chống kẹt/dịch chuyển, rơi khỏi map thì xoá. Test thế giới thật: crawler chui khe, leaper bật lên gờ, 28 zombie + 4 người ≈ 1,9ms/tick.
+- [x] T.5 Boss — slam (vòng đỏ 1s, 6m, 35 + hất), summon (6 runner ở 75/50/25%), charge (báo trước 0,8s, 14 m/s, đâm tường choáng 2s nhận ×1,5), thanh máu boss. Chưa có model riêng/animation chết chậm/hiệu ứng tiền rơi.
+- [x] T.6 Gục và cứu — nhiều người: hết máu → gục (40hp, bò 1 m/s, chỉ súng ngắn, 30s), đồng đội ≤1,5m giữ E 3s (bị đánh trúng thì làm lại), dấu thập đỏ xuyên tường + vòng thời gian, lời nhắc "Giữ E để cứu", màn đỏ khi mình gục; một mình không gục.
+- [x] T.7 HUD Thủ Thành — `ĐỢT n/10 · Còn k zombie` / `Đợt tiếp theo sau`, banner đầu/hết đợt, thanh máu boss, thanh máu nhỏ trên đầu zombie bị bắn 3s (brute/screamer/boss luôn hiện tên), số damage nổi, mũi tên chỉ đồng đội đang bị vây, bảng thống kê cuối trận.
+- [~] T.8 Không khí — đêm + đèn pin, xác nằm 4s rồi chìm (≤30 xác), tiếng gào xa 5s trước đợt mới, nền đêm. Chưa: nền dịu xuống giữa đợt, `boss_theme.ogg`.
+- [ ] T.9 Cân bằng — cần chơi thử bằng người; số liệu bot ở `plan/notes/defense-balance.md` (bot không đại diện được cho người chơi).
+
+### Cần người dùng quyết / làm (plan 16–17)
+- **Map không có "lỗ bắn" như plan.** `deathmatch.json` (Hai thành) có 5 khe rộng 2m giữa các trụ, bệ cao **0,5m**, trần khe **2,6m** (cao 2,1m) — người bình thường nhảy qua được, nên "chỉ zombie bò mới qua" **không đúng** trên map này (walker/người đều vào căn cứ A qua khe). Plan giả định lỗ cao 1,0m, đáy cách đất 1,0m. Cần: sửa map (thêm thanh chắn để khe chỉ còn 1,0m cao, đáy 1,0m) hay đổi luật? Code zombie/nav đã sẵn sàng cho map đúng kích thước (test dùng khe 1,0m: zombie lọt, người không).
+- **Build model zombie**: chạy trên máy có Blender `build-character` cho `zombie_1…10`, `zombie_bighand` + `anims/z_*.fbx` → `client/public/models/zombies/*.glb`, rồi điền `shared/src/zombieModels.json → models` (hiện rỗng nên dùng model người + tint).
+- Thủ Thành tự bắt đầu khi có người (plan: chủ phòng bấm Bắt đầu). Điểm mother +1: hiểu là thưởng thêm khi zombie mẹ lây nhiễm — xác nhận.
+- Test `skeletonArm.test.ts > ngón gập` đã fail từ trước (không liên quan).
