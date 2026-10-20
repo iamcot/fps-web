@@ -175,3 +175,4 @@ Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
 - Súng ngắn có `ads`; SMG và Shotgun KHÔNG ngắm (theo yêu cầu sau đó: dòng súng vừa đã có tốc độ/hoả lực). Shotgun: spread chỉ dịch tâm chùm, nón cố định `pelletConeDeg 4.5`.
 
 - Lựu đạn (theo yêu cầu): bỏ đường bay dự kiến (xoá `grenadeTrajectory.ts`), tăng lực ném (strong 16→32 m/s, góc +10°; lob 7→12), nổ to hơn (nhiều khói/lửa/tia lửa, rung mạnh hơn), tiếng nổ vang và kéo dài hơn.
+- [x] Bộ nhân vật mới "Bão Cát Sa Mạc" (`saberDesert`, mặc định khi tạo phòng) — CT = đội A (`saber_ct.glb`), T = đội B (`saber_t.glb`) + tay 1st person `saber_*_fparms.glb`. Build từ `mixamo_out/saber-ct.fbx` / `saber-t.fbx` (Mixamo chỉ rig 57 / 33 xương) bằng donor `robber_rigged.fbx` → 65 xương, 16 animation dùng chung. Code: `characterRig.ts` có `SkinId` (`classic` = Cớm & Cướp, `saber`), `fpArms.ts` nạp tay theo skin, `viewmodel.setSkin`, `CHARACTER_SETS` thêm `saberDesert` làm mặc định. Chưa xem bằng mắt trong game.

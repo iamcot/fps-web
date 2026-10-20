@@ -10,7 +10,14 @@ import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, ty
 // Nhân vật có xương (plan 11, C.4): cop.glb / robber.glb dùng chung bộ animation Mixamo.
 // Chọn clip theo vận tốc nội suy, thân trên ngắm theo pitch (xoay các xương spine), súng nằm trong `aimPivot`.
 // Model nhìn +Z (chuẩn glTF) nên xoay π để yaw = 0 nhìn −Z như quy ước dự án.
-const FILES: Record<TeamId, string> = { A: '/models/characters/cop.glb', B: '/models/characters/robber.glb' }
+// Mỗi bộ nhân vật có xương = một "skin" (cùng bộ xương + animation, khác model/texture); bộ không có ở đây dùng nhân vật khối.
+export type SkinId = 'classic' | 'saber'
+const FILES: Record<SkinId, Record<TeamId, string>> = {
+  classic: { A: '/models/characters/cop.glb', B: '/models/characters/robber.glb' },
+  saber: { A: '/models/characters/saber_ct.glb', B: '/models/characters/saber_t.glb' },
+}
+const SKIN_OF_SET: Record<string, SkinId> = { copRobber: 'classic', saberDesert: 'saber' }
+export function skinOfSet(setId: string): SkinId | null { return SKIN_OF_SET[setId] ?? null }
 const DEG = Math.PI / 180
 const TELEPORT_M = 3
 // Ném lựu đạn (G.6)
@@ -25,8 +32,8 @@ const CORPSE_FADE_S = 0.7
 const DEATH_SWAP_S = 0.5     // tin Kill (có cờ headshot) đến muộn hơn snapshot chết trong khoảng này vẫn đổi được kiểu chết
 
 interface Loaded { scene: THREE.Object3D; clips: Map<string, THREE.AnimationClip>; upper: Map<string, THREE.AnimationClip> }
-const loaded = new Map<TeamId, Loaded>()
-const loading = new Set<TeamId>()
+const loaded = new Map<string, Loaded>()   // khoá `${skin}:${team}`
+const loading = new Set<string>()
 let failed = false
 
 /** `?blocky=1` giữ nhân vật khối hộp cũ để so sánh khi debug */
@@ -40,20 +47,21 @@ export function forcedTeam(): TeamId | null {
   try { const t = new URLSearchParams(location.search).get('charTeam'); return t === 'A' || t === 'B' ? t : null } catch { return null }
 }
 
-export function requestCharacters(): void {
+export function requestCharacters(skin: SkinId): void {
   const loader = new GLTFLoader()
   for (const team of ['A', 'B'] as TeamId[]) {
-    if (loading.has(team) || loaded.has(team)) continue
-    loading.add(team)
-    loader.loadAsync(FILES[team]).then(gltf => {
+    const key = `${skin}:${team}`, file = FILES[skin][team]
+    if (loading.has(key) || loaded.has(key)) continue
+    loading.add(key)
+    loader.loadAsync(file).then(gltf => {
       const clips = new Map<string, THREE.AnimationClip>()
       for (const c of gltf.animations) clips.set(c.name, c)
-      for (const n of CLIP_NAMES) if (!clips.has(n)) console.warn(`characterRig: ${FILES[team]} thiếu clip ${n}`)
+      for (const n of CLIP_NAMES) if (!clips.has(n)) console.warn(`characterRig: ${file} thiếu clip ${n}`)
       // Clip ném chỉ áp cho thân trên (từ Spine trở lên, gồm hai tay) để chân vẫn chạy
       const upper = new Map<string, THREE.AnimationClip>()
       for (const n of THROW_CLIPS) { const c = clips.get(n); if (c) upper.set(n, upperBodyClip(c)) }
-      loaded.set(team, { scene: gltf.scene, clips, upper })
-    }).catch(err => { failed = true; console.warn(`characterRig: không load được ${FILES[team]}, dùng nhân vật khối`, err) })
+      loaded.set(key, { scene: gltf.scene, clips, upper })
+    }).catch(err => { failed = true; console.warn(`characterRig: không load được ${file}, dùng nhân vật khối`, err) })
   }
 }
 
@@ -67,7 +75,7 @@ function upperBodyClip(clip: THREE.AnimationClip): THREE.AnimationClip {
   return new THREE.AnimationClip(`${clip.name}_upper`, clip.duration, tracks)
 }
 
-export function skeletalReady(team: TeamId): boolean { return loaded.has(team) }
+export function skeletalReady(skin: SkinId, team: TeamId): boolean { return loaded.has(`${skin}:${team}`) }
 
 const _wq = new THREE.Quaternion(), _pq = new THREE.Quaternion(), _dq = new THREE.Quaternion()
 const _axis = new THREE.Vector3(), _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler()
@@ -123,8 +131,8 @@ export class SkelCharacter {
   private deathClip = 'death_1'
   private deathT = 0
 
-  constructor(team: TeamId) {
-    const src = loaded.get(forcedTeam() ?? team)!
+  constructor(skin: SkinId, team: TeamId) {
+    const src = loaded.get(`${skin}:${forcedTeam() ?? team}`)!
     this.model = cloneSkinned(src.scene)
     this.model.rotation.y = Math.PI
     this.root.add(this.model)
@@ -383,8 +391,8 @@ export class SkelCharacter {
 }
 
 /** Vỏ CharacterRig cho nhân vật có xương: players.ts dùng chung luồng root/mats/gunAnchor, phần khối hộp là Group rỗng. */
-export function makeSkeletalRig(team: TeamId): CharacterRig {
-  const sk = new SkelCharacter(team)
+export function makeSkeletalRig(skin: SkinId, team: TeamId): CharacterRig {
+  const sk = new SkelCharacter(skin, team)
   const g = () => new THREE.Group()
   return {
     root: sk.root, legL: g(), legR: g(), upper: g(), headPivot: g(), armL: g(), armR: g(),

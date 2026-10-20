@@ -91,10 +91,10 @@ describe('bộ nhân vật theo phòng', () => {
     expect(second.room.characterSet).toBe('robot')
     expect(b.got[0]).toMatchObject({ t: MsgType.Welcome, characterSet: 'robot' })
   })
-  it('mặc định copRobber', () => {
+  it('mặc định saberDesert (Bão Cát Sa Mạc)', () => {
     const rm = new RoomManager(map, () => 0)
     const a = fake()
     rm.join('x', 'A', a.t)
-    expect(a.got[0]).toMatchObject({ characterSet: 'copRobber' })
+    expect(a.got[0]).toMatchObject({ characterSet: 'saberDesert' })
   })
 })

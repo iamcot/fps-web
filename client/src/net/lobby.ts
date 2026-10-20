@@ -209,7 +209,7 @@ export function showLobby(): Promise<Session | null> {
       const mapSel = mk('select', INPUT)
       const charSel = mk('select', INPUT)
       charSel.innerHTML = CHARACTER_SETS.map(id => `<option value="${id}">Nhân vật: ${getCharacterSet(id).label}</option>`).join('')
-      charSel.value = DEFAULT_CHARACTER_SET   // luôn mặc định nhân vật người (Cớm & Cướp)
+      charSel.value = DEFAULT_CHARACTER_SET   // luôn mặc định bộ Bão Cát Sa Mạc
       const teamSel = teamSelect(saved.team)
       const maxSel = mk('select', INPUT)
       for (let n = MAX_PLAYERS_LIMITS[1]; n >= MAX_PLAYERS_LIMITS[0]; n -= 2) maxSel.add(new Option(`Tối đa ${n} người`, String(n)))

@@ -4,6 +4,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import type { TeamId } from "@fps/shared";
 import { BlockArm } from "./blockArm";
 import { FpArms } from "./fpArms";
+import type { SkinId } from "./characterRig";
 import { GrenadeAnim, pathSegment, type LogicPhase } from "./grenadeAnim";
 import { GRENADE_ID } from "@fps/shared";
 import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf, type Vec3 } from "./poses";
@@ -228,6 +229,8 @@ export interface ViewmodelHandle {
   readonly aimAmount: number;
   /** Màu tay áo theo đội */
   setTeam(team: TeamId): void;
+  /** Skin tay xương theo bộ nhân vật của phòng (tải khi cần) */
+  setSkin(skin: SkinId): void;
   /** true: dùng tay khối thay tay xương (bộ nhân vật robot) */
   setBlockArms(v: boolean): void;
   /** Lựu đạn: trạng thái logic mỗi frame (pha, chế độ, tiến độ rút chốt 0..1, còn quả sau khi ném không) */
@@ -286,7 +289,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   // Tay bằng model nhân vật (C.6): có rồi thì thay tay khối; tay khối vẫn giải IK (ẩn) để bảng F9 và làm dự phòng khi glb không load được
   const fp = new FpArms();
   scene.add(fp.root);
-  fp.load();
+  fp.setSkin('saber');   // bộ mặc định; main.ts đổi theo bộ nhân vật của phòng
   let blockArms = false;   // bộ nhân vật khối hộp (robot): tay viewmodel cũng là tay khối
   const fpActive = () => fp.ready && !blockArms;
   const shoulderR = new THREE.Vector3(), shoulderL = new THREE.Vector3();
@@ -665,6 +668,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     setGrenade(phase, mode, pullFrac, hasMore) { nadeAnim.setLogic(phase, mode, pullFrac, hasMore); },
     onGrenadeThrow() { nadeAnim.onThrow(); },
     get grenadePhase() { return nadeAnim.phase; },
+    setSkin(skin: SkinId) { fp.setSkin(skin); },
     setBlockArms(v: boolean) { blockArms = v; },
     setHidden(h: boolean) { hidden = h; },
     debug: dbg,

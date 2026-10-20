@@ -28,7 +28,8 @@ import { createShop } from './shop'
 import { createTopButtons, createConfirmPrompt, createToast, createLeaveButton, createRoomLabel, createCommandBox } from './hudButtons'
 import { createSpectator, type SpecCandidate } from './spectate'
 import { createMatchHud, createScoreboard } from './hudMatch'
-import { MsgType, MatchPhase, NetFlag, type TeamId } from '@fps/shared'
+import { MsgType, MatchPhase, NetFlag, DEFAULT_CHARACTER_SET, type TeamId } from '@fps/shared'
+import { skinOfSet } from './render/characterRig'
 import { initTuningPanel } from './tuning'
 import { createViewmodel } from './render/viewmodel'
 import { createPoseEditor } from './render/poseEditor'
@@ -578,6 +579,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     updateTargets(targets, dt)
     const myTeamNow = sessionRef?.teams.get(sessionRef.yourId) ?? 'A'
     vm.setBlockArms(sessionRef?.characterSet === 'robot')
+    vm.setSkin(skinOfSet(sessionRef?.characterSet || DEFAULT_CHARACTER_SET) ?? 'saber')
     if (myTeamNow !== vmTeam) { vmTeam = myTeamNow; vm.setTeam(myTeamNow) }
     poseEditor.tick(dt)
     vm.update(dt)

@@ -7,7 +7,7 @@ import { MUZZLE_FALLBACK, makeFlashTexture, adjustModel } from './viewmodel'
 import { BlockArm } from './blockArm'
 import { poses, weaponPose, getAnchor, scanModelAnchors, colorOf, type Vec3, type WeaponPose } from './poses'
 import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
-import { makeSkeletalRig, requestCharacters, skeletalEnabled, skeletalReady } from './characterRig'
+import { makeSkeletalRig, requestCharacters, skeletalEnabled, skeletalReady, skinOfSet } from './characterRig'
 import { GRENADE_ID } from '@fps/shared'
 import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './characters/animate'
 import { createDeathFx } from './characters/deathFx'
@@ -276,7 +276,8 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   let lastNow = performance.now()
   let setId = ''
   requestGuns()
-  requestCharacters()
+  const requestSkin = (id: string): void => { const sk = skinOfSet(getCharacterSet(id).id); if (sk) requestCharacters(sk) }
+  requestSkin(setId)   // chưa biết bộ của phòng → bộ mặc định
 
   function dropActor(id: number, a: Actor): void {
     dropWanted(id)
@@ -289,11 +290,12 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   // Dựng lại khi đội đổi (TeamAssigned đến sau snapshot đầu) hoặc đổi bộ nhân vật
   function ensure(p: RenderPlayer): Actor {
     const team = info?.teamOf(p.id) ?? 'A'
-    const wantSkel = skeletalEnabled() && getCharacterSet(setId).id === 'copRobber' && skeletalReady(team)   // bộ mặc định = Cớm & Cướp có xương
+    const skin = skinOfSet(getCharacterSet(setId).id)   // bộ có xương (Bão Cát Sa Mạc, Cớm & Cướp) → skin tương ứng
+    const wantSkel = skeletalEnabled() && !!skin && skeletalReady(skin, team)
     let a = actors.get(p.id)
     if (a && (a.rig.team !== team || !!a.rig.skel !== wantSkel)) { dropActor(p.id, a); a = undefined }
     if (!a) {
-      a = makeActor(wantSkel ? makeSkeletalRig(team) : getCharacterSet(setId).build(team), (p.flags & NetFlag.Dead) !== 0)
+      a = makeActor(wantSkel ? makeSkeletalRig(skin!, team) : getCharacterSet(setId).build(team), (p.flags & NetFlag.Dead) !== 0)
       scene.add(a.rig.root)
       actors.set(p.id, a)
     }
@@ -484,6 +486,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       const want = info?.characterSet?.() ?? ''
       if (want !== setId) {   // đổi bộ nhân vật (vào phòng khác): dựng lại tất cả
         setId = want
+        requestSkin(setId)
         for (const [id, a] of actors) dropActor(id, a)
       }
       for (const p of players) {
