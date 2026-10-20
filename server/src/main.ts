@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'fs'
 import { WebSocketServer } from 'ws'
 import { TICK_RATE, MATCH, loadMap, defaultMovement, type MapFile } from '@fps/shared'
 import { createWorld } from '@fps/shared/physics/world'
+import { buildNav } from './bots/nav'
 import { wrapWebSocket } from './transport'
 import { startHeartbeat } from './heartbeat'
 import { TickLoop } from './tickLoop'
@@ -77,6 +78,7 @@ wss.on('connection', ws => handleConnection(ctx, wrapWebSocket(ws)))
 // Rapier khởi tạo wasm ở lần createWorld đầu; nhiều createWorld đồng thời lúc nguội làm hỏng bộ nhớ
 // ("recursive use of an object"). Khởi tạo xong rồi mới nhận kết nối.
 createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => {
+  rooms.navs.set('deathmatch', buildNav(w, map, cfg))   // zombie Thủ Thành + bot đi theo lưới này
   w.dispose()
   server.listen(PORT, () => {
     console.log(`listening ${PORT} (mọi card mạng)`)

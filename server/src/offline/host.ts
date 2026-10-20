@@ -90,8 +90,8 @@ export async function createOfflineHost(map: LoadedMap, now: () => number = () =
     onOfflineCmd: (_room, player, msg) => {
       switch (msg.cmd) {
         case 'addBot': {
-          if (room.players.size >= room.config.maxPlayers) break
-          const team = msg.ally === true ? player.team : otherTeam(player.team)
+          if (room.humanCount() >= room.config.maxPlayers) break
+          const team = msg.ally === true || isZombieMode(room.config.settings.mode) ? player.team : otherTeam(player.team)   // thể thức zombie: mọi bot là người cùng phe
           addBot(room, msg.difficulty === 'hard' ? 'hard' : 'medium', team)
           break
         }

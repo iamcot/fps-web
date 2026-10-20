@@ -411,6 +411,8 @@ export class RoomManager {
   readonly rooms = new Map<string, Room>()
   /** Các map chọn được khi tạo phòng; map đầu tiên là mặc định */
   readonly maps = new Map<string, { name: string; map: LoadedMap }>()
+  /** Lưới di chuyển theo map (zombie Thủ Thành và bot cần). Host dựng lúc khởi động; map chưa có lưới thì phòng không có zombie đi được. */
+  readonly navs = new Map<string, NavGrid>()
 
   constructor(private map: LoadedMap, private now: () => number = () => performance.now(), private rules: MatchRules = MATCH, private defaultMapId = 'default') {
     this.maps.set(defaultMapId, { name: map.name, map })
@@ -438,6 +440,7 @@ export class RoomManager {
     const rules = roomRules(this.rules, config)
     const room = new Room(roomId, this.maps.get(id)!.map, this.now, Math.random, rules, characterSet, config)
     room.mapId = id
+    room.nav = this.navs.get(id) ?? null
     this.rooms.set(roomId, room)
     return room
   }

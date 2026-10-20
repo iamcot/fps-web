@@ -13,6 +13,7 @@ import { Aim, anglesTo, wrapAngle } from './aim'
 import { EdgeKind, Zone, type Waypoint } from './nav'
 import { Perception, bodyPoint, eyeOf, type Known } from './perception'
 import { getBotParams, rand, randInt, type BotParams } from './params'
+import { ZombieBrain } from '../zombies/brain'
 
 export type BotState = 'Patrol' | 'Engage' | 'Search' | 'Reload' | 'Hunt' | 'TakeCover' | 'Peek' | 'Flank' | 'Push'
 
@@ -142,6 +143,7 @@ export class BotController {
     this.wasAlive = true
     this.lastPos[0] = p.state.pos[0]; this.lastPos[1] = p.state.pos[1]; this.lastPos[2] = p.state.pos[2]
 
+    if (p.role === 'zombie') { this.driveZombie(room, p, cmd, nowMs); return }   // Lây Nhiễm: bot làm zombie đi săn người (plan 16 I.5)
     if (nowMs >= this.nextThinkAt) { this.nextThinkAt = nowMs + THINK_MS; this.think(nowMs) }
     this.tickBuy(nowMs)
 
@@ -151,6 +153,46 @@ export class BotController {
     if (this.reloadPress) { buttons |= Btn.Reload; this.reloadPress = false }
     cmd.buttons = buttons & phaseButtonMask(room.phase, true)
     cmd.yaw = this.aim.yaw; cmd.pitch = this.aim.pitch
+    p.inputQueue.push(cmd)
+  }
+
+  // ── Bot đóng vai zombie: tìm đường tới người gần nhất (cạnh Hole/Leap), cào khi tới gần, đánh hơi khi lâu không thấy người
+  private zbrain: ZombieBrain | null = null
+  private zTargetAt = 0
+  private zTargetId = -1
+  private zNextAttackAt = 0
+  private zNextSniffAt = 0
+  private zLastSeenAt = 0
+  private readonly zTgt: Vec3 = [0, 0, 0]
+
+  private driveZombie(room: Room, p: Player, cmd: InputCmd, now: number): void {
+    if (!room.nav) { cmd.yaw = this.aim.yaw; p.inputQueue.push(cmd); return }
+    if (!this.zbrain) this.zbrain = new ZombieBrain(room.nav, { hole: true, leap: true }, this.rng)
+    if (now >= this.zTargetAt) {
+      this.zTargetAt = now + 1000
+      let best = -1, bestD = Infinity
+      for (const o of room.players.values()) {
+        if (o.role !== 'human' || !o.alive) continue
+        const d = Math.hypot(o.state.pos[0] - p.state.pos[0], o.state.pos[2] - p.state.pos[2]) + Math.abs(o.state.pos[1] - p.state.pos[1]) * 2
+        if (d < bestD) { bestD = d; best = o.id }
+      }
+      this.zTargetId = best
+    }
+    const tgt = room.players.get(this.zTargetId)
+    if (!tgt || !tgt.alive || tgt.role !== 'human') { this.zTargetAt = 0; cmd.yaw = this.aim.yaw; p.inputQueue.push(cmd); return }
+    this.zTgt[0] = tgt.state.pos[0]; this.zTgt[1] = tgt.state.pos[1]; this.zTgt[2] = tgt.state.pos[2]
+    const r = this.zbrain.step(cmd, p.state, this.zTgt, now, (p.state.leapCd ?? 0) <= 0)
+    if (r.attack && now >= this.zNextAttackAt) {
+      const hd = Math.hypot(this.zTgt[0] - p.state.pos[0], this.zTgt[2] - p.state.pos[2])
+      cmd.pitch = Math.max(-1.2, Math.min(1.2, Math.atan2(this.zTgt[1] + 1.1 - (p.state.pos[1] + 1.6), Math.max(0.2, hd))))
+      cmd.buttons |= this.rng() < 0.3 ? Btn.Aim : Btn.Fire   // thỉnh thoảng cào mạnh
+      this.zNextAttackAt = now + 600
+    }
+    // đánh hơi (Q) khi 10s không có người nào trong tầm nhìn gần
+    if (Math.hypot(this.zTgt[0] - p.state.pos[0], this.zTgt[2] - p.state.pos[2]) < 12) this.zLastSeenAt = now
+    if (now - this.zLastSeenAt > 10_000 && now >= this.zNextSniffAt) { cmd.buttons |= Btn.Sniff; this.zNextSniffAt = now + 15_000; this.zLastSeenAt = now }
+    cmd.buttons &= phaseButtonMask(room.phase, true)
+    this.aim.set(cmd.yaw, cmd.pitch)
     p.inputQueue.push(cmd)
   }
 
