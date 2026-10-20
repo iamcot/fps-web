@@ -22,7 +22,7 @@ export interface GrenadeFirst {
 }
 export interface WeaponPose {
   anchors: Partial<Record<AnchorName, Vec3>>
-  third: { hold: Hold; gunPos: Vec3; gunRotDeg: Vec3; releaseT?: number }
+  third: { hold: Hold; gunPos: Vec3; gunRotDeg: Vec3; throwStartS?: number; releaseS?: number; throwRate?: number }   // 3 trường cuối: clip ném (giây vào clip lúc bắt đầu / lúc tay thả, tốc độ phát)
   first: { hold: Hold; gunPos?: Vec3; gunRotDeg: Vec3; scale: number; grenade?: GrenadeFirst }
 }
 export interface ReloadKey { t: number; to: 'hand_l' | 'mag'; offset?: Vec3 }

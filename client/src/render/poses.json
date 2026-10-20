@@ -749,7 +749,9 @@
           0,
           0
         ],
-        "releaseT": 0.4
+        "throwStartS": 1.3,
+        "releaseS": 2.07,
+        "throwRate": 1.4
       }
     }
   }

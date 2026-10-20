@@ -46,6 +46,8 @@ export interface GrenadeDeps {
   onBounce?(pos: Vec3, speed: number): void
   onExplode?(pos: Vec3, hits: { id: number; damage: number }[]): void
   onRelease?(pos: Vec3, own: boolean): void   // lựu đạn rời tay (tiếng thìa)
+  /** Người khác: độ trễ (ms) tới lúc quả rời tay trong animation ném của họ; quả thật xuất hiện khớp lúc đó (G.6) */
+  releaseDelayMs?(ownerId: number, mode: ThrowMode): number
 }
 
 const _v = new THREE.Vector3(), _axis = new THREE.Vector3(), _dq = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0)
@@ -53,6 +55,7 @@ const _v = new THREE.Vector3(), _axis = new THREE.Vector3(), _dq = new THREE.Qua
 export function createGrenades(scene: THREE.Scene, deps: GrenadeDeps) {
   const sims: Sim[] = []
   const spoons: Spoon[] = []
+  const later: { atMs: number; pos: Vec3; vel: Vec3 }[] = []   // thìa + tiếng rời tay của quả người khác (chờ tới lúc tay họ thả)
   let bodyTpl: THREE.Object3D | null = null
   let spoonTpl: THREE.Object3D | null = null
   let loadFailed = false
@@ -163,9 +166,10 @@ export function createGrenades(scene: THREE.Scene, deps: GrenadeDeps) {
         }
       }
       const g: GrenadeState = { id: msg.id, ownerId: msg.ownerId, team, pos: [msg.pos[0], msg.pos[1], msg.pos[2]], vel: [msg.vel[0], msg.vel[1], msg.vel[2]], spawnTick: msg.spawnTick, resting: false }
-      addSim(g, false, msg.throwSeq, tickOriginMs + msg.spawnTick * TICK_MS)
-      spawnSpoon(msg.pos, msg.vel)
-      deps.onRelease?.(msg.pos, false)
+      const delay = deps.releaseDelayMs?.(msg.ownerId, msg.mode) ?? 0   // chờ tay người ném thả đúng lúc trong animation
+      addSim(g, false, msg.throwSeq, tickOriginMs + msg.spawnTick * TICK_MS + delay)
+      if (delay > 0) later.push({ atMs: performance.now() + delay, pos: [msg.pos[0], msg.pos[1], msg.pos[2]], vel: [msg.vel[0], msg.vel[1], msg.vel[2]] })
+      else { spawnSpoon(msg.pos, msg.vel); deps.onRelease?.(msg.pos, false) }
     },
 
     /** GrenadeExplode: nổ đúng chỗ server gửi, xoá quả local dù local chưa tới giờ */
@@ -188,6 +192,7 @@ export function createGrenades(scene: THREE.Scene, deps: GrenadeDeps) {
         advance(s, world, s.elapsed)
         if (deps.localFuse() && s.elapsed >= GRENADE.fuseMs / 1000) { explodeSim(i, [s.g.pos[0], s.g.pos[1], s.g.pos[2]], []); continue }
         if (s.elapsed > GRENADE.fuseMs / 1000 + SAFETY_EXTRA_S) { removeSim(i); continue }
+        s.pivot.visible = s.predicted || s.elapsed > 0   // quả của người khác chưa tới lúc rời tay: chưa vẽ
         // hiển thị: nội suy giữa hai bước + hoà bù lệch
         const a = Math.min(1, Math.max(0, (s.elapsed - s.stepped * DT) / DT))
         s.offset.multiplyScalar(Math.exp(-dt / (SMOOTH_S / 3)))
@@ -211,6 +216,12 @@ export function createGrenades(scene: THREE.Scene, deps: GrenadeDeps) {
           }
         }
         s.view.pos.copy(s.pivot.position); s.view.resting = s.g.resting
+      }
+      for (let i = later.length - 1; i >= 0; i--) {
+        const l = later[i]!
+        if (nowMs < l.atMs) continue
+        spawnSpoon(l.pos, l.vel); deps.onRelease?.(l.pos, false)
+        later[i] = later[later.length - 1]!; later.pop()
       }
       // thìa văng ra: vật lý như lựu đạn nhỏ, biến mất sau 5 giây
       for (let i = spoons.length - 1; i >= 0; i--) {
@@ -237,7 +248,7 @@ export function createGrenades(scene: THREE.Scene, deps: GrenadeDeps) {
     clear(): void {
       for (const s of sims) scene.remove(s.pivot)
       for (const p of spoons) scene.remove(p.pivot)
-      sims.length = 0; spoons.length = 0
+      sims.length = 0; spoons.length = 0; later.length = 0
     },
   }
 }

@@ -13,12 +13,18 @@ import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, ty
 const FILES: Record<TeamId, string> = { A: '/models/characters/cop.glb', B: '/models/characters/robber.glb' }
 const DEG = Math.PI / 180
 const TELEPORT_M = 3
+// Ném lựu đạn (G.6)
+export const THROW_CLIPS = ['grenade_throw', 'grenade_toss'] as const
+const THROW_FADE_IN_S = 0.08, THROW_FADE_OUT_S = 0.15
+const PULL_S = 0.3                   // tay trái chạm vòng chốt từng ấy giây rồi buông
+const PULL_RAMP_S = 0.1
+const LOWER_BODY = /^mixamorig(Hips|(Left|Right)(UpLeg|Leg|Foot|ToeBase|Toe_End))\./
 const IK_FADE_S = 0.15       // tắt/bật IK khi chết/hồi sinh
 const CORPSE_HOLD_S = 3      // xác nằm yên từng ấy giây rồi mờ dần
 const CORPSE_FADE_S = 0.7
 const DEATH_SWAP_S = 0.5     // tin Kill (có cờ headshot) đến muộn hơn snapshot chết trong khoảng này vẫn đổi được kiểu chết
 
-interface Loaded { scene: THREE.Object3D; clips: Map<string, THREE.AnimationClip> }
+interface Loaded { scene: THREE.Object3D; clips: Map<string, THREE.AnimationClip>; upper: Map<string, THREE.AnimationClip> }
 const loaded = new Map<TeamId, Loaded>()
 const loading = new Set<TeamId>()
 let failed = false
@@ -43,7 +49,10 @@ export function requestCharacters(): void {
       const clips = new Map<string, THREE.AnimationClip>()
       for (const c of gltf.animations) clips.set(c.name, c)
       for (const n of CLIP_NAMES) if (!clips.has(n)) console.warn(`characterRig: ${FILES[team]} thiếu clip ${n}`)
-      loaded.set(team, { scene: gltf.scene, clips })
+      // Clip ném chỉ áp cho thân trên (từ Spine trở lên, gồm hai tay) để chân vẫn chạy
+      const upper = new Map<string, THREE.AnimationClip>()
+      for (const n of THROW_CLIPS) { const c = clips.get(n); if (c) upper.set(n, upperBodyClip(c)) }
+      loaded.set(team, { scene: gltf.scene, clips, upper })
     }).catch(err => { failed = true; console.warn(`characterRig: không load được ${FILES[team]}, dùng nhân vật khối`, err) })
   }
 }
@@ -51,6 +60,12 @@ export function requestCharacters(): void {
 // Debug (chỉ khi chạy vite dev): window.__skelChars cho script kiểm tra IK từ trình duyệt
 const debugList: SkelCharacter[] = []
 if (import.meta.env?.DEV) (globalThis as { __skelChars?: SkelCharacter[] }).__skelChars = debugList
+
+/** Giữ lại track của thân trên: bỏ Hips (chuyển động gốc) và hai chân */
+function upperBodyClip(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const tracks = clip.tracks.filter(t => !LOWER_BODY.test(t.name))
+  return new THREE.AnimationClip(`${clip.name}_upper`, clip.duration, tracks)
+}
 
 export function skeletalReady(team: TeamId): boolean { return loaded.has(team) }
 
@@ -100,6 +115,10 @@ export class SkelCharacter {
   private skinned: THREE.SkinnedMesh[] = []
   private opaque = true
   ikWeight = 1
+  // Ném lựu đạn (người khác thấy)
+  private throwing: { act: THREE.AnimationAction; t: number; dur: number; releaseAt: number } | null = null
+  private throwActions = new Map<string, THREE.AnimationAction>()
+  pullT = 0                       // > 0: giây còn lại của động tác tay trái chạm vòng chốt
   private dead = false
   private deathClip = 'death_1'
   private deathT = 0
@@ -143,6 +162,11 @@ export class SkelCharacter {
       if (n === 'jump' || n === 'slide' || n.startsWith('death_')) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true }
       a.play(); a.setEffectiveWeight(0)
       this.actions.set(n, a); this.weight.set(n, 0); this.target.set(n, 0)
+    }
+    for (const [n, clip] of src.upper) {
+      const a = this.mixer.clipAction(clip)
+      a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = false
+      this.throwActions.set(n, a)
     }
     this.refreshGunAnchor()
     debugList.push(this)
@@ -191,6 +215,18 @@ export class SkelCharacter {
       if (a) a.timeScale = clipRate(s, this.speed, cfg)
     }
     // Ngồi: hạ cả model thêm crouchDrop khi animation ngồi vẫn cao hơn hitbox
+    if (this.throwing) {
+      const th = this.throwing
+      th.t += f.dt
+      if (th.t >= th.dur) { th.act.stop(); this.throwing = null }
+      else {
+        // clip thân trên chỉ có track của các xương trên: three trộn trung bình có trọng số với clip chạy (tổng trọng số 1),
+        // nên muốn "ghi đè" một phần e thì trọng số = e / (1 − e)
+        const e = Math.min(0.98, Math.min(1, th.t / THROW_FADE_IN_S), Math.min(1, (th.dur - th.t) / THROW_FADE_OUT_S))
+        th.act.setEffectiveWeight(e / (1 - e))
+      }
+    }
+    if (this.pullT > 0) this.pullT = Math.max(0, this.pullT - f.dt)
     this.model.position.y = -(poses.character.crouchDrop * (this.weight.get('rifle_crouch_idle') ?? 0) + poses.character.crouchWalkDrop * (this.weight.get('rifle_crouch_walk') ?? 0))
     this.mixer.update(f.dt)
     this.root.updateMatrixWorld(true)
@@ -216,6 +252,46 @@ export class SkelCharacter {
     for (const n of ['death_1', 'death_2']) this.actions.get(n)?.stop()
     const a = this.actions.get(this.deathClip)
     if (a) { a.reset(); a.play(); a.setEffectiveWeight(this.weight.get(this.deathClip) ?? 0) }
+  }
+
+  // ── Ném lựu đạn (người khác) ────────────────────────────────────────────────
+  /** Bắt đầu rút chốt: tay trái chạm vòng chốt PULL_S giây (IK do players.ts áp) */
+  startPull(): void { this.pullT = PULL_S }
+  /** Trọng số IK tay trái lúc chạm chốt: 0 → 1 → 0 */
+  get pullWeight(): number {
+    if (this.pullT <= 0) return 0
+    const t = PULL_S - this.pullT
+    return Math.min(1, t / PULL_RAMP_S, this.pullT / PULL_RAMP_S)
+  }
+  /** Phát clip ném (thân trên). Ném thấp dùng grenade_toss nếu có, không thì dùng chung grenade_throw. */
+  playThrow(mode: 'strong' | 'lob'): void {
+    const name = mode === 'lob' && this.throwActions.has('grenade_toss') ? 'grenade_toss' : 'grenade_throw'
+    const act = this.throwActions.get(name)
+    if (!act) return
+    if (this.throwing) this.throwing.act.stop()
+    const tm = this.throwTiming(act)
+    act.reset(); act.setEffectiveWeight(0); act.play()
+    act.time = tm.startS; act.timeScale = tm.rate   // bỏ đoạn chuẩn bị dài đầu clip Mixamo, phát nhanh hơn một chút
+    this.throwing = { act, t: 0, dur: tm.dur, releaseAt: tm.releaseAt }
+    this.pullT = 0
+  }
+  /** Huỷ động tác ném đang chạy (về tư thế cầm) */
+  cancelThrow(): void { if (this.throwing) { this.throwing.act.stop(); this.throwing = null } this.pullT = 0 }
+  /** Đang ném và đã tới lúc thả: quả trong tay phải ẩn */
+  get throwReleased(): boolean { return !!this.throwing && this.throwing.t >= this.throwing.releaseAt }
+  get throwActive(): boolean { return !!this.throwing }
+  /** Độ trễ (ms) từ lúc nhận tin ném tới lúc quả rời tay trong animation, để quả thật xuất hiện khớp */
+  releaseDelayMs(mode: 'strong' | 'lob'): number {
+    const name = mode === 'lob' && this.throwActions.has('grenade_toss') ? 'grenade_toss' : 'grenade_throw'
+    const a = this.throwActions.get(name)
+    return a ? this.throwTiming(a).releaseAt * 1000 : 0
+  }
+  /** Thời gian (giây thực) của clip ném: từ throwStartS tới hết clip, tay thả ở releaseS, phát với throwRate */
+  private throwTiming(act: THREE.AnimationAction): { startS: number; rate: number; dur: number; releaseAt: number } {
+    const t = poses.weapons.m67?.third, clip = act.getClip().duration
+    const startS = Math.min(t?.throwStartS ?? 0, clip * 0.9), rate = t?.throwRate ?? 1
+    const releaseS = Math.min(Math.max(t?.releaseS ?? clip * 0.5, startS), clip)
+    return { startS, rate, dur: (clip - startS) / rate, releaseAt: (releaseS - startS) / rate }
   }
 
   /** Tin Kill báo headshot đến sau snapshot chết một chút: đổi sang đúng kiểu chết (giữ tiến độ). */

@@ -8,6 +8,7 @@ import { BlockArm } from './blockArm'
 import { poses, weaponPose, getAnchor, scanModelAnchors, colorOf } from './poses'
 import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
 import { makeSkeletalRig, requestCharacters, skeletalEnabled, skeletalReady } from './characterRig'
+import { GRENADE_ID } from '@fps/shared'
 import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './characters/animate'
 import { createDeathFx } from './characters/deathFx'
 
@@ -23,7 +24,7 @@ export interface TeamInfo {
 
 const FLASH_MS = 60
 const WANTED_STREAK = ECONOMY.bountyStreak   // killStreak từ ngần này: dấu truy nã trên đầu
-const WEAPON_FILES = ['/models/ak47.glb', '/models/m16.glb', '/models/colt.glb', '/models/rouleau.glb', '/models/sniper.glb', '/models/shotgun.glb', '/models/knife_1.glb', '/models/submachine.glb']
+const WEAPON_FILES = ['/models/ak47.glb', '/models/m16.glb', '/models/colt.glb', '/models/rouleau.glb', '/models/sniper.glb', '/models/shotgun.glb', '/models/knife_1.glb', '/models/submachine.glb', '/models/grenades/m67.glb']
 
 // Súng cầm trên tay người khác: load một lần mỗi loại, mỗi người clone (dùng chung geometry/material)
 const gunModels = new Map<number, THREE.Object3D>()
@@ -99,6 +100,9 @@ interface Actor {
   armL: BlockArm | null
   twoHand: boolean | null   // null = chưa chọn chế độ
   drop: GunDrop | null      // súng rơi khỏi tay xác (nhân vật có xương)
+  pulling: boolean          // đang rút chốt (người khác): hết cử động tay trái thì chốt rời quả
+  pinOff: boolean           // chốt đã rút: ẩn node `pin` trên quả trong tay
+  thrown: boolean           // vừa ném: sau khi hết animation ném, quả mới (nếu còn) hiện lại trong tay
 }
 
 // Súng rơi khỏi tay người chết: rơi thẳng + xoay, nằm xuống sàn, mờ dần cùng xác
@@ -133,7 +137,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   rig.gunAnchor.add(flash)
   rig.root.add(makeBlobShadow())
   if (rig.skel) {
-    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null }
+    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false }
   }
   const aimPivot = new THREE.Group()
   const holder = new THREE.Group()
@@ -146,7 +150,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   armR.setVisible(false); armL.setVisible(false)
   rig.upper.add(armR.root, armL.root)
   for (const arm of [armR, armL]) rig.mats.push(...arm.mats)
-  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null }
+  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false }
 }
 
 function disposeActor(a: Actor): void {
@@ -227,6 +231,28 @@ function solveSkelArms(a: Actor, weapon: number): void {
   }
 }
 
+// Cầm lựu đạn (người khác): tay trái chạm vòng chốt khi rút chốt, chốt rời quả sau đó, quả trong tay ẩn tới khi ném xong.
+function nadeHand(a: Actor): void {
+  const sk = a.rig.skel!, gun = a.gun!
+  if (a.pulling && sk.pullT <= 0) { a.pinOff = true; a.pulling = false }
+  if (a.thrown && !sk.throwActive) { a.thrown = false; a.pinOff = false }   // ném xong: quả mới (nếu còn) trong tay, chốt về chỗ cũ
+  gun.visible = !sk.throwReleased
+  const pin = gun.getObjectByName('pin')
+  if (pin) pin.visible = !a.pinOff
+  const w = sk.pullWeight
+  if (w <= 0) return
+  gun.updateWorldMatrix(true, true)
+  getAnchor(GRENADE_ID, 'pin_pull', _anchor)
+  _handTarget.copy(_anchor).applyMatrix4(gun.matrixWorld)
+  gun.getWorldQuaternion(_gq)
+  sk.root.getWorldQuaternion(_rq)
+  sk.armL.upper.getWorldPosition(_sh)
+  const pl = poses.character.poleL
+  _pole.set(pl[0], pl[1], pl[2]).applyQuaternion(_rq).add(_sh)
+  sk.armL.solve(_handTarget, _gq, _pole, w)
+  sk.armL.applyGrip(w)
+}
+
 // pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig (chỉ co chân khi ngồi, đỉnh đầu khớp hitbox).
 export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   const { standHeight, crouchHeight } = defaultMovement
@@ -305,6 +331,11 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     if (a.gun) a.gun.removeFromParent()
     a.gun = src.clone(true)
     a.gunId = weapon
+    a.pinOff = false; a.pulling = false; a.thrown = false
+    if (weapon === GRENADE_ID) {   // lựu đạn: tâm lòng bàn tay (anchor hand_r) trùng gốc gunAnchor
+      getAnchor(weapon, 'hand_r', _anchor)
+      a.gun.position.set(-_anchor.x, -_anchor.y, -_anchor.z)
+    }
     parent.add(a.gun)
     // Toạ độ đầu nòng đã đo sẵn trong hệ gunGroup (node 'muzzle' nằm trong GunRoot đã scale nên không dùng trực tiếp)
     a.flash.position.copy(MUZZLE_FALLBACK[weapon] ?? MUZZLE_FALLBACK[0]!)
@@ -394,6 +425,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
         sk.placeAim()
         if (two) solveSkelArms(a, weapon)
         else sk.refreshGunAnchor()
+        if (weapon === GRENADE_ID && a.gun) nadeHand(a)
         sk.setOpacity((p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1)
       } else {
         sk.animate(frame)
@@ -458,6 +490,16 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       for (const a of actors.values()) if (a.drop) updateDrop(a, dt)
       deathFx.update(dt)
     },
+    // GrenadeAnim của người khác: rút chốt (tay trái chạm vòng chốt), ném (clip thân trên), huỷ
+    grenadeAnim(id: number, phase: 'pulling' | 'throw' | 'cancel', mode: 'strong' | 'lob' = 'strong') {
+      const a = actors.get(id); const sk = a?.rig.skel
+      if (!a || !sk) return
+      if (phase === 'pulling') { sk.startPull(); a.pulling = true; a.pinOff = false }
+      else if (phase === 'throw') { sk.playThrow(mode); a.thrown = true; a.pulling = false }
+      else { sk.cancelThrow(); a.pulling = false; a.pinOff = false }
+    },
+    /** Độ trễ (ms) từ lúc nhận GrenadeSpawn tới lúc quả rời tay trong animation của người ném; 0 nếu không có animation */
+    grenadeReleaseDelayMs(id: number, mode: 'strong' | 'lob'): number { return actors.get(id)?.rig.skel?.releaseDelayMs(mode) ?? 0 },
     // Tin Kill: chọn kiểu chết (headshot → death_2) cho nhân vật có xương; đến trước hay sau snapshot chết đều dùng được
     markKill(victimId: number, headshot: boolean) {
       killMemory.set(victimId, { headshot, t: performance.now() })

@@ -193,6 +193,7 @@ const playersRenderer = createPlayersRenderer(scene, {
 const grenades = createGrenades(scene, {
   world: () => worldRef,
   localFuse: () => !sessionRef,   // offline không có server: tự nổ khi hết ngòi
+  releaseDelayMs: (id, mode) => playersRenderer.grenadeReleaseDelayMs(id, mode),
 })
 const nadeTrajectory = createGrenadeTrajectory(scene)
 const nadeAimState = { pos: [0, 0, 0] as [number, number, number], vel: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0 }
@@ -303,6 +304,8 @@ sessionP.then(session => {
       // serverTime của tick 0 suy từ snapshot (serverTime = start + tick·TICK_MS); chưa có snapshot thì dùng giờ server ước lượng
       const origin = snapStore && snapStore.serverTime > 0 ? snapStore.serverTime - snapStore.tick * 1000 / TICK_RATE : clock.serverNow() - msg.spawnTick * 1000 / TICK_RATE
       grenades.onSpawn(msg, origin, session.yourId, session.teams.get(msg.ownerId) ?? 'A')
+    } else if (msg.t === MsgType.GrenadeAnim) {
+      if (msg.playerId !== session.yourId || poseEditor.orbitOn) playersRenderer.grenadeAnim(msg.playerId, msg.phase, msg.mode)   // của mình chỉ để xem ở F10
     } else if (msg.t === MsgType.GrenadeExplode) {
       grenades.onExplode(msg)
     } else if (msg.t === MsgType.Respawn && msg.id === session.yourId) {
