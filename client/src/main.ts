@@ -40,6 +40,7 @@ import { initHUD } from './hud'
 import {
   initAudio, updateListener, playShot, playDry, playDraw, startReload, cancelReload,
   playHit, playHurt, setHealthForAudio, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS, playBuyOk, playBuyFail,
+  playPin, playSpoon, playThrowSwish, playBounce, playExplode,
 } from './audio'
 import { initAudioTuning } from './audio/tuning'
 import mapFileRaw from '@assets/maps/deathmatch.json'
@@ -194,7 +195,9 @@ const playersRenderer = createPlayersRenderer(scene, {
 const explosionFx = createExplosionFx(scene, () => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
 const grenades = createGrenades(scene, {
   world: () => worldRef,
-  onExplode: pos => explosionFx.explode(pos, [camera.position.x, camera.position.y, camera.position.z]),
+  onExplode: pos => { explosionFx.explode(pos, [camera.position.x, camera.position.y, camera.position.z]); playExplode(pos, !dead) },
+  onBounce: (pos, speed) => playBounce(pos, speed),
+  onRelease: (pos, own) => playSpoon(own ? undefined : pos),
   localFuse: () => !sessionRef,   // offline không có server: tự nổ khi hết ngòi
   releaseDelayMs: (id, mode) => playersRenderer.grenadeReleaseDelayMs(id, mode),
 })
@@ -308,6 +311,11 @@ sessionP.then(session => {
       const origin = snapStore && snapStore.serverTime > 0 ? snapStore.serverTime - snapStore.tick * 1000 / TICK_RATE : clock.serverNow() - msg.spawnTick * 1000 / TICK_RATE
       grenades.onSpawn(msg, origin, session.yourId, session.teams.get(msg.ownerId) ?? 'A')
     } else if (msg.t === MsgType.GrenadeAnim) {
+      const who = lastSampled.find(o => o.id === msg.playerId)
+      if (who && msg.playerId !== session.yourId) {   // âm của người khác (chốt chỉ nghe được khi ở gần)
+        if (msg.phase === 'pulling') playPin([who.pos[0], who.pos[1] + 1.4, who.pos[2]])
+        else if (msg.phase === 'throw') playThrowSwish([who.pos[0], who.pos[1] + 1.4, who.pos[2]])
+      }
       if (msg.playerId !== session.yourId || poseEditor.orbitOn) playersRenderer.grenadeAnim(msg.playerId, msg.phase, msg.mode)   // của mình chỉ để xem ở F10
     } else if (msg.t === MsgType.GrenadeExplode) {
       grenades.onExplode(msg)
@@ -573,7 +581,9 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       // Đổi súng do logic (tự về súng cũ sau khi ném, G): nhận ô hiện tại làm ô muốn để phím số/Q hoạt động tiếp
       if (ws.slot !== wantedWeapon()) setWantedWeapon(ws.slot)
     }
+    if (ev === 'pull') playPin()   // rút chốt: chỉ mình nghe
     if (ev === 'threw') {
+      playThrowSwish()
       // Dự đoán ném: quả của mình bay ngay (không chờ server); server xác nhận bằng throwSeq
       const t = throwInitial(state, ws.nade.mode, world, cfg)
       vm.onGrenadeThrow()

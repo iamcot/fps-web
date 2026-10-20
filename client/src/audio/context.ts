@@ -1,6 +1,6 @@
 // AudioContext + đồ thị master (A.4):
 //   gunGroup ─┐
-//   (reload, hit, ui, âm người khác) ─► master Gain ─► Compressor ─► destination
+//   (reload, hit, ui, âm người khác) ─► master Gain ─► muffle (lowpass, mở hết) ─► Compressor ─► destination
 // gunGroup (tiếng súng của mình) nằm riêng để ducking khi phát tiếng hạ gục.
 // Context chỉ được tạo trong sự kiện người dùng đầu tiên → không cảnh báo autoplay.
 
@@ -27,6 +27,7 @@ export interface AudioGraph {
   comp: DynamicsCompressorNode
   analyser: AnalyserNode
   gunGroup: GainNode
+  muffle: BiquadFilterNode   // lowpass trước compressor: 20kHz bình thường, bị 'bịt' xuống 700Hz khi ù tai sau tiếng nổ (G.8)
 }
 
 let graph: AudioGraph | null = null
@@ -56,11 +57,14 @@ export function initAudioContext(): void {
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 1024
       const gunGroup = ctx.createGain()
+      const muffle = ctx.createBiquadFilter()
+      muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5
       gunGroup.connect(master)
-      master.connect(comp)
+      master.connect(muffle)
+      muffle.connect(comp)
       comp.connect(ctx.destination)
       comp.connect(analyser)
-      graph = { ctx, master, comp, analyser, gunGroup }
+      graph = { ctx, master, comp, analyser, gunGroup, muffle }
       for (const cb of readyCbs.splice(0)) cb(graph)
     }
     if (graph.ctx.state === 'suspended') void graph.ctx.resume()

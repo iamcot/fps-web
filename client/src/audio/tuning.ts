@@ -7,6 +7,7 @@ import { getGraph, settings, saveSettings } from './context'
 import { setHealthForAudio } from './hitAudio'
 import { FOOTSTEPS, playFootstep, playLanding, playFootstepOther, refreshFootstepBus } from './footsteps'
 import { listenerPos } from './context'
+import { GSND, playPin, playSpoon, playThrowSwish, playBounce, playExplode, tinnitus } from './grenadeAudio'
 
 type Range = [min: number, max: number, step: number]
 
@@ -117,20 +118,21 @@ export function initAudioTuning(): void {
   const body = document.createElement('div')
   panel.appendChild(body)
 
-  let tab: 'gun' | 'hit' | 'foot' | 'misc' = 'gun'
+  let tab: 'gun' | 'hit' | 'foot' | 'nade' | 'misc' = 'gun'
   let gunId = 0
   let rifling = 0
 
   function render() {
     body.replaceChildren()
     tabs.replaceChildren()
-    for (const [id, name] of [['gun', 'Súng'], ['hit', 'Hit'], ['foot', 'Footsteps'], ['misc', 'Chung']] as const) {
+    for (const [id, name] of [['gun', 'Súng'], ['hit', 'Hit'], ['foot', 'Footsteps'], ['nade', 'Grenade'], ['misc', 'Chung']] as const) {
       const b = button(tabs, name, () => { tab = id; render() })
       if (id === tab) b.style.background = '#664'
     }
     if (tab === 'gun') renderGun()
     else if (tab === 'hit') renderHit()
     else if (tab === 'foot') renderFoot()
+    else if (tab === 'nade') renderNade()
     else renderMisc()
   }
 
@@ -210,6 +212,36 @@ export function initAudioTuning(): void {
       heading(body, `lớp ${group}`)
       const obj = HIT[group] as Record<string, number>
       for (const k of Object.keys(obj)) slider(body, k, () => obj[k]!, v => { obj[k] = v }, rangeFor(k, obj[k]!))
+    }
+  }
+
+  // Lựu đạn (G.8): mọi lớp tổng hợp + ù tai; "Copy JSON" xuất GSND
+  function renderNade() {
+    const at = (dx: number, dz = 0): [number, number, number] => [listenerPos[0] + dx, listenerPos[1], listenerPos[2] + dz]
+    const act = document.createElement('div'); body.appendChild(act)
+    button(act, 'Rút chốt', () => playPin())
+    button(act, 'Thìa', () => playSpoon())
+    button(act, 'Vung tay', () => playThrowSwish())
+    button(act, 'Nảy nhẹ', () => playBounce(at(3), 2))
+    button(act, 'Nảy mạnh', () => playBounce(at(3), 10))
+    button(act, 'Nảy 4 lần', () => { for (let i = 0; i < 4; i++) setTimeout(() => playBounce(at(3 + i), 9 - i * 2), i * 380) })
+    button(act, 'Nổ gần (2m, ù tai)', () => playExplode(at(2), true))
+    button(act, 'Nổ 15m', () => playExplode(at(15), true))
+    button(act, 'Nổ xa 60m', () => playExplode(at(60), true))
+    button(act, 'Ù tai', () => tinnitus())
+    const copy = button(act, 'Copy JSON', () => copyJson(copy, GSND))
+    for (const [name, value] of Object.entries(GSND)) {
+      heading(body, name)
+      const obj = value as Record<string, number | boolean>
+      for (const k of Object.keys(obj)) {
+        const v = obj[k]!
+        if (typeof v === 'boolean') {
+          const row = document.createElement('label'); row.style.cssText = 'display:block;font-size:10px'
+          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = v
+          cb.addEventListener('change', () => { obj[k] = cb.checked })
+          row.append(cb, ' ' + k); body.appendChild(row)
+        } else slider(body, k, () => obj[k] as number, n => { obj[k] = n }, rangeFor(k, v))
+      }
     }
   }
 
