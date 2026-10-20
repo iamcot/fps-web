@@ -101,6 +101,7 @@ export class FpArms {
     const f = poses.first
     for (const [arm, target, pole] of [[s.armR, targetR, f.armsPoleR], [s.armL, targetL, f.armsPoleL]] as const) {
       if (!target) continue
+      arm.resetPose()   // không có mixer: tự reset để IK/ngón không cộng dồn qua các frame
       arm.upper.getWorldPosition(_sh)
       _pole.set(pole[0], pole[1], pole[2]).add(_sh)
       arm.solve(target, gunQuat, _pole, 1)

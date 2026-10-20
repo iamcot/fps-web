@@ -39,6 +39,8 @@ export class SkeletonArm {
   private readonly basisInHandInv = new THREE.Quaternion()
   private readonly qCanon = new THREE.Quaternion()
   private readonly offsetDeg: () => Vec3
+  private readonly restBones: THREE.Object3D[]
+  private readonly restQuats: THREE.Quaternion[]
 
   /** Phải dựng khi model đang ở T-pose (chưa chạy mixer): đo độ dài xương + khung bàn tay lúc nghỉ. */
   constructor(
@@ -68,6 +70,19 @@ export class SkeletonArm {
     const uc = new THREE.Vector3().crossVectors(nc, E1C)
     this.qCanon.setFromRotationMatrix(_m.makeBasis(E1C, uc, nc))
     this.offsetDeg = () => (side === 'R' ? poses.character.handRotOffsetDegR : poses.character.handRotOffsetDegL)
+    // Tư thế nghỉ (T-pose) của mọi xương mà solve/applyGrip chạm vào, để reset khi không có mixer ghi đè mỗi frame
+    this.restBones = [upper, fore, hand, ...FINGER_NAMES.flatMap(n => fingers[n].slice(0, 3))]
+    this.restQuats = this.restBones.map(b => b.quaternion.clone())
+  }
+
+  /**
+   * Đưa các xương của tay về tư thế nghỉ. BẮT BUỘC gọi mỗi frame trước solve/applyGrip khi không có AnimationMixer
+   * (tay viewmodel): applyGrip nhân thêm góc lên quaternion hiện tại nên nếu không reset, ngón gập chồng lên mãi (xoay liên tục).
+   * Góc 3 không cần vì mixer ghi đè xương mỗi frame.
+   */
+  resetPose(): void {
+    for (let i = 0; i < this.restBones.length; i++) this.restBones[i]!.quaternion.copy(this.restQuats[i]!)
+    this.upper.updateWorldMatrix(false, true)
   }
 
   /** Quaternion bone-local của "bàn tay chuẩn" (ngón −Z, ngón cái +Y): dùng gắn súng 1 tay vào xương bàn tay. */

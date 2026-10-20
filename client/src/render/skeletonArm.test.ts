@@ -59,6 +59,15 @@ describe('SkeletonArm', () => {
     b.arm.solve(t, new THREE.Quaternion(), pole, 0.5)
     expect(b.upper.quaternion.angleTo(new THREE.Quaternion())).toBeCloseTo(a.upper.quaternion.angleTo(new THREE.Quaternion()) / 2, 2)
   })
+  it('không có mixer: reset + solve + grip lặp lại nhiều frame cho kết quả y hệt (không cộng dồn)', () => {
+    const { root, arm, upper, fore, hand } = makeArm('R')
+    const t = new THREE.Vector3(0.2, -0.1, -0.35), pole = new THREE.Vector3(0.35, -0.6, 0.3), gq = new THREE.Quaternion()
+    const snap = () => [upper, fore, hand, arm.fingers.middle[0]!, arm.fingers.index[2]!].map(b => b.quaternion.clone())
+    const frame = () => { arm.resetPose(); arm.solve(t, gq, pole, 1); arm.applyGrip(1); root.updateMatrixWorld(true) }
+    frame(); const first = snap()
+    for (let i = 0; i < 50; i++) frame()
+    snap().forEach((q, i) => expect(q.angleTo(first[i]!)).toBeLessThan(1e-6))
+  })
   it('ngón gập: đốt xoay đúng góc theo grip', () => {
     const { arm, fingers } = Object.assign(makeArm('R'), { fingers: null as unknown as FingerBones })
     const mid = arm.fingers.middle[0]!
