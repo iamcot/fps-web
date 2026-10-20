@@ -49,6 +49,7 @@ import { fireHitscan } from './hitscan'
 import { initHUD } from './hud'
 import {
   initAudio, updateListener, settings as audioSettings, playShot, playDry, playDraw, startReload, cancelReload,
+  playScream, playInfectSting, playZombieHurt, startNightAmbient, stopNightAmbient, updateZombieAudio,
   playHit, playHurt, setHealthForAudio, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS, playBuyOk, playBuyFail,
   playPin, playSpoon, playThrowSwish, playBounce, playExplode, playRoundStart, playRoundWin, playRoundLose, playTick,
 } from './audio'
@@ -268,6 +269,9 @@ let spectatingId = -2   // -2 = không xem; -1 = camera bay trên cao; ≥0 = đ
 const specBuf: SpecCandidate[] = []
 const specLabel = createSpectateLabel()
 let hudShown = true
+let prevLeapCd = 0
+let defPhase = '', defEndsAt = 0, defCuePlayed = false   // Thủ Thành: tiếng gào xa 5s trước đợt mới
+const camDir = new THREE.Vector3()
 // HUD thế giới của thể thức zombie: thanh máu boss, lời nhắc cứu, mũi tên đồng đội bị tấn công, đánh hơi (Q)
 const sniffTargets: { pos: [number, number, number]; crouching?: boolean }[] = []
 function zombieWorldHud(state: { pos: [number, number, number] }, _dt: number): void {
@@ -428,6 +432,7 @@ sessionP.then(session => {
       playHit(msg.headshot ? 'head' : 'body')
       if (isZombieMode(session.config.settings.mode)) {   // số damage nổi + thanh máu zombie (máu lớn nên cần thấy mình gây bao nhiêu)
         zoverlay.onHit(msg.targetId)
+        if (tgt) playZombieHurt(msg.targetId, [tgt.pos[0], tgt.pos[1] + 1.3, tgt.pos[2]])
         if (tgt && msg.damage > 0) zoverlay.floatDamage([tgt.pos[0], tgt.pos[1] + (msg.headshot ? 1.9 : 1.4), tgt.pos[2]], msg.damage, msg.headshot)
       }
     } else if (msg.t === MsgType.ShotFx) {
@@ -521,6 +526,11 @@ sessionP.then(session => {
       zombieHud.onMatchEnd(msg, msg.mvpId !== null ? session.names.get(msg.mvpId) ?? '' : '')
     } else if (msg.t === MsgType.Infected) {
       zombieHud.onInfected(msg, id => session.names.get(id) ?? `#${id}`, session.yourId)
+      {   // tiếng gào theo vị trí người đó (mẹ xuất hiện: to hơn); bị lây là mình thì gào ngay trong đầu
+        const who = lastSampled.find(o => o.id === msg.playerId)
+        playScream(msg.playerId === session.yourId ? null : who ? [who.pos[0], who.pos[1] + 1.5, who.pos[2]] : null, msg.kind === 'mother')
+        if (msg.kind === 'infected') playInfectSting()
+      }
       if (msg.kind === 'infected' && msg.byId !== null) killfeed.add(session.names.get(msg.byId) ?? `#${msg.byId}`, '🧟', session.names.get(msg.playerId) ?? `#${msg.playerId}`, false, msg.byId === session.yourId, msg.playerId === session.yourId)
     } else if (msg.t === MsgType.HeroChosen) {
       zombieHud.onHero(msg, id => session.names.get(id) ?? `#${id}`, session.yourId)
@@ -530,6 +540,7 @@ sessionP.then(session => {
       sniffedUntil = performance.now() + 2000
     } else if (msg.t === MsgType.DefenseState) {
       zombieHud.setDefense(msg)
+      if (msg.phase !== defPhase || msg.phaseEndsAt !== defEndsAt) { if (msg.phase !== defPhase) defCuePlayed = false; defPhase = msg.phase; defEndsAt = msg.phaseEndsAt }
     } else if (msg.t === MsgType.WaveStart) {
       zombieHud.onWaveStart(msg)
     } else if (msg.t === MsgType.WaveClear) {
@@ -717,6 +728,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       const zomb = !!me && ((snapStore!.flags & NetFlag.Zombie) !== 0)
       const inf = sessionRef?.config.settings.mode === 'infection'
       zombieHud.setSelf({ zombie: zomb, hp: snapStore?.hp ?? 0, hpMax: me?.hpMax ?? 1, leapCdMs: (state.leapCd ?? 0) * 1000, leapMaxMs: ZOMBIE.leap.cooldownMs, ...(inf ? { sniffCdMs: me?.sniffCd ?? 0, sniffMaxMs: INFECTION.sniff.cooldownMs } : null) })
+      if (zomb && (state.leapCd ?? 0) > prevLeapCd + 1) playScream(null)   // chiêu nhảy E: gào
+      prevLeapCd = state.leapCd ?? 0
       if (zomb !== zombieSelf) { zombieSelf = zomb; hud.bottom.setVisible(!zomb && hudShown) }
     }
 
@@ -774,6 +787,12 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       playersRenderer.update(lastSampled)
     }
     night.setZombieVision(zombieSelf)
+    if ((defPhase === 'prep' || defPhase === 'intermission') && !defCuePlayed && defEndsAt - clock.serverNow() < 5000 && defEndsAt > 0) { defCuePlayed = true; playScream([27, 2, (Math.random() - 0.5) * 30], true) }   // gào xa vọng lại từ phía zombie sẽ ra
+    if (night.night) startNightAmbient(); else stopNightAmbient()   // nền đêm: gió + côn trùng (no-op tới khi audio sẵn sàng)
+    if (snapStore && isZombieMode(sessionRef?.config.settings.mode ?? 'tdm')) {
+      const fw = camera.getWorldDirection(camDir)
+      updateZombieAudio(dt, lastSampled, [fw.x, fw.y, fw.z])
+    }
     if (snapStore && isZombieMode(sessionRef?.config.settings.mode ?? 'tdm')) zoverlay.update(dt, lastSampled, playerId, camera)
     zombieWorldHud(state, dt)
     setFlashlightAllowed(night.night && !zombieSelf)

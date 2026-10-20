@@ -93,6 +93,8 @@ export function createZombieHud() {
   const downed = el('position:fixed;inset:0;display:none;pointer-events:none;z-index:15;background:radial-gradient(transparent 40%,rgba(160,0,0,.55));color:#fff;font:bold 28px monospace;text-align:center;padding-top:62vh;text-shadow:0 0 6px #000')
   const arrow = el('position:fixed;left:50%;top:50%;width:0;height:0;display:none;pointer-events:none;z-index:19;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:34px solid #ffb030;filter:drop-shadow(0 0 3px #000)')
   const endBox = el('position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,.6);z-index:25;color:#fff;font:15px monospace;pointer-events:none')
+  // Biến thành zombie: chớp xanh + méo nhẹ (blur) rồi tan dần
+  const flash = el('position:fixed;inset:0;pointer-events:none;z-index:18;background:rgba(80,255,90,.55);opacity:0;transition:opacity 1.6s ease-out, backdrop-filter 1.6s ease-out')
   const nose = el('position:fixed;top:92px;left:50%;transform:translateX(-50%);display:none;pointer-events:none;z-index:20;font:bold 22px monospace;color:#ff6a6a;text-shadow:0 0 6px #000')
   nose.textContent = '👃 Bạn bị zombie đánh hơi!'
   let defense: DefenseStateMsg | null = null
@@ -172,6 +174,11 @@ export function createZombieHud() {
     },
     onCount(m: InfectionCountMsg): void { counts = { humans: m.humans, zombies: m.zombies } },
     onInfected(m: InfectedMsg, nameOf: (id: number) => string, myId: number): void {
+      if (m.playerId === myId) {
+        flash.style.transition = 'none'; flash.style.opacity = '1'; flash.style.backdropFilter = 'blur(5px) hue-rotate(60deg)'
+        void flash.offsetWidth
+        flash.style.transition = 'opacity 1.6s ease-out, backdrop-filter 1.6s ease-out'; flash.style.opacity = '0'; flash.style.backdropFilter = 'none'
+      }
       if (m.kind === 'mother') { say('ZOMBIE MẸ ĐÃ XUẤT HIỆN', m.playerId === myId ? 'Bạn là zombie mẹ! Lây nhiễm tất cả' : '', 3000, '#7ed957'); return }
       if (m.playerId === myId) { say('BẠN ĐÃ BỊ LÂY NHIỄM!', '', 2500, '#7ed957'); return }
       line(`${nameOf(m.playerId)} ĐÃ BỊ LÂY NHIỄM`, '#9be07a')
