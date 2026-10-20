@@ -366,7 +366,7 @@ sessionP.then(session => {
         dead = true
         deadAt = performance.now()
         setDead(true)
-        deathScreen.show(name(msg.killerId), matchHud.mode === 'elimination' ? -1 : RESPAWN_DELAY_MS - clock.oneWayMs)
+        deathScreen.show(msg.killerId === me ? '' : name(msg.killerId), matchHud.mode === 'elimination' ? -1 : RESPAWN_DELAY_MS - clock.oneWayMs)
       }
     } else if (msg.t === MsgType.GrenadeSpawn) {
       // serverTime của tick 0 suy từ snapshot (serverTime = start + tick·TICK_MS); chưa có snapshot thì dùng giờ server ước lượng
