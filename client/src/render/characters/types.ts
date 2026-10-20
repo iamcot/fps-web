@@ -1,4 +1,5 @@
 import type * as THREE from 'three'
+import type { SkelCharacter } from '../characterRig'
 import type { CharacterSetId, TeamId } from '@fps/shared'
 
 /**
@@ -19,7 +20,8 @@ export interface CharacterRig {
   gunAnchor: THREE.Group // con của armR, đặt ở bàn tay, chĩa −Z (khi pitch = 0)
   headMesh: THREE.Mesh   // để test khớp hitbox
   parts: THREE.Mesh[]    // mọi khối (hiệu ứng chết tách ra từ đây)
-  mats: THREE.MeshLambertMaterial[]
+  mats: THREE.Material[]
+  skel?: SkelCharacter   // nhân vật có xương (render/characterRig.ts): các khối ở trên chỉ là vỏ rỗng để khớp interface
   team: TeamId
   armRestR: number       // góc X nghỉ của tay (đang cầm súng)
   armRestL: number

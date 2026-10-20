@@ -30,7 +30,8 @@ describe('bộ nhân vật (module)', () => {
 
   it('hai đội của cùng một bộ nhìn khác nhau (màu thân)', () => {
     for (const set of characterSetList) {
-      const a = set.build('A').mats[2]!.color.getHex(), b = set.build('B').mats[2]!.color.getHex()
+      const col = (t: 'A' | 'B') => (set.build(t).mats[2] as unknown as { color: { getHex(): number } }).color.getHex()
+      const a = col('A'), b = col('B')
       expect(a).not.toBe(b)
     }
   })

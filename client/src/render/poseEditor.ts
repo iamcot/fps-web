@@ -1,11 +1,12 @@
 import * as THREE from 'three'
-import { poses, WEAPON_KEYS, weaponPose, getAnchor, notifyPosesChanged, exportPoses, exportWeapon, resetPosesToFile, type Vec3 } from './poses'
+import { poses, WEAPON_KEYS, type FingerName, weaponPose, getAnchor, notifyPosesChanged, exportPoses, exportWeapon, resetPosesToFile, type Vec3 } from './poses'
 import type { ViewmodelHandle } from './viewmodel'
 
 // Debug (plan 10, P.6): F9 = bảng chỉnh tư thế (tay + súng, ghi thẳng vào `poses` đang chạy), F10 = camera quỹ đạo
 // nhìn model của chính mình. Chỉ dùng để chỉnh; chỉnh xong "Copy JSON" rồi dán vào render/poses.json.
-type Tab = 'First' | 'Third' | 'Anchors' | 'Style' | 'Reload'
-const TABS: Tab[] = ['First', 'Third', 'Anchors', 'Style', 'Reload']
+type Tab = 'First' | 'Third' | 'Character' | 'Grip' | 'Anchors' | 'Style' | 'Reload'
+const TABS: Tab[] = ['First', 'Third', 'Character', 'Grip', 'Anchors', 'Style', 'Reload']
+const FINGERS: FingerName[] = ['thumb', 'index', 'middle', 'ring', 'pinky']
 const AXES = ['x', 'y', 'z']
 
 export interface PoseEditor {
@@ -110,6 +111,37 @@ export function createPoseEditor(vm: ViewmodelHandle, weaponId: () => number, eq
       vecRows(body, 'aimPivot', () => poses.third.aimPivot, -1, 2)
       vecRows(body, 'poleR', () => poses.third.poleR, -1, 1)
       vecRows(body, 'poleL', () => poses.third.poleL, -1, 1)
+    } else if (tab === 'Character') {
+      const c = poses.character, an = c.anim
+      body.append(el('div', 'color:#8af', 'Nhân vật có xương (góc 3)'))
+      numRow(body, 'crouchDrop', () => c.crouchDrop, v => { c.crouchDrop = v }, -0.3, 0.6, 0.01)
+      numRow(body, 'crouchWalkDrop', () => c.crouchWalkDrop, v => { c.crouchWalkDrop = v }, -0.3, 0.6, 0.01)
+      numRow(body, 'pitchLimit°', () => c.spinePitchLimitDeg, v => { c.spinePitchLimitDeg = v }, 10, 90, 1)
+      numRow(body, 'headShare', () => c.headPitchShare, v => { c.headPitchShare = v }, 0, 1, 0.01)
+      numRow(body, 'palmCenter', () => c.palmCenterFrac, v => { c.palmCenterFrac = v }, 0, 1.2, 0.01)
+      vecRows(body, 'aimPivot+', () => c.aimPivotOffset, -0.6, 0.6)
+      vecRows(body, 'poleR', () => c.poleR, -1, 1)
+      vecRows(body, 'poleL', () => c.poleL, -1, 1)
+      vecRows(body, 'handRotR°', () => c.handRotOffsetDegR, -180, 180, 1)
+      vecRows(body, 'handRotL°', () => c.handRotOffsetDegL, -180, 180, 1)
+      vecRows(body, '1tay.pos', () => c.oneHandGunPos, -0.3, 0.3, 0.002)
+      vecRows(body, '1tay.rot°', () => c.oneHandGunRotDeg, -180, 180, 1)
+      body.append(el('div', 'margin-top:6px;color:#8af', 'Animation'))
+      numRow(body, 'blendTime', () => an.blendTime, v => { an.blendTime = v }, 0.02, 0.6, 0.01)
+      numRow(body, 'walkRef m/s', () => an.walkRefSpeed, v => { an.walkRefSpeed = v }, 0.5, 4, 0.05)
+      numRow(body, 'runRef m/s', () => an.runRefSpeed, v => { an.runRefSpeed = v }, 2, 10, 0.1)
+      numRow(body, 'runStart m/s', () => an.runStartSpeed, v => { an.runStartSpeed = v }, 2, 10, 0.1)
+      numRow(body, 'maxRate', () => an.maxRate, v => { an.maxRate = v }, 1, 4, 0.1)
+      numRow(body, 'jumpHold s', () => an.jumpHoldS, v => { an.jumpHoldS = v }, 0, 1, 0.01)
+    } else if (tab === 'Grip') {
+      selectRow(body, 'axis', ['x', 'y', 'z'], () => poses.grip.axis, v => { poses.grip.axis = v as 'x' | 'y' | 'z' })
+      for (const hand of ['R', 'L'] as const) {
+        body.append(el('div', 'margin-top:4px;color:#8af', hand === 'R' ? 'Tay phải (độ gập đốt 1/2/3)' : 'Tay trái (độ gập đốt 1/2/3)'))
+        for (const f of FINGERS) {
+          const v = poses.grip[hand][f]
+          for (let i = 0; i < 3; i++) numRow(body, `${f}${i + 1}`, () => v[i]!, n => { v[i] = n }, -120, 120, 1)
+        }
+      }
     } else if (tab === 'Anchors') {
       for (const n of ['hand_r', 'hand_l', 'mag'] as const) {
         if (!w.anchors[n]) { getAnchor(id, n, _v); w.anchors[n] = [_v.x, _v.y, _v.z] }

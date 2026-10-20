@@ -13,10 +13,25 @@ export interface WeaponPose {
   first: { hold: Hold; gunPos?: Vec3; gunRotDeg: Vec3; scale: number }
 }
 export interface ReloadKey { t: number; to: 'hand_l' | 'mag'; offset?: Vec3 }
+export type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky'
+export interface CharacterCfg {
+  crouchDrop: number; crouchWalkDrop: number; aimPivotBone: string; spinePitchBones: string[]; spinePitchLimitDeg: number; headPitchShare: number
+  aimPivotOffset: Vec3; poleR: Vec3; poleL: Vec3
+  handRotOffsetDegR: Vec3; handRotOffsetDegL: Vec3
+  palmCenterFrac: number          // tâm lòng bàn tay = tỉ lệ này của đoạn cổ tay → khớp ngón giữa
+  oneHandGunPos: Vec3; oneHandGunRotDeg: Vec3   // súng 1 tay trong hệ "bàn tay chuẩn" (ngón chĩa −Z, ngón cái +Y)
+  anim: {
+    blendTime: number; idleSpeed: number; walkRefSpeed: number; runStartSpeed: number; runBlendLen: number
+    runRefSpeed: number; crouchRefSpeed: number; maxRate: number; jumpHoldS: number
+  }
+}
+export interface GripCfg { R: Record<FingerName, Vec3>; L: Record<FingerName, Vec3>; axis: 'x' | 'y' | 'z' }
 export interface Poses {
   style: { skinColor: string; sleeveColor: { A: string; B: string }; third: ArmStyleCfg; first: ArmStyleCfg }
   third: { shoulderR: Vec3; shoulderL: Vec3; aimPivot: Vec3; poleR: Vec3; poleL: Vec3 }
   first: { fov: number; shoulderR: Vec3; shoulderL: Vec3; poleR: Vec3; poleL: Vec3 }
+  character: CharacterCfg
+  grip: GripCfg
   weapons: Record<string, WeaponPose>
   reloadLeftHand: {
     keys: ReloadKey[]; magDetachT: number; magAttachT: number
@@ -35,6 +50,18 @@ const DEFAULTS = {
   },
   third: { shoulderR: [0.25, 1.4, 0], shoulderL: [-0.25, 1.4, 0], aimPivot: [0, 1.35, 0], poleR: [0.35, -0.55, 0.25], poleL: [-0.35, -0.55, 0.05] },
   first: { fov: 54, shoulderR: [0.22, -0.3, 0.12], shoulderL: [-0.2, -0.3, 0.1], poleR: [0.45, -0.5, 0.2], poleL: [-0.45, -0.5, 0.1] },
+  character: {
+    crouchDrop: 0, crouchWalkDrop: 0.25, aimPivotBone: 'mixamorigSpine2', spinePitchBones: ['mixamorigSpine', 'mixamorigSpine1', 'mixamorigSpine2'],
+    spinePitchLimitDeg: 60, headPitchShare: 0.3, aimPivotOffset: [0, -0.2, 0], poleR: [0.35, -0.6, 0.3], poleL: [-0.35, -0.6, 0.1],
+    handRotOffsetDegR: [0, 0, 0], handRotOffsetDegL: [0, 0, 0], palmCenterFrac: 0.6,
+    oneHandGunPos: [0, 0, 0], oneHandGunRotDeg: [0, 0, 0],
+    anim: { blendTime: 0.15, idleSpeed: 0.3, walkRefSpeed: 1.6, runStartSpeed: 5, runBlendLen: 2, runRefSpeed: 5, crouchRefSpeed: 1, maxRate: 2, jumpHoldS: 0.35 },
+  },
+  grip: {
+    R: { thumb: [10, 20, 15], index: [15, 20, 10], middle: [55, 70, 40], ring: [60, 75, 45], pinky: [65, 75, 45] },
+    L: { thumb: [15, 25, 20], index: [45, 55, 35], middle: [55, 65, 40], ring: [60, 70, 45], pinky: [65, 70, 45] },
+    axis: 'x',
+  },
   reloadLeftHand: { keys: [], magDetachT: 0.12, magAttachT: 0.55, gunTiltDeg: { roll: 0, pitch: 0, inT: 0.1, outT: 0.85 } },
 }
 const WEAPON_DEFAULT: WeaponPose = {

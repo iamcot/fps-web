@@ -7,6 +7,7 @@ import { MUZZLE_FALLBACK, makeFlashTexture, adjustModel } from './viewmodel'
 import { BlockArm } from './blockArm'
 import { poses, weaponPose, getAnchor, scanModelAnchors, colorOf } from './poses'
 import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
+import { makeSkeletalRig, requestCharacters, skeletalEnabled, skeletalReady } from './characterRig'
 import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './characters/animate'
 import { createDeathFx } from './characters/deathFx'
 
@@ -94,8 +95,8 @@ interface Actor {
   wasDead: boolean
   aimPivot: THREE.Group
   holder: THREE.Group
-  armR: BlockArm
-  armL: BlockArm
+  armR: BlockArm | null   // null với nhân vật có xương (IK nằm trong rig.skel)
+  armL: BlockArm | null
   twoHand: boolean | null   // null = chưa chọn chế độ
 }
 
@@ -117,6 +118,9 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   flash.visible = false
   rig.gunAnchor.add(flash)
   rig.root.add(makeBlobShadow())
+  if (rig.skel) {
+    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null }
+  }
   const aimPivot = new THREE.Group()
   const holder = new THREE.Group()
   aimPivot.add(holder)
@@ -132,8 +136,8 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
 }
 
 function disposeActor(a: Actor): void {
-  disposeRig(a.rig)
-  a.armR.dispose(); a.armL.dispose()
+  if (a.rig.skel) a.rig.skel.dispose(); else disposeRig(a.rig)
+  a.armR?.dispose(); a.armL?.dispose()
   a.flash.material.map?.dispose()
   a.flash.material.dispose()
 }
@@ -143,6 +147,12 @@ function setHold(a: Actor, two: boolean): void {
   if (a.twoHand === two) return
   a.twoHand = two
   const { rig } = a
+  if (rig.skel) {
+    const parent = two ? a.holder : rig.gunAnchor
+    if (a.gun) parent.add(a.gun)
+    parent.add(a.flash)
+    return
+  }
   rig.armR.visible = rig.armL.visible = !two
   const swap = (from: THREE.Mesh[], to: THREE.Mesh[]) => {
     for (const m of from) { const i = rig.parts.indexOf(m); if (i >= 0) rig.parts.splice(i, 1) }
@@ -150,9 +160,9 @@ function setHold(a: Actor, two: boolean): void {
   }
   const old: THREE.Mesh[] = []
   for (const g of [rig.armL, rig.armR]) g.traverse(o => { if (o instanceof THREE.Mesh) old.push(o) })
-  const blocks = [...a.armR.meshes, ...a.armL.meshes]
+  const blocks = [...a.armR!.meshes, ...a.armL!.meshes]
   if (two) swap(old, blocks); else swap(blocks, old)
-  if (!two) { a.armR.setVisible(false); a.armL.setVisible(false) }
+  if (!two) { a.armR!.setVisible(false); a.armL!.setVisible(false) }
   const parent = two ? a.holder : rig.gunAnchor
   if (a.gun) parent.add(a.gun)
   parent.add(a.flash)
@@ -173,9 +183,33 @@ function solveArms(a: Actor, weapon: number, pitch: number): void {
     _pole.set(sh[0] + pl[0], sh[1] - HIP_Y + pl[1], sh[2] + pl[2])
     getAnchor(weapon, side === 'R' ? 'hand_r' : 'hand_l', _anchor)
     _handTarget.copy(_anchor).applyMatrix4(_m)
-    ;(side === 'R' ? a.armR : a.armL).solve(_shoulder, _handTarget, _pole)
+    ;(side === 'R' ? a.armR! : a.armL!).solve(_shoulder, _handTarget, _pole)
   }
   arm('R'); arm('L')
+}
+
+const _gq = new THREE.Quaternion()
+const _rq = new THREE.Quaternion()
+const _sh = new THREE.Vector3()
+// Nhân vật có xương: đặt súng ở holder rồi IK hai bàn tay thật vào hai điểm neo, gập ngón. Mọi toạ độ thế giới.
+function solveSkelArms(a: Actor, weapon: number): void {
+  const sk = a.rig.skel!, wp = weaponPose(weapon).third, c = poses.character
+  a.holder.position.set(wp.gunPos[0], wp.gunPos[1], wp.gunPos[2])
+  a.holder.rotation.copy(_eul.set(wp.gunRotDeg[0] * DEG, wp.gunRotDeg[1] * DEG, wp.gunRotDeg[2] * DEG, 'XYZ'))
+  a.holder.updateWorldMatrix(true, false)
+  a.holder.getWorldQuaternion(_gq)
+  sk.root.getWorldQuaternion(_rq)
+  for (const side of ['R', 'L'] as const) {
+    const arm = side === 'R' ? sk.armR : sk.armL
+    getAnchor(weapon, side === 'R' ? 'hand_r' : 'hand_l', _anchor)
+    _handTarget.copy(_anchor).applyMatrix4(a.holder.matrixWorld)
+    arm.upper.getWorldPosition(_sh)
+    const pl = side === 'R' ? c.poleR : c.poleL
+    _pole.set(pl[0], pl[1], pl[2]).applyQuaternion(_rq).add(_sh)
+    ;(side === 'R' ? sk.lastTargetR : sk.lastTargetL).copy(_handTarget)
+    arm.solve(_handTarget, _gq, _pole, sk.ikWeight)
+    arm.applyGrip(sk.ikWeight)
+  }
 }
 
 // pos là vị trí chân. Cao đứng/ngồi lấy từ MovementConfig (chỉ co chân khi ngồi, đỉnh đầu khớp hitbox).
@@ -190,6 +224,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   let lastNow = performance.now()
   let setId = ''
   requestGuns()
+  requestCharacters()
 
   function dropActor(id: number, a: Actor): void {
     dropWanted(id)
@@ -202,10 +237,11 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   // Dựng lại khi đội đổi (TeamAssigned đến sau snapshot đầu) hoặc đổi bộ nhân vật
   function ensure(p: RenderPlayer): Actor {
     const team = info?.teamOf(p.id) ?? 'A'
+    const wantSkel = skeletalEnabled() && getCharacterSet(setId).id === 'blocky' && skeletalReady(team)   // bộ mặc định = Cớm & Cướp có xương
     let a = actors.get(p.id)
-    if (a && a.rig.team !== team) { dropActor(p.id, a); a = undefined }
+    if (a && (a.rig.team !== team || !!a.rig.skel !== wantSkel)) { dropActor(p.id, a); a = undefined }
     if (!a) {
-      a = makeActor(getCharacterSet(setId).build(team), (p.flags & NetFlag.Dead) !== 0)
+      a = makeActor(wantSkel ? makeSkeletalRig(team) : getCharacterSet(setId).build(team), (p.flags & NetFlag.Dead) !== 0)
       scene.add(a.rig.root)
       actors.set(p.id, a)
     }
@@ -266,26 +302,48 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     rig.root.position.set(p.pos[0], p.pos[1], p.pos[2])
     rig.root.rotation.y = p.yaw
     const dead = (p.flags & NetFlag.Dead) !== 0
+    const weapon = p.weapon ?? 0
+    const sliding = (p.flags & NetFlag.Sliding) !== 0, grounded = (p.flags & NetFlag.Grounded) !== 0
+    if (rig.skel) {
+      // Nhân vật có xương. Thứ tự bắt buộc: mixer → spine theo pitch → súng → IK tay → ngón
+      rig.root.visible = !dead
+      if (dead && !a.wasDead) a.wasDead = true
+      else if (!dead) a.wasDead = false
+      dressGun(a, weapon)
+      const two = weaponPose(weapon).third.hold === 'twoHand' && !!a.gun
+      setHold(a, two)
+      if (!dead) {
+        rig.skel.animate({ dt, x: p.pos[0], z: p.pos[2], yaw: p.yaw, grounded, crouching, sliding, pitch: p.pitch ?? 0, pistol: !two })
+        rig.skel.placeAim()
+        if (two) solveSkelArms(a, weapon)
+        else rig.skel.refreshGunAnchor()
+      }
+      const opS = (p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1
+      rig.skel.setOpacity(opS)
+      dressWanted(p, a, h)
+      a.flash.visible = nowMs < a.flashUntil
+      dressLabel(p.id, a, h)
+      return
+    }
     if (dead && !a.wasDead) deathFx.burst(rig)   // vừa chết: các khối tách ra
     a.wasDead = dead
     rig.root.visible = !dead
     if (!dead) {
       updateAnim(rig, a.anim, {
         x: p.pos[0], z: p.pos[2], dt,
-        grounded: (p.flags & NetFlag.Grounded) !== 0, crouching, sliding: (p.flags & NetFlag.Sliding) !== 0,
+        grounded, crouching, sliding,
         pitch: p.pitch ?? 0, crouchDrop: standHeight - crouchHeight,
       })
     } else a.anim.hasLast = false   // hồi sinh xa chỗ chết: không tính thành chạy
     // Bất tử: nhấp nháy mờ
     const op = (p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1
     if (rig.mats[0]!.opacity !== op || op !== 1) for (const m of rig.mats) m.opacity = op
-    const weapon = p.weapon ?? 0
     dressGun(a, weapon)
     const two = weaponPose(weapon).third.hold === 'twoHand' && !!a.gun
     setHold(a, two)
     if (two && !dead) {
       solveArms(a, weapon, p.pitch ?? 0)
-      a.armR.setVisible(true); a.armL.setVisible(true)
+      a.armR!.setVisible(true); a.armL!.setVisible(true)
     }
     dressWanted(p, a, h)
     a.flash.visible = nowMs < a.flashUntil

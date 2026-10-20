@@ -70,6 +70,122 @@
       -0.325
     ]
   },
+  "character": {
+    "crouchDrop": 0.0,
+    "crouchWalkDrop": 0.25,
+    "aimPivotBone": "mixamorigSpine2",
+    "spinePitchBones": [
+      "mixamorigSpine",
+      "mixamorigSpine1",
+      "mixamorigSpine2"
+    ],
+    "spinePitchLimitDeg": 60,
+    "headPitchShare": 0.3,
+    "aimPivotOffset": [
+      0,
+      -0.2,
+      0
+    ],
+    "poleR": [
+      0.35,
+      -0.6,
+      0.3
+    ],
+    "poleL": [
+      -0.35,
+      -0.6,
+      0.1
+    ],
+    "handRotOffsetDegR": [
+      0,
+      0,
+      0
+    ],
+    "handRotOffsetDegL": [
+      0,
+      0,
+      0
+    ],
+    "palmCenterFrac": 0.6,
+    "oneHandGunPos": [
+      0,
+      0,
+      0
+    ],
+    "oneHandGunRotDeg": [
+      0,
+      0,
+      0
+    ],
+    "anim": {
+      "blendTime": 0.15,
+      "idleSpeed": 0.3,
+      "walkRefSpeed": 1.6,
+      "runStartSpeed": 5,
+      "runBlendLen": 2,
+      "runRefSpeed": 5,
+      "crouchRefSpeed": 1,
+      "jumpHoldS": 0.35,
+      "maxRate": 2
+    }
+  },
+  "grip": {
+    "R": {
+      "thumb": [
+        10,
+        20,
+        15
+      ],
+      "index": [
+        15,
+        20,
+        10
+      ],
+      "middle": [
+        55,
+        70,
+        40
+      ],
+      "ring": [
+        60,
+        75,
+        45
+      ],
+      "pinky": [
+        65,
+        75,
+        45
+      ]
+    },
+    "L": {
+      "thumb": [
+        15,
+        25,
+        20
+      ],
+      "index": [
+        45,
+        55,
+        35
+      ],
+      "middle": [
+        55,
+        65,
+        40
+      ],
+      "ring": [
+        60,
+        70,
+        45
+      ],
+      "pinky": [
+        65,
+        70,
+        45
+      ]
+    },
+    "axis": "x"
+  },
   "reloadLeftHand": {
     "keys": [
       {
