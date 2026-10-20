@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ECONOMY, GRENADE, addMoney, applyBuy, consumeGrenade, defaultLoadout, grenadeCount, killReward, loadoutWeaponIds, quoteBuy, resaleValue, weaponByKey, type Loadout } from './index'
+import { ECONOMY, ECONOMY_ELIM, GRENADE, roundIncome, addMoney, applyBuy, consumeGrenade, defaultLoadout, grenadeCount, killReward, loadoutWeaponIds, quoteBuy, resaleValue, weaponByKey, type Loadout } from './index'
 
 const owned = (l: Loadout, slot: number) => l.slots[slot]
 
@@ -103,5 +103,27 @@ describe('lựu đạn M67 (G.1)', () => {
     const b = consumeGrenade(a)
     expect(b.slots[4]).toBeNull(); expect(grenadeCount(b)).toBe(0)
     expect(consumeGrenade(b)).toBe(b)
+  })
+})
+
+describe('roundIncome (Sinh Tử)', () => {
+  const lossRun = (n: number) => { let st = 0; const out: number[] = []; for (let i = 0; i < n; i++) { const r = roundIncome('loss', st); st = r.lossStreak; out.push(r.amount) } return out }
+  it('thua 1..6 ván liên tiếp: 1500, 1900, 2300, 2700, 3000, 3000', () => {
+    expect(lossRun(6)).toEqual([1500, 1900, 2300, 2700, 3000, 3000])
+  })
+  it('thua 2, thắng 1, thua 1: lần thua cuối nhận 1500', () => {
+    let st = roundIncome('loss', 0).lossStreak
+    st = roundIncome('loss', st).lossStreak
+    const w = roundIncome('win', st)
+    expect(w.amount).toBe(3000)
+    expect(roundIncome('loss', w.lossStreak).amount).toBe(1500)
+  })
+  it('hoà giữa chuỗi thua 2: nhận 1500, ván thua kế nhận 2300', () => {
+    const d = roundIncome('draw', 2)
+    expect(d).toEqual({ amount: 1500, lossStreak: 2 })
+    expect(roundIncome('loss', d.lossStreak).amount).toBe(2300)
+  })
+  it('tiền không vượt 16000', () => {
+    expect(addMoney(15000, 3000, ECONOMY_ELIM)).toBe(16000)
   })
 })

@@ -86,7 +86,7 @@ wss.on('connection', ws => {
       if (!room || !player) return
       const pref = msg.team === 'A' || msg.team === 'B' ? msg.team : 'auto'
       const team = room.assignTeam(pref, player)
-      if (team && team !== player.team) { room.setTeam(player, team); room.resetEconomy(player); room.respawn(player) }
+      if (team && team !== player.team && room.mode.canSwitchTeam(room, player)) { room.setTeam(player, team); room.resetEconomy(player); room.respawn(player) }
       else transport.send({ t: MsgType.TeamAssigned, id: player.id, team: player.team })
     } else if (msg.t === MsgType.ListRooms) {
       transport.send({ t: MsgType.RoomList, rooms: rooms.list(), maps: rooms.mapList() })
@@ -99,7 +99,7 @@ wss.on('connection', ws => {
       if (msg.create === true && exists) { transport.send({ t: MsgType.JoinRejected, reason: 'exists' }); return }
       if (msg.create === false && !exists) { transport.send({ t: MsgType.JoinRejected, reason: 'missing' }); return }
       const pref = msg.team === 'A' || msg.team === 'B' ? msg.team : 'auto'
-      const res = rooms.tryJoin(roomId, name, transport, loop.tick, pref, isCharacterSet(msg.characterSet) ? msg.characterSet : DEFAULT_CHARACTER_SET, typeof msg.mapId === 'string' ? msg.mapId : undefined)
+      const res = rooms.tryJoin(roomId, name, transport, loop.tick, pref, isCharacterSet(msg.characterSet) ? msg.characterSet : DEFAULT_CHARACTER_SET, typeof msg.mapId === 'string' ? msg.mapId : undefined, msg.create === true && typeof msg.options === 'object' ? msg.options : undefined)
       if (!res) { console.log(`${stamp()} [room ${roomId}] "${name}" bị từ chối: phòng đầy`); transport.send({ t: MsgType.JoinRejected, reason: 'full' }); return }
       ;({ room, player } = res)
       const joined = player

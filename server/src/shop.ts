@@ -1,4 +1,4 @@
-import { ECONOMY, MatchPhase, MsgType, SWITCH_MS, TICK_RATE, applyBuy, grenadeCount, inBuyZone, loadoutWeaponIds, quoteBuy, weaponByKey } from '@fps/shared'
+import { MsgType, SWITCH_MS, TICK_RATE, applyBuy, grenadeCount, inBuyZone, loadoutWeaponIds, quoteBuy, weaponByKey } from '@fps/shared'
 import type { Player, Room } from './room'
 
 function fail(p: Player, key: string, reason: string): void {
@@ -9,17 +9,17 @@ function fail(p: Player, key: string, reason: string): void {
 export function handleBuy(room: Room, p: Player, key: string): void {
   const now = room.serverNow
   while (p.buyTimes.length > 0 && p.buyTimes[0]! <= now - 1000) p.buyTimes.shift()
-  if (p.buyTimes.length >= ECONOMY.maxBuysPerSecond) return fail(p, key, 'rate')
+  if (p.buyTimes.length >= room.eco.maxBuysPerSecond) return fail(p, key, 'rate')
   p.buyTimes.push(now)
 
   if (!weaponByKey(key)) return fail(p, key, 'unknown')
   if (!p.alive) return fail(p, key, 'dead')
-  if (room.phase === MatchPhase.Ended) return fail(p, key, 'phase')
+  if (!room.mode.canBuy(room, p, now)) return fail(p, key, 'phase')
   if (!inBuyZone(room.map, p.team, room.sideSwapped, p.state.pos)) return fail(p, key, 'out_of_zone')
 
-  const q = quoteBuy(p.money, p.loadout, key)
+  const q = quoteBuy(p.money, p.loadout, key, room.eco)
   if (!q.ok) return fail(p, key, q.reason)
-  const res = applyBuy(p.money, p.loadout, key)!
+  const res = applyBuy(p.money, p.loadout, key, room.eco)!
   p.money = res.money
   p.loadout = res.loadout
 

@@ -1,9 +1,9 @@
-import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, ECONOMY, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, addMoney, defaultLoadout, killReward, loadoutWeaponIds, otherTeam, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
+import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, sanitizeRoomConfig, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 import type { RoomGrenade } from './grenades'
 import { dropOnDeath } from './grenades'
-import { runKillRules } from './teamRules'
+import { createMode, type MatchMode } from './modes'
 
 export const EMPTY_ROOM_TTL_MS = 60_000
 export const MAX_NAME_LEN = 16
@@ -42,6 +42,20 @@ export interface Player {
   loadout: Loadout               // súng đang mang theo ô; weapon.slots là bản id của nó
   killStreak: number             // chuỗi hạ hiện tại; về 0 khi chết
   buyTimes: number[]             // serverTime các lệnh Buy trong 1 giây gần nhất (giới hạn spam)
+  inRound: boolean               // Sinh Tử: có mặt trong ván hiện tại (người vào giữa ván chỉ xem → không nhận tiền cuối ván)
+  survived: boolean              // Sinh Tử: còn sống tới hết ván trước → giữ súng sang ván sau
+}
+
+/** Hỗn Chiến theo luật của server (dùng khi phòng tạo không kèm cài đặt, và trong test) */
+export function defaultRoomConfig(name: string, map: string, rules: MatchRules): RoomConfig {
+  return { name, map, maxPlayers: rules.maxPerTeam * 2, settings: { ...DEFAULT_SETTINGS.tdm, killLimit: rules.killLimit, timeLimitMin: rules.durationMs / 60000 } }
+}
+
+/** Luật trận của một phòng: luật server + thông số từ cài đặt phòng */
+export function roomRules(base: MatchRules, config: RoomConfig): MatchRules {
+  const r = { ...base, maxPerTeam: config.maxPlayers / 2 }
+  if (config.settings.mode === 'tdm') { r.killLimit = config.settings.killLimit; r.durationMs = config.settings.timeLimitMin * 60000 }
+  return r
 }
 
 export class Room {
@@ -70,9 +84,14 @@ export class Room {
     private random: () => number = Math.random,
     readonly rules: MatchRules = MATCH,
     readonly characterSet: CharacterSetId = DEFAULT_CHARACTER_SET,   // chọn lúc tạo phòng, không đổi sau đó
+    readonly config: RoomConfig = defaultRoomConfig(id, '', rules),
   ) {
     this.emptySince = now()
+    this.mode = createMode(config)
   }
+
+  readonly mode: MatchMode
+  get eco(): EconomyConfig { return this.mode.economy() }
 
   teamCount(team: TeamId): number {
     let n = 0
@@ -107,7 +126,7 @@ export class Room {
     const team = this.assignTeam(pref)
     if (!team) return null
     const sp = this.pickSpawn(team, null, true)
-    const loadout = defaultLoadout(team)
+    const loadout = defaultLoadout(team, this.eco)
     const player: Player = {
       id: this.nextId++,
       name,
@@ -141,13 +160,15 @@ export class Room {
       deaths: 0,
       pingMs: 0,
       seqOffset: null,
-      money: ECONOMY.startMoney,
+      money: this.eco.startMoney,
       loadout,
       killStreak: 0,
       buyTimes: [],
+      inRound: true,
+      survived: false,
     }
     transport.send({ t: MsgType.Welcome, yourId: player.id, tick, serverTime, mapName: this.map.name, characterSet: this.characterSet,
-      players: [...this.players.values()].map(o => ({ id: o.id, name: o.name })) })
+      config: this.config, players: [...this.players.values()].map(o => ({ id: o.id, name: o.name })) })
     for (const other of this.players.values()) {
       other.transport.send({ t: MsgType.PlayerJoined, id: player.id, name: player.name })
     }
@@ -156,8 +177,7 @@ export class Room {
     // Đội của mọi người cho người mới; đội của người mới cho cả phòng
     for (const o of this.players.values()) if (o !== player) transport.send({ t: MsgType.TeamAssigned, id: o.id, team: o.team })
     for (const o of this.players.values()) o.transport.send({ t: MsgType.TeamAssigned, id: player.id, team })
-    // Vào giữa trận: bất tử như vừa hồi sinh (5.4)
-    if (this.phase !== MatchPhase.Waiting) player.invulnUntil = this.serverNow + SPAWN_INVULN_MS
+    this.mode.onPlayerJoin(this, player)
     transport.send({ t: MsgType.MoneyEvent, delta: player.money, reason: 'reset' })
     return player
   }
@@ -169,6 +189,7 @@ export class Room {
     p.world?.dispose()
     p.world = null
     for (const other of this.players.values()) other.transport.send({ t: MsgType.PlayerLeft, id })
+    this.mode.onPlayerLeave(this, p)
     if (this.players.size === 0) this.emptySince = this.now()
   }
 
@@ -189,9 +210,9 @@ export class Room {
 
   // Trận mới / đổi đội: tiền ban đầu, bộ mặc định của đội, chuỗi hạ 0
   resetEconomy(p: Player): void {
-    p.money = ECONOMY.startMoney
+    p.money = this.eco.startMoney
     p.killStreak = 0
-    p.loadout = defaultLoadout(p.team)
+    p.loadout = defaultLoadout(p.team, this.eco)
     this.equip(p)
     p.transport.send({ t: MsgType.MoneyEvent, delta: p.money, reason: 'reset' })
   }
@@ -205,29 +226,17 @@ export class Room {
       dropOnDeath(this, p)   // đang rút chốt: ready → lựu đạn rơi tại chỗ, pulling → huỷ
       p.alive = false
       p.hp = 0
-      // WAITING hồi sinh ngay; còn lại theo RESPAWN_DELAY_MS
-      p.respawnAt = this.serverNow + (this.phase === MatchPhase.Waiting ? 0 : RESPAWN_DELAY_MS)
+      const delay = this.mode.respawnDelayMs(this)
+      p.respawnAt = delay === null ? Infinity : this.serverNow + delay
       p.weapon.triggerHeld = false
       const victimStreak = p.killStreak
-      let reward = 0
-      if (this.phase === MatchPhase.Playing) {
-        p.deaths++
-        const killer = this.players.get(p.killerId)
-        if (killer && killer.team !== p.team) {
-          killer.kills++
-          if (killer.team === 'A') this.scoreA++; else this.scoreB++
-          reward = killReward(victimStreak)
-          killer.money = addMoney(killer.money, reward)
-          killer.killStreak++
-          killer.transport.send({ t: MsgType.MoneyEvent, delta: reward, reason: victimStreak >= ECONOMY.bountyStreak ? 'bounty' : 'kill' })
-        }
-      }
+      const reward = this.mode.onKill(this, this.players.get(p.killerId) ?? null, p)
       p.killStreak = 0
       for (const o of this.players.values()) {
         o.transport.send({ t: MsgType.Kill, killerId: p.killerId, victimId: p.id, weapon: p.killWeapon, headshot: p.killHeadshot, reward, victimStreak })
       }
     }
-    if (anyDeath) runKillRules(this)
+    if (anyDeath) this.mode.afterDeaths(this)
   }
 
   // Hồi sinh người đã chết đủ lâu
@@ -257,7 +266,8 @@ export class Room {
     return best
   }
 
-  respawn(p: Player, spawn?: { pos: [number, number, number]; yaw: number }): void {
+  // keepLoadout: giữ súng đang mang (người sống sót qua ván Sinh Tử); mặc định chết thì về bộ của đội
+  respawn(p: Player, spawn?: { pos: [number, number, number]; yaw: number }, keepLoadout = false): void {
     const best = spawn ?? this.pickSpawn(p.team, p)
     p.state = {
       pos: [best.pos[0], best.pos[1], best.pos[2]], vel: [0, 0, 0], yaw: best.yaw, pitch: 0,
@@ -268,8 +278,9 @@ export class Room {
     p.killerId = -1
     p.invulnUntil = this.serverNow + SPAWN_INVULN_MS
     // Chết thì mất súng đã mua (tiền giữ nguyên): hồi sinh với bộ mặc định của đội, cầm súng dài
-    if (!ECONOMY.keepLoadoutOnDeath) p.loadout = defaultLoadout(p.team)
-    this.equip(p, ECONOMY.keepLoadoutOnDeath ? p.weapon.slot : DEFAULT_SLOT)
+    const keep = keepLoadout || this.eco.keepLoadoutOnDeath
+    if (!keep) p.loadout = defaultLoadout(p.team, this.eco)
+    this.equip(p, keep ? p.weapon.slot : DEFAULT_SLOT)
     for (const o of this.players.values()) {
       o.transport.send({ t: MsgType.Respawn, id: p.id, pos: [best.pos[0], best.pos[1], best.pos[2]], yaw: best.yaw })
     }
@@ -298,11 +309,14 @@ export class RoomManager {
     return res
   }
 
-  tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET, mapId?: string): { room: Room; player: Player } | null {
+  tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET, mapId?: string, options?: RoomOptions): { room: Room; player: Player } | null {
     let room = this.rooms.get(roomId)
     if (!room) {
       const id = mapId !== undefined && this.maps.has(mapId) ? mapId : this.defaultMapId
-      room = new Room(roomId, this.maps.get(id)!.map, this.now, Math.random, this.rules, characterSet)
+      // Cài đặt do client gửi luôn được kẹp theo SETTINGS_LIMITS; không gửi thì Hỗn Chiến theo luật mặc định của server
+      const config = options ? sanitizeRoomConfig(roomId, id, options) : defaultRoomConfig(roomId, id, this.rules)
+      const rules = roomRules(this.rules, config)
+      room = new Room(roomId, this.maps.get(id)!.map, this.now, Math.random, rules, characterSet, config)
       room.mapId = id
       this.rooms.set(roomId, room)
     }
@@ -313,7 +327,7 @@ export class RoomManager {
   list(): RoomInfo[] {
     const out: RoomInfo[] = []
     for (const r of this.rooms.values()) {
-      out.push({ id: r.id, mapId: r.mapId, characterSet: r.characterSet, players: r.players.size, maxPlayers: this.rules.maxPerTeam * 2, teamA: r.teamCount('A'), teamB: r.teamCount('B') })
+      out.push({ id: r.id, mapId: r.mapId, characterSet: r.characterSet, players: r.players.size, maxPlayers: r.config.maxPlayers, teamA: r.teamCount('A'), teamB: r.teamCount('B'), mode: r.config.settings.mode, status: r.mode.statusText(r) })
     }
     return out
   }

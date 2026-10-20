@@ -30,11 +30,16 @@ export const MATCH: MatchRules = {
   friendlyFire: false,
 }
 
+// Hỗn Chiến dùng 0–3. Sinh Tử: Waiting = khởi động (WARMUP), Playing = ván đang đánh (LIVE), Ended = kết thúc trận (MATCH_END),
+// thêm Freeze (đứng yên đầu ván), RoundEnd (hiện kết quả ván), Halftime (nghỉ giữa hiệp, đổi bên)
 export const MatchPhase = {
   Waiting: 0,
   Countdown: 1,
   Playing: 2,
   Ended: 3,
+  Freeze: 4,
+  RoundEnd: 5,
+  Halftime: 6,
 } as const
 export type MatchPhase = (typeof MatchPhase)[keyof typeof MatchPhase]
 
@@ -42,10 +47,10 @@ const ALL_BTNS = Object.values(Btn).reduce((a, b) => a | b, 0)
 
 /**
  * Nút được phép theo pha trận + còn sống hay không. Server và client dùng chung để dự đoán khớp nhau:
- * chết hoặc COUNTDOWN → không nút nào (vẫn xoay chuột được); ENDED → đi được nhưng không bắn/nạp.
+ * chết, COUNTDOWN, FREEZE, HALFTIME → không nút nào (vẫn xoay chuột được); ENDED → đi được nhưng không bắn/nạp.
  */
 export function phaseButtonMask(phase: MatchPhase, alive: boolean): number {
-  if (!alive || phase === MatchPhase.Countdown) return 0
+  if (!alive || phase === MatchPhase.Countdown || phase === MatchPhase.Freeze || phase === MatchPhase.Halftime) return 0
   if (phase === MatchPhase.Ended) return ALL_BTNS & ~(Btn.Fire | Btn.Reload)
   return ALL_BTNS
 }

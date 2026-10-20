@@ -6,6 +6,7 @@ import type { OwnedWeapon } from './economy'
 import type { MatchPhase, TeamId } from './teams'
 import type { CharacterSetId } from './characters'
 import type { ThrowMode } from './grenade'
+import type { GameMode, RoomConfig, RoomOptions } from './roomConfig'
 
 // Phân loại message theo plan/04-phase3-netcode-move.md (C2S 1-3, S2C 101-105)
 export const MsgType = {
@@ -17,6 +18,7 @@ export const MsgType = {
   ChooseTeam: 5,
   Buy: 6,            // plan ghi t:5 nhưng 5 là ChooseTeam
   ListRooms: 7,      // xin danh sách phòng + map (trước khi Join)
+  DebugCmd: 8,       // lệnh debug (task M.8); server chỉ nhận khi không chạy production
   // Server → Client
   Welcome: 101,
   Pong: 102,
@@ -39,6 +41,9 @@ export const MsgType = {
   GrenadeAnim: 119,
   RoomList: 120,       // trả lời ListRooms
   JoinRejected: 121,   // Join không được (phòng đầy / đã tồn tại / không có)
+  RoundEnd: 122,       // Sinh Tử: kết thúc ván (plan 13 ghi 121–123 nhưng 120/121 đã dùng)
+  RoundReset: 123,     // Sinh Tử: bắt đầu ván mới (xoá lựu đạn/xác)
+  MatchEnd: 124,       // Sinh Tử: kết thúc trận
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -63,7 +68,11 @@ export interface JoinMsg {
   characterSet?: string    // bộ nhân vật; chỉ có tác dụng khi người này tạo phòng mới (sai/thiếu → mặc định)
   create?: boolean         // true: tạo phòng mới (lỗi nếu tên đã có); false: chỉ vào phòng có sẵn; thiếu: vào, chưa có thì tạo
   mapId?: string           // map của phòng mới (thiếu/sai → map đầu tiên)
+  options?: RoomOptions    // thể thức + cài đặt của phòng mới (server kẹp theo SETTINGS_LIMITS)
 }
+
+// Lệnh debug trong game (task M.8): '/endround A' ...
+export interface DebugCmdMsg { t: typeof MsgType.DebugCmd; cmd: string }
 
 // Xin danh sách phòng đang có
 export interface ListRoomsMsg { t: typeof MsgType.ListRooms }
@@ -95,6 +104,8 @@ export interface RoomInfo {
   maxPlayers: number
   teamA: number
   teamB: number
+  mode: GameMode
+  status: string             // 'Đang chờ' | 'Ván 5/19 · 3–2' | 'Còn 06:12 · 23–18'
 }
 export interface MapInfo { id: string; name: string }
 export interface RoomListMsg { t: typeof MsgType.RoomList; rooms: RoomInfo[]; maps: MapInfo[] }
@@ -108,6 +119,7 @@ export interface WelcomeMsg {
   serverTime: number
   mapName: string
   characterSet: CharacterSetId   // bộ nhân vật của phòng
+  config: RoomConfig             // thể thức + cài đặt phòng
   players: { id: number; name: string }[]   // những người đã có trong phòng lúc vào (để biết tên cho killfeed)
 }
 
@@ -215,10 +227,22 @@ export interface MatchStateMsg {
   t: typeof MsgType.MatchState
   phase: MatchPhase
   phaseEndsAt: number
-  scoreA: number
+  scoreA: number          // Sinh Tử: số ván thắng; Hỗn Chiến: số mạng
   scoreB: number
   sideSwapped: boolean
+  mode: GameMode
+  round: number           // Sinh Tử: ván hiện tại (1…); Hỗn Chiến: 0
+  maxRounds: number
+  aliveA: number          // Sinh Tử: số người còn sống mỗi đội
+  aliveB: number
+  buyEndsAt: number | null   // Sinh Tử: hết giờ mua (serverTime); null = không giới hạn
 }
+
+// Sinh Tử: ván vừa xong. winner null = hoà. Tiền nhận ở MoneyEvent (round_win / round_loss / round_draw)
+export type RoundEndReason = 'elimination' | 'time_alive' | 'time_hp' | 'draw'
+export interface RoundEndMsg { t: typeof MsgType.RoundEnd; round: number; winner: TeamId | null; reason: RoundEndReason }
+export interface RoundResetMsg { t: typeof MsgType.RoundReset; round: number }
+export interface MatchEndMsg { t: typeof MsgType.MatchEnd; winner: TeamId | null; scoreA: number; scoreB: number; mvpId: number | null }
 
 export interface TeamAssignedMsg {
   t: typeof MsgType.TeamAssigned
@@ -240,7 +264,7 @@ export interface BuyResultMsg {
   key: string
 }
 
-export type MoneyReason = 'kill' | 'bounty' | 'buy' | 'sell' | 'reset'
+export type MoneyReason = 'kill' | 'bounty' | 'buy' | 'sell' | 'reset' | 'round_win' | 'round_loss' | 'round_draw'
 // Riêng người nhận: tiền đổi (để hiện +$500...)
 export interface MoneyEventMsg {
   t: typeof MsgType.MoneyEvent
@@ -285,7 +309,7 @@ export interface PongMsg {
 
 export type AnyMsg =
   | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg | ListRoomsMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)
