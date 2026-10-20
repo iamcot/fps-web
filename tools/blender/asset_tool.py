@@ -4,7 +4,8 @@ Dùng:
   blender -b <file.blend> --python tools/blender/asset_tool.py -- normalize <params.json> <out.glb>
   blender -b --python tools/blender/asset_tool.py -- inspect-character <model.glb> [<preview_dir>]
   blender -b --python tools/blender/asset_tool.py -- prep-mixamo <in.glb> <out.fbx>
-  blender -b --python tools/blender/asset_tool.py -- build-character <team_rigged.fbx> <anims_dir> <out.glb>
+  blender -b --python tools/blender/asset_tool.py -- build-character <team_rigged.fbx> <anims_dir> <out.glb> [donor_rigged.fbx]
+  (donor: dùng bộ xương 65 của file này, dịch khớp về thân của team_rigged, rồi gắn skin tự động)
 (gun_tool.py cũ chỉ còn là lối tắt gọi file này.)
 """
 import bpy, sys, json, os
@@ -322,7 +323,117 @@ def _action_fcurves(act):
                 for fc in cb.fcurves:
                     yield fc
 
-def build_character(rigged_path, anims_dir, out_path):
+def _select_active(o):
+    bpy.ops.object.select_all(action='DESELECT')
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+
+def fit_donor_rig(arm_c, body, donor_path):
+    """Lấy bộ xương đủ 65 của donor, đặt các khớp trùng tên về vị trí của arm_c (rig riêng của thân này),
+    ba ngón thiếu suy ra từ bàn tay donor; sau đó gắn lại skin của body bằng Automatic Weights."""
+    from mathutils import Vector, Matrix
+    before = set(bpy.data.objects); before_im = set(bpy.data.images); before_mat = set(bpy.data.materials)
+    bpy.ops.import_scene.fbx(filepath=donor_path)
+    new = [o for o in bpy.data.objects if o not in before]
+    arm_d = next(o for o in new if o.type == 'ARMATURE')
+    for o in [o for o in new if o.type == 'MESH']:
+        bpy.data.objects.remove(o, do_unlink=True)
+    for im in [i for i in bpy.data.images if i not in before_im]:      # texture/material của donor không dùng
+        bpy.data.images.remove(im)
+    for mt in [m for m in bpy.data.materials if m not in before_mat]:
+        bpy.data.materials.remove(mt)
+    _select_active(arm_d)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    drest = {b.name: b.matrix_local.copy() for b in arm_d.data.bones}
+    dlen = {b.name: b.length for b in arm_d.data.bones}
+    cb = arm_c.data.bones
+    missing = [n for n in drest if n not in cb]
+    print("FIT shared", len(drest) - len(missing), "missing", len(missing))
+    hand = {}
+    for side in ("Left", "Right"):
+        h = f"mixamorig:{side}Hand"
+        ci = cb[f"mixamorig:{side}HandIndex1"].head_local
+        di = drest[f"mixamorig:{side}HandIndex1"].translation
+        k = (ci - cb[h].head_local).length / (di - drest[h].translation).length
+        M = cb[h].matrix_local.to_3x3() @ drest[h].to_3x3().inverted()
+        hand[side] = (k, M, cb[h].head_local.copy(), drest[h].translation.copy())
+        print("FIT", side, "finger scale k=%.3f" % k)
+    cmat = {b.name: (b.matrix_local.copy(), b.length) for b in cb}
+    bpy.ops.object.mode_set(mode='EDIT')
+    ebs = arm_d.data.edit_bones
+    for eb in ebs:
+        eb.use_connect = False
+    for eb in ebs:
+        if eb.name in cmat:
+            eb.matrix, eb.length = cmat[eb.name][0], cmat[eb.name][1]
+        else:
+            k, M, hc, hd = hand["Left" if "Left" in eb.name else "Right"]
+            md = drest[eb.name]
+            pos = hc + k * (M @ (md.translation - hd))
+            eb.matrix = Matrix.Translation(pos) @ (M @ md.to_3x3()).to_4x4()
+            eb.length = k * dlen[eb.name]
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for ac in list(bpy.data.actions):
+        bpy.data.actions.remove(ac)
+    # skin: giữ nguyên trọng số Mixamo của 41 xương cũ, gắn sang armature mới
+    for m in list(body.modifiers):
+        if m.type == 'ARMATURE':
+            body.modifiers.remove(m)
+    mw = body.matrix_world.copy(); body.parent = None; body.matrix_world = mw
+    bpy.data.objects.remove(arm_c, do_unlink=True)
+    body.parent = arm_d
+    body.matrix_parent_inverse = Matrix.Identity(4)
+    mod = body.modifiers.new("Armature", 'ARMATURE'); mod.object = arm_d
+    _weight_missing_fingers(body, arm_d, missing)
+    return arm_d, body
+
+def _seg_dist(p, a, b):
+    ab = b - a
+    t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-12)))
+    return (p - (a + ab * t)).length
+
+def _weight_missing_fingers(body, arm, missing, eps=1e-4):
+    """Chia lại phần trọng số Hand ở vùng bàn tay xa lòng bàn tay cho các xương ngón mới (Middle/Ring/Pinky),
+    theo khoảng cách tới xương; ngón trỏ/cái đã có trọng số riêng nên được tính là đối thủ cạnh tranh."""
+    bones = arm.data.bones
+    for side in ("Left", "Right"):
+        hand = bones[f"mixamorig:{side}Hand"]
+        new = [n for n in missing if side in n and "Hand" in n and any(f in n for f in ("Middle", "Ring", "Pinky"))]
+        old = [b.name for b in bones if side in b.name and ("HandIndex" in b.name or "HandThumb" in b.name)]
+        knuckle = bones[f"mixamorig:{side}HandMiddle1"].head_local
+        axis = knuckle - hand.head_local; hlen = axis.length; axis.normalize()
+        for n in new:
+            if n not in body.vertex_groups:
+                body.vertex_groups.new(name=n)
+        hg = body.vertex_groups[f"mixamorig:{side}Hand"]
+        segs_new = {n: (bones[n].head_local, bones[n].tail_local) for n in new}
+        segs_old = [(bones[n].head_local, bones[n].tail_local) for n in old]
+        moved = 0
+        for v in body.data.vertices:
+            wh = next((g.weight for g in v.groups if g.group == hg.index), 0.0)
+            if wh < 0.01:
+                continue
+            p = v.co
+            t = (p - hand.head_local).dot(axis) / hlen          # 0 = cổ tay, 1 = khớp ngón
+            g = max(0.0, min(1.0, (t - 0.6) / 0.4))
+            if g <= 0.0:
+                continue
+            dn = {n: _seg_dist(p, *segs_new[n]) for n in new}
+            do = min(_seg_dist(p, *sg) for sg in segs_old)
+            inv = {n: 1.0 / (d + eps) ** 4 for n, d in dn.items()}
+            tot_new = sum(inv.values()); inv_old = 1.0 / (do + eps) ** 4
+            share = tot_new / (tot_new + inv_old)
+            amount = wh * g * share
+            if amount < 1e-3:
+                continue
+            hg.add([v.index], wh - amount, 'REPLACE')
+            for n, w in inv.items():
+                body.vertex_groups[n].add([v.index], amount * w / tot_new, 'REPLACE')
+            moved += 1
+        print("FIT fingers", side, "vertices re-weighted:", moved)
+
+
+def build_character(rigged_path, anims_dir, out_path, donor_path=None):
     import glob
     from mathutils import Vector
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -368,6 +479,9 @@ def build_character(rigged_path, anims_dir, out_path):
         if m.type == 'ARMATURE':
             m.object = arm
     body.name = "char1"; arm.name = "Armature"
+    if donor_path:
+        arm, body = fit_donor_rig(arm, body, donor_path)
+        body.name = "char1"; arm.name = "Armature"
     for im in bpy.data.images:
         if im.type == 'IMAGE' and im.packed_file is None:
             im.pack()
@@ -438,7 +552,7 @@ def build_character(rigged_path, anims_dir, out_path):
 if mode == "inspect":
     inspect()
 elif mode == "build-character":
-    build_character(argv[1], argv[2], argv[3])
+    build_character(argv[1], argv[2], argv[3], argv[4] if len(argv) > 4 else None)
 elif mode == "prep-mixamo":
     prep_mixamo(argv[1], argv[2])
 elif mode == "check-fbx":
