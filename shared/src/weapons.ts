@@ -147,7 +147,6 @@ export const WEAPONS: WeaponDef[] = [
     // pelletConeDeg: nón cố định của 8 viên chì; spread di chuyển/trên không chỉ dịch tâm chùm
     spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0.6, accurateSpeed: 3, airDeg: 2.0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0, pelletConeDeg: 4.5 },
     recoilPitchDeg: 4, recoilYawDeg: 0.6, recoilRecoverDegPerSec: 12, recoilRecoverDelayMs: 120,
-    ads: { spreadMult: 0.7, moveMult: 0.65, fovMult: 0.9, inMs: 160, outMs: 120, scope: false },
     pellets: 8, falloff: { fullM: 6, endM: 30, minMult: 0.2 },
   },
   {
@@ -164,7 +163,6 @@ export const WEAPONS: WeaponDef[] = [
     auto: true, damage: 20, headMult: 3, legMult: 0.75,
     fireIntervalMs: 70, magSize: 30, reloadMs: 1800, range: 100,
     spread: { standDeg: 0.60, crouchDeg: 0.40, moveDeg: 0.5, accurateSpeed: 3, airDeg: 2.5, bloomPerShotDeg: 0.15, bloomMaxDeg: 1.5, bloomRecoverDegPerSec: 8, bloomRecoverDelayMs: 120 },
-    ads: { spreadMult: 0.35, moveMult: 0.65, fovMult: 0.85, inMs: 140, outMs: 100, scope: false },
     recoilPitchDeg: 0.45, recoilYawDeg: 0.35, recoilRecoverDegPerSec: 10,
     falloff: { fullM: 15, endM: 40, minMult: 0.6 },
   },

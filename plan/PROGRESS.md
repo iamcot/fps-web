@@ -172,4 +172,4 @@ Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
 - Bỏ lăn chuột đổi mức zoom (mọi súng chỉ 1 mức zoom); lăn chuột luôn đổi súng.
 - `WeaponState` thêm `bloomDeg[]`, `lastShotMs[]` (theo id súng, để mỗi súng giữ bloom riêng), `shotBloomDeg` (bloom đã dùng cho phát vừa bắn; cập nhật trong `tryFire` nên reconcile súng replay đúng), `switchEndMs` (không ngắm trong lúc khoá đổi súng).
 - `computeSpreadDeg(p, ws, def, cfg, nowMs, forShot)` có thêm cờ `forShot`; `spreadParts` tách từng phần cho F3.
-- Pistol/SMG/Shotgun nay có `ads` (số theo plan). Shotgun: spread chỉ dịch tâm chùm, nón cố định `pelletConeDeg 4.5`.
+- Súng ngắn có `ads`; SMG và Shotgun KHÔNG ngắm (theo yêu cầu sau đó: dòng súng vừa đã có tốc độ/hoả lực). Shotgun: spread chỉ dịch tâm chùm, nón cố định `pelletConeDeg 4.5`.

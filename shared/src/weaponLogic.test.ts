@@ -118,10 +118,11 @@ describe('sniper + ngắm', () => {
     expect(SNIPER.ads?.scope).toBe(true)
     expect(SNIPER.ads?.fovMult).toBeCloseTo(0.4)
   })
-  it('súng trường ngắm không che màn hình; súng ngắn dao lựu đạn không ngắm; shotgun ngắm nhẹ', () => {
+  it('súng trường ngắm không che màn hình; súng ngắn dao lựu đạn không ngắm; shotgun và SMG không ngắm', () => {
     expect(AK.ads?.scope).toBe(false)
     expect(WEAPONS[1]!.ads?.scope).toBe(false)
-    expect(WEAPONS[5]!.ads?.spreadMult).toBeGreaterThan(AK.ads!.spreadMult)
+    expect(WEAPONS[5]!.ads).toBeUndefined()   // shotgun và SMG (dòng súng vừa) không ngắm
+    expect(WEAPONS[7]!.ads).toBeUndefined()
     expect(WEAPONS[6]!.ads).toBeUndefined()
   })
   it('adsMoveFor/adsWanted: không ngắm khi nạp hoặc khoá đổi súng', () => {
