@@ -352,6 +352,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     const team = info?.teamOf(id)
     let label = labels.get(id)
     const mate = team !== undefined && team === info?.myTeam()
+    a.rig.skel?.setAlly(mate)
     if (mate && !label) {
       const name = info?.nameOf(id)
       if (name) {
