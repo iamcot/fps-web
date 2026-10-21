@@ -236,7 +236,11 @@ export class SkelCharacter {
     }
     if (!zombieClips) return false
     for (const clip of zombieClips) {
-      if (this.actions.has(clip.name)) continue
+      const had = this.actions.get(clip.name)
+      if (had) {   // đã có từ lần làm zombie trước: setZombie(false) đã stop() nên phải chạy lại, không thì bộ xương đứng ở T-pose
+        had.play(); had.paused = false; had.setEffectiveWeight(0)
+        continue
+      }
       const isOnce = clip.name === 'z_jump' || clip.name.startsWith('z_death_')
       const looped = (Z_CLIPS as readonly string[]).includes(clip.name) && clip.name !== 'z_jump'
       if (!isOnce && !looped) {   // z_attack_*, z_scream, z_hit, z_transform: phát theo sự kiện (xem playZombie)

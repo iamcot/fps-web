@@ -102,17 +102,19 @@ describe('Lây Nhiễm – các pha (I.1)', () => {
     expect(zombiesOf(s.room)[0]!.id).not.toBe(first)
   })
 
-  it('zombie cào 2 lần → người thành zombie tại chỗ, đứng dậy sau transformMs, cào được người khác', () => {
+  it('zombie cào đủ nhát → người thành zombie tại chỗ, đứng dậy sau transformMs, cào được người khác', () => {
     const s = toLive()
     const mom = zombiesOf(s.room)[0]!
     const [v1, v2] = humansOf(s.room)
     mom.state.pos = [0, 0, 0]; v1!.state.pos = [0, 0, -1.5]; v2!.state.pos = [30, 0, 30]
     let seq = 1000
-    claw(mom, seq++); run(s.room, 16)
-    expect(v1!.hp).toBe(100 - INFECTION.mother.clawDamage)
-    run(s.room, 700)
-    seq += 45   // thời gian của súng tính theo seq (60 cmd/s)
-    claw(mom, seq++); run(s.room, 16)
+    const hits = Math.ceil(100 / INFECTION.mother.clawDamage)   // số nhát để hạ 100 máu
+    for (let i = 0; i < hits; i++) {
+      v1!.state.pos = [0, 0, -1.5]; v1!.state.vel = [0, 0, 0]   // vuốt có đẩy lùi: đặt lại chỗ đứng cho mỗi nhát
+      enqueueCmds(mom, [{ seq: seq++, buttons: Btn.Fire, yaw: 0, pitch: 0, weapon: 0 }], s.room.serverNow); run(s.room, 16)   // nowMs thật: server chặn cmd đi trước đồng hồ quá xa
+      if (i === 0) expect(v1!.hp).toBe(100 - INFECTION.mother.clawDamage)
+      if (i < hits - 1) { run(s.room, 750); seq += 45 }   // thời gian của súng tính theo seq (60 cmd/s)
+    }
     expect(v1!.role).toBe('zombie')                     // bị lây tại chỗ, không chết
     expect(v1!.alive).toBe(true)
     expect(v1!.state.pos[2]).toBeCloseTo(-1.5, 1)
