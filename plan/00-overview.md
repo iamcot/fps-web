@@ -142,6 +142,7 @@ Quy tắc phải giữ khi chỉnh map:
 | `15-bots-offline.md` ⚠️ | Bot Trung bình/Khó, nav grid, nút thêm bot, đổi phe offline |
 | `16-zombie-infection.md` ⚠️ | Nền zombie (dùng chung) + thể thức Lây Nhiễm |
 | `17-zombie-defense.md` ⚠️ | Thể thức Thủ Thành: chống zombie theo đợt, boss |
+| `18-packaging.md` ⚠️ | Đóng gói file chạy cho Windows/Mac, người nhận không cần cài Node |
 
 ## Định nghĩa "xong" bản đầu tiên
 

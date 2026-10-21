@@ -235,3 +235,12 @@ Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
 - Zombie bò (crawler) luôn ngồi/bò sát đất (`alwaysCrawl`, hitbox 0,85m, clip z_crawl); trước đó chỉ ngồi lúc chui khe mà map không có khe nên nhìn như walker. `zombieMovement.crouchSpeed = min(crouchSpeed người, runSpeed)`. Lưu ý: test host Lây Nhiễm offline thỉnh thoảng fail khi cả bộ test chạy song song (chạy riêng thì pass).
 - Lây Nhiễm: sửa bug người bị lây thành chữ T + lướt đi: `setZombie(false)` dừng (`stop()`) các clip z_*, lần làm zombie thứ hai `setZombie(true)` bỏ qua clip đã có nên không chạy lại → bộ xương đứng ở T-pose (đo: 0/7 clip chạy sau khi tái lây, sau sửa 7/7). Cân bằng: zombie thường 7→5,5 m/s, 45→30 sát thương, hp 1500+150/người → 1000+100/người, hồi 50→30/s; mẹ 7,5→6 m/s, 60→40 sát thương, hp 3000+400/người → 2000+300/người, hồi 80→50/s. Số cảm tính. Test `infection.test` cào đủ số nhát theo `clawDamage`.
 - ⚠️ Test `offline/host.test.ts > Lây Nhiễm offline` vẫn thỉnh thoảng fail (đo ~2/8 lần): mẹ sinh ở x≈30 (căn cứ B) đứng yên vel 0 suốt, không tìm được đường tới người → không ai bị lây trong 2 phút. Có từ trước (không do đổi số), cần xem nav/đường ra khỏi căn cứ B của zombie mẹ.
+
+## 18 – Đóng gói nhấp đúp là chạy (Windows / Mac)
+- [ ] K.1 Server standalone: một cổng cho trang game + WebSocket, tự mở trình duyệt
+- [ ] K.2 Gom server thành một file JS (esbuild)
+- [ ] K.3 Đóng gói SEA cho nền tảng hiện tại (npm run package)
+- [ ] K.4 GitHub Actions build Windows + Mac chip M + Mac Intel
+- [ ] K.5 HUONG-DAN.txt cho người nhận
+- [ ] K.6 CREDITS + kiểm tra license asset
+- [ ] K.7 Phiên bản, kiểm tra client/server khớp, CHANGELOG
