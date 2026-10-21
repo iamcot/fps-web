@@ -8,8 +8,8 @@ export const INFECTION = {
   startMoney: 6000,            // mỗi ván, không mang sang ván sau
   buyAnywhereDuringPrep: true, // trong pha chuẩn bị mua ở đâu cũng được
   motherCount: (players: number) => (players >= 8 ? 2 : 1),
-  mother: { hpBase: 3000, hpPerHuman: 400, runSpeed: 10.0, clawDamage: 60, knockbackResist: 0.3, regenPerSec: 80 } as InfectionZombieDef,
-  normal: { hpBase: 1500, hpPerHuman: 150, runSpeed: 9.5, clawDamage: 45, knockbackResist: 0.0, regenPerSec: 50 } as InfectionZombieDef,
+  mother: { hpBase: 3000, hpPerHuman: 400, runSpeed: 7.5, clawDamage: 60, knockbackResist: 0.3, regenPerSec: 80 } as InfectionZombieDef,
+  normal: { hpBase: 1500, hpPerHuman: 150, runSpeed: 7.0, clawDamage: 45, knockbackResist: 0.0, regenPerSec: 50 } as InfectionZombieDef,
   zombieRespawnMs: 5000,       // zombie bị hạ thì hồi sinh lại (vẫn là zombie)
   transformMs: 1500,
   pickMs: 2000,                // từ lúc chọn zombie mẹ tới lúc hết bất tử (mẹ biến hình tại chỗ)

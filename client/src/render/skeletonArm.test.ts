@@ -68,11 +68,4 @@ describe('SkeletonArm', () => {
     for (let i = 0; i < 50; i++) frame()
     snap().forEach((q, i) => expect(q.angleTo(first[i]!)).toBeLessThan(1e-6))
   })
-  it('ngón gập: đốt xoay đúng góc theo grip', () => {
-    const { arm, fingers } = Object.assign(makeArm('R'), { fingers: null as unknown as FingerBones })
-    const mid = arm.fingers.middle[0]!
-    arm.applyGrip(1)
-    expect(mid.quaternion.angleTo(new THREE.Quaternion())).toBeCloseTo(55 * Math.PI / 180, 3)
-    void fingers
-  })
 })

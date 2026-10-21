@@ -52,8 +52,10 @@ export class ZombieNpc implements NpcDriver {
     const nav = room.nav!
     this.brain = new ZombieBrain(nav, { hole: def.abilities.includes('crawl_holes'), leap: def.abilities.includes('leap') }, rng)
     this.hasRally = def.abilities.includes('rally')
+    this.alwaysCrawl = def.abilities.includes('crawl_holes')
   }
   private readonly hasRally: boolean
+  private readonly alwaysCrawl: boolean   // zombie bò: luôn ngồi (bò sát đất, thấp 0,85m), không chỉ lúc chui khe
 
   // ── Mỗi tick, trước stepPlayer
   drive(room: Room, p: Player, now: number): void {
@@ -72,7 +74,7 @@ export class ZombieNpc implements NpcDriver {
     // chọn mục tiêu (staggered theo id) rồi đi/ tấn công
     if (now >= this.nextTargetAt) { this.nextTargetAt = now + TARGET_EVERY_MS + (p.id % 7) * 20; this.targetId = this.pickTarget(room, p) }
     const tgt = room.players.get(this.targetId)
-    if (!tgt || !tgt.alive) { this.targetId = -1; this.nextTargetAt = 0 }
+    if (!tgt || !tgt.alive || tgt.downed) { this.targetId = -1; this.nextTargetAt = 0 }
     if (tgt && tgt.alive) {
       _tgt[0] = tgt.state.pos[0]; _tgt[1] = tgt.state.pos[1]; _tgt[2] = tgt.state.pos[2]
       const r = this.brain.step(cmd, s, _tgt, now, (s.leapCd ?? 0) <= 0)
@@ -81,15 +83,19 @@ export class ZombieNpc implements NpcDriver {
         cmd.pitch = Math.max(-1.2, Math.min(1.2, Math.atan2(_tgt[1] + 1.1 - (s.pos[1] + 1.6), Math.max(0.2, hd))))
         if (now >= this.nextAttackAt) { cmd.buttons |= Btn.Fire; this.nextAttackAt = now + this.stats.attackMs }
       } else this.separate(room, p, cmd)
+      if (!r.attack) this.clearDowned(room, p, cmd)
       if (r.stuckMs >= DEFENSE.stuckTeleportMs) this.unstick(room, p, now)
     }
+    if (this.alwaysCrawl) cmd.buttons |= Btn.Crouch
     p.inputQueue.push(cmd)
   }
 
   /** Người chơi gần nhất theo ĐƯỜNG ĐI (A*), chưa có đường thì theo khoảng cách thẳng */
   private pickTarget(room: Room, p: Player): number {
-    const humans = this.ctx.humans(room)
+    let humans = this.ctx.humans(room)
     if (humans.length === 0) return -1
+    const standing = humans.filter(h => !h.downed)   // người đang gục không bị nhắm (còn người đứng thì bỏ qua họ)
+    if (standing.length > 0) humans = standing
     if (humans.length === 1) return humans[0]!.id
     const nav = room.nav
     let best = -1, bestCost = Infinity
@@ -104,6 +110,20 @@ export class ZombieNpc implements NpcDriver {
       if (cost < bestCost) { bestCost = cost; best = h.id }
     }
     return best
+  }
+
+  /** Zombie đang ở trong DEFENSE.down.clearRadiusM quanh người gục (và chưa tới tầm cào mục tiêu): bỏ đường đi, lùi ra xa người gục để đồng đội vào cứu được */
+  private clearDowned(room: Room, p: Player, cmd: InputCmd): void {
+    let best: Player | null = null, bestD: number = DEFENSE.down.clearRadiusM
+    for (const h of this.ctx.humans(room)) {
+      if (!h.downed || !h.alive) continue
+      const d = Math.hypot(p.state.pos[0] - h.state.pos[0], p.state.pos[2] - h.state.pos[2])
+      if (d < bestD) { bestD = d; best = h }
+    }
+    if (!best) return
+    const dx = p.state.pos[0] - best.state.pos[0], dz = p.state.pos[2] - best.state.pos[2]
+    cmd.yaw = Math.atan2(-dx, -dz)   // hướng đi = (−sin yaw, −cos yaw) = từ người gục ra xa
+    cmd.buttons = (cmd.buttons & ~(Btn.Forward | Btn.Back | Btn.Left | Btn.Right | Btn.Jump | Btn.Ability)) | Btn.Forward
   }
 
   // Tách đám: lệch hướng đi ra xa các zombie khác trong SEP_RADIUS (chỉ khi đang đi bộ thường)
@@ -236,7 +256,7 @@ export class ZombieNpc implements NpcDriver {
 
   private hurtHuman(room: Room, boss: Player, h: Player, damage: number, horiz: number, up: number): void {
     const dmg = Math.max(1, Math.round(damage * (this.ctx.difficulty === 'hard' ? 1.25 : this.ctx.difficulty === 'easy' ? 0.7 : 1)))
-    if (room.serverNow >= h.invulnUntil && h.alive && h.hp > 0) {
+    if (room.serverNow >= h.invulnUntil && h.alive && h.hp > 0 && !h.downed) {
       h.hp -= dmg
       h.lastHurtAt = room.serverNow
       if (h.hp <= 0) { h.killerId = boss.id; h.killWeapon = 9; h.killHeadshot = false }

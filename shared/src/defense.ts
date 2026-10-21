@@ -32,7 +32,7 @@ export const DEFENSE = {
   waveClearPerWave: 100,
   prepReviveHp: 100,
   // Gục và cứu (T.6)
-  down: { dieAfterMs: 30_000, crawlSpeed: 1.0, reviveRangeM: 1.5, reviveMs: 3000, reviveHp: 40 },
+  down: { dieAfterMs: 30_000, crawlSpeed: 1.0, reviveRangeM: 1.5, reviveMs: 3000, reviveHp: 40, clearRadiusM: 4 },   // clearRadiusM: zombie tản ra khỏi người gục (chừa chỗ cho đồng đội vào cứu)
   // Dọn xác (T.8)
   corpseMs: 4000, corpseSinkMs: 800, maxCorpses: 30,
   // Zombie cào: báo trước 0,25s rồi mới trúng (người lùi ra khỏi tầm thì hụt)

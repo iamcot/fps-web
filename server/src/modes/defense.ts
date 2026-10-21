@@ -299,7 +299,10 @@ export class DefenseMode implements MatchMode {
   // ── Gục và cứu (T.6) ──────────────────────────────────────────────────────────
   onLethal(room: Room, p: Player): boolean {
     if (p.npc || this.kind !== 'wave' || p.downed || p.downUntil < 0) return false   // downUntil < 0: đã chảy máu tới chết
-    if (this.humans(room).length < 2) return false   // chơi một mình: không có gục, chết luôn
+    // Chỉ gục khi còn đồng đội đứng được để cứu; một mình / đồng đội đã chết hoặc đang gục: chết luôn (thua ngay)
+    let rescuers = 0
+    for (const o of this.humans(room)) if (o !== p && o.alive && !o.downed) rescuers++
+    if (rescuers === 0) return false
     p.downed = true
     p.downUntil = room.serverNow + DEFENSE.down.dieAfterMs
     p.reviveProgressMs = 0

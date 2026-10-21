@@ -25,7 +25,7 @@
       }
     }
   },
-  "maxAlive": 28,
+  "maxAlive": 18,
   "waves": [
     {
       "title": "ĐỢT 1",
@@ -34,9 +34,7 @@
         {
           "type": "walker",
           "count": 10,
-          "from": [
-            "baseB"
-          ],
+          "from": ["baseB"],
           "everyMs": 1500
         }
       ]
@@ -47,21 +45,23 @@
       "groups": [
         {
           "type": "walker",
-          "count": 10,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 1200
+          "count": 8,
+          "from": ["baseB"],
+          "everyMs": 1800
         },
         {
           "type": "runner",
-          "count": 6,
-          "from": [
-            "laneLeft",
-            "laneRight"
-          ],
-          "everyMs": 2500,
+          "count": 3,
+          "from": ["laneLeft", "laneRight"],
+          "everyMs": 4000,
           "delayMs": 8000
+        },
+        {
+          "type": "crawler",
+          "count": 2,
+          "from": ["baseB"],
+          "everyMs": 3500,
+          "delayMs": 12000
         }
       ]
     },
@@ -71,19 +71,15 @@
       "groups": [
         {
           "type": "walker",
-          "count": 12,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 1000
+          "count": 10,
+          "from": ["baseB"],
+          "everyMs": 1500
         },
         {
           "type": "crawler",
-          "count": 8,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 2000,
+          "count": 5,
+          "from": ["baseB"],
+          "everyMs": 3000,
           "delayMs": 5000
         }
       ]
@@ -94,21 +90,23 @@
       "groups": [
         {
           "type": "walker",
-          "count": 12,
-          "from": [
-            "baseB",
-            "laneLeft"
-          ],
-          "everyMs": 1000
+          "count": 10,
+          "from": ["baseB", "laneLeft"],
+          "everyMs": 1500
         },
         {
           "type": "leaper",
-          "count": 6,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 3000,
+          "count": 3,
+          "from": ["baseB"],
+          "everyMs": 5000,
           "delayMs": 6000
+        },
+        {
+          "type": "crawler",
+          "count": 3,
+          "from": ["baseB"],
+          "everyMs": 3000,
+          "delayMs": 10000
         }
       ]
     },
@@ -118,28 +116,28 @@
       "groups": [
         {
           "type": "walker",
-          "count": 14,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 900
+          "count": 12,
+          "from": ["baseB"],
+          "everyMs": 1400
         },
         {
           "type": "runner",
-          "count": 8,
-          "from": [
-            "laneLeft",
-            "laneRight"
-          ],
-          "everyMs": 1800
+          "count": 4,
+          "from": ["laneLeft", "laneRight"],
+          "everyMs": 3000
         },
         {
           "type": "brute",
           "count": 1,
-          "from": [
-            "baseB"
-          ],
+          "from": ["baseB"],
           "delayMs": 15000
+        },
+        {
+          "type": "crawler",
+          "count": 3,
+          "from": ["baseB"],
+          "everyMs": 3000,
+          "delayMs": 12000
         }
       ]
     },
@@ -149,29 +147,22 @@
       "groups": [
         {
           "type": "walker",
-          "count": 14,
-          "from": [
-            "baseB",
-            "laneRight"
-          ],
-          "everyMs": 800
+          "count": 12,
+          "from": ["baseB", "laneRight"],
+          "everyMs": 1300
         },
         {
           "type": "screamer",
           "count": 2,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 10000,
+          "from": ["baseB"],
+          "everyMs": 12000,
           "delayMs": 5000
         },
         {
           "type": "crawler",
-          "count": 8,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 1500
+          "count": 6,
+          "from": ["baseB"],
+          "everyMs": 2200
         }
       ]
     },
@@ -181,29 +172,29 @@
       "groups": [
         {
           "type": "runner",
-          "count": 14,
-          "from": [
-            "laneLeft",
-            "laneRight"
-          ],
-          "everyMs": 1000
+          "count": 7,
+          "from": ["laneLeft", "laneRight"],
+          "everyMs": 1800
         },
         {
           "type": "leaper",
-          "count": 8,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 2000
+          "count": 4,
+          "from": ["baseB"],
+          "everyMs": 3500
         },
         {
           "type": "brute",
           "count": 2,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 12000,
+          "from": ["baseB"],
+          "everyMs": 15000,
           "delayMs": 10000
+        },
+        {
+          "type": "crawler",
+          "count": 4,
+          "from": ["baseB"],
+          "everyMs": 2500,
+          "delayMs": 12000
         }
       ]
     },
@@ -213,30 +204,21 @@
       "groups": [
         {
           "type": "walker",
-          "count": 20,
-          "from": [
-            "baseB",
-            "laneLeft",
-            "laneRight"
-          ],
-          "everyMs": 600
+          "count": 16,
+          "from": ["baseB", "laneLeft", "laneRight"],
+          "everyMs": 1000
         },
         {
           "type": "crawler",
-          "count": 10,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 1200
+          "count": 7,
+          "from": ["baseB"],
+          "everyMs": 1800
         },
         {
           "type": "screamer",
           "count": 2,
-          "from": [
-            "laneLeft",
-            "laneRight"
-          ],
-          "everyMs": 8000
+          "from": ["laneLeft", "laneRight"],
+          "everyMs": 10000
         }
       ]
     },
@@ -246,28 +228,28 @@
       "groups": [
         {
           "type": "runner",
-          "count": 16,
-          "from": [
-            "laneLeft",
-            "laneRight"
-          ],
-          "everyMs": 700
+          "count": 8,
+          "from": ["laneLeft", "laneRight"],
+          "everyMs": 1400
         },
         {
           "type": "leaper",
-          "count": 10,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 1500
+          "count": 5,
+          "from": ["baseB"],
+          "everyMs": 2500
         },
         {
           "type": "brute",
-          "count": 3,
-          "from": [
-            "baseB"
-          ],
-          "everyMs": 9000
+          "count": 2,
+          "from": ["baseB"],
+          "everyMs": 12000
+        },
+        {
+          "type": "crawler",
+          "count": 4,
+          "from": ["baseB"],
+          "everyMs": 2500,
+          "delayMs": 10000
         }
       ]
     },
@@ -278,20 +260,21 @@
         {
           "type": "boss",
           "count": 1,
-          "from": [
-            "baseB"
-          ]
+          "from": ["baseB"]
         },
         {
           "type": "walker",
-          "count": 16,
-          "from": [
-            "baseB",
-            "laneLeft",
-            "laneRight"
-          ],
-          "everyMs": 2500,
+          "count": 12,
+          "from": ["baseB", "laneLeft", "laneRight"],
+          "everyMs": 3000,
           "delayMs": 10000
+        },
+        {
+          "type": "crawler",
+          "count": 4,
+          "from": ["baseB"],
+          "everyMs": 3000,
+          "delayMs": 15000
         }
       ]
     }

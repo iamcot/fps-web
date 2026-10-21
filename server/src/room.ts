@@ -1,4 +1,4 @@
-import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, makeRecoilState, sanitizeRoomConfig, type Role, type ZombieStats, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
+import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, magSizeOf, makeRecoilState, sanitizeRoomConfig, type Role, type ZombieStats, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 import type { RoomGrenade } from './grenades'
@@ -197,7 +197,7 @@ export class Room {
       world: null,
       idleCmd: { seq: 0, buttons: 0, yaw: sp.yaw, pitch: 0, weapon: 0 },
       starvedTicks: 0,
-      weapon: makeWeaponState(loadoutWeaponIds(loadout)),
+      weapon: makeWeaponState(loadoutWeaponIds(loadout), this.eco.magMult ?? 1),
       recoil: makeRecoilState(),
       alive: true,
       hp: PLAYER_MAX_HP,
@@ -284,7 +284,7 @@ export class Room {
     ws.slots = loadoutWeaponIds(p.loadout)
     ws.slot = ws.slots[slot]! >= 0 ? slot : Math.max(0, ws.slots.findIndex(id => id >= 0))
     ws.current = ws.slots[ws.slot]!
-    ws.ammo = WEAPONS.map(w => w.magSize)
+    ws.ammo = WEAPONS.map(w => magSizeOf(w, ws.magMult))
     ws.ammo[GRENADE_ID] = grenadeCount(p.loadout)
     ws.nade.phase = 'idle'; ws.nade.quick = false; ws.quickHeld = false; ws.switchBackAtMs = 0
     ws.reloadEndMs = 0

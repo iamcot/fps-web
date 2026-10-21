@@ -1,11 +1,11 @@
 import * as THREE from 'three'
 import {
-  loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, makeRecoilState,
+  loadMap, DT, Btn, WEAPONS, RESPAWN_DELAY_MS, makeWeaponState, magSizeOf, makeRecoilState,
   stepWeaponCmd, computeSpreadDeg, spreadParts, adsMoveFor, adsWanted, computeShotDirs, MAX_PELLETS, recoverRecoil,
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
-import { DEFENSE, flagSpeedMul, INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
+import { CLAW_HEAVY_ID, CLAW_ID, DEFENSE, flagSpeedMul, INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { setFlashlightAllowed, flashlightOn, initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
@@ -29,7 +29,7 @@ import { createTracers } from './render/tracers'
 import { createDebugShots } from './render/debugShots'
 import { createKillfeed, createDeathScreen, createHurtIndicator, createBountyBanner, createSpectateLabel } from './hudNet'
 import { createShop } from './shop'
-import { createTopButtons, createConfirmPrompt, createToast, createLeaveButton, createRoomLabel, createCommandBox } from './hudButtons'
+import { createKeyHints, createTopButtons, createConfirmPrompt, createToast, createLeaveButton, createRoomLabel, createCommandBox } from './hudButtons'
 import { createSpectator, type SpecCandidate } from './spectate'
 import { createMatchHud, createScoreboard } from './hudMatch'
 import { createZombieHud } from './hudZombie'
@@ -206,6 +206,7 @@ const playersRenderer = createPlayersRenderer(scene, {
   // Lây Nhiễm: người bị lây giữ model của mình; Thủ Thành: zombie dùng model Cướp (+tint theo loại)
   modelTeam: (id, flags) => (sessionRef && isZombieMode(sessionRef.config.settings.mode) ? (sessionRef.config.settings.mode === 'defense' && (flags & NetFlag.Zombie) !== 0 ? 'B' : 'A') : sessionRef?.teams.get(id)),
   viewer: () => [camera.position.x, camera.position.y, camera.position.z],
+  zombieMode: () => !!sessionRef && isZombieMode(sessionRef.config.settings.mode),
 })
 const explosionFx = createExplosionFx(scene, () => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
 const grenades = createGrenades(scene, {
@@ -325,6 +326,7 @@ const scoreboard = createScoreboard()
 let tabHeld = false
 let scoreToggle = false   // nút "Xem thành tích" bật/tắt bảng điểm
 let topButtons: ReturnType<typeof createTopButtons> | null = null
+const keyHints = createKeyHints()
 let askSwitchTeam: () => void = () => {}
 const teamPrompt = createConfirmPrompt()
 const toast = createToast()
@@ -349,8 +351,6 @@ function setupOffline(session: Session): void {
     addBot: (difficulty, ally) => send({ t: MsgType.OfflineCmd, cmd: 'addBot', difficulty, ally }),
     removeBot: id => send({ t: MsgType.OfflineCmd, cmd: 'removeBot', id }),
     clearBots: () => send({ t: MsgType.OfflineCmd, cmd: 'clearBots' }),
-    swapSide: () => askSwitchTeam(),
-    setInfiniteMoney: on => send({ t: MsgType.OfflineCmd, cmd: 'infiniteMoney', on }),
   })
   const botDebug = createBotDebug(scene, on => send({ t: MsgType.OfflineCmd, cmd: 'botDebug', on }))
   session.transport.onMessage(msg => {
@@ -402,6 +402,7 @@ sessionP.then(session => {
   })
   playerId = session.yourId
   sessionRef = session
+  ws.magMult = economyFor(session.config.settings.mode).magMult ?? 1   // băng đạn ×2 ở thể thức zombie (khớp server)
   matchHud.setConfig(session.config)
   {   // thể thức zombie: ban đêm theo cài đặt phòng
     const st = session.config.settings
@@ -410,6 +411,13 @@ sessionP.then(session => {
   if (session.offline) matchHud.setUnlimited(true)
   createRoomLabel(session.offline ? `Offline · ${session.mapName} · ${MODE_LABEL[session.config.settings.mode]}` : `${MODE_LABEL[session.config.settings.mode]} · ${session.mapName} · ${session.roomName}`,
     session.offline ? null : `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast('Đã sao chép link phòng'))
+  {   // gợi ý phím bên phải màn hình (dưới killfeed)
+    const st = session.config.settings
+    const items: [string, string][] = [['Đổi súng nhanh', 'Q'], ['Thay đạn', 'R']]
+    if ((st.mode === 'infection' || st.mode === 'defense') && st.lighting === 'night') items.push(['Bật tắt đèn', 'F'])
+    if (st.mode === 'defense') items.push(['Cứu đồng đội', 'E'])
+    keyHints.setItems(items)
+  }
   if (session.offline) setupOffline(session)
   if (import.meta.env.DEV) {   // lệnh debug (M.8): phím / mở ô lệnh; server bỏ qua khi chạy production
     const cmdBox = createCommandBox(cmd => session.transport.send({ t: MsgType.DebugCmd, cmd }))
@@ -452,6 +460,8 @@ sessionP.then(session => {
         ray(msg.dir, msg.dist)
         if (msg.extra) for (const e of msg.extra) ray(e.dir, e.dist)
         playersRenderer.muzzleFlash(msg.shooterId)
+      } else if (msg.weapon === CLAW_ID || msg.weapon === CLAW_HEAVY_ID) {
+        playersRenderer.zombieAttack(msg.shooterId, msg.weapon === CLAW_HEAVY_ID)
       }
       playShotOther(msg.weapon, msg.origin)
     } else if (msg.t === MsgType.DebugShot) {
@@ -504,7 +514,7 @@ sessionP.then(session => {
       for (let i = 0; i < ids.length; i++) ws.slots[i] = ids[i]!
       ws.slot = DEFAULT_SLOT; ws.current = ids[DEFAULT_SLOT]!
       setWantedWeapon(DEFAULT_SLOT)
-      for (const w of WEAPONS) ws.ammo[w.id] = w.magSize
+      for (const w of WEAPONS) ws.ammo[w.id] = magSizeOf(w, ws.magMult)
       ws.reloadEndMs = 0; ws.nextFireMs = 0; ws.triggerHeld = false
       ws.nade.phase = 'idle'; ws.nade.quick = false; ws.quickHeld = false; ws.switchBackAtMs = 0
       cancelReload()
@@ -722,7 +732,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       vm.setGrenade(n.phase === 'idle' ? 'idle' : n.phase === 'pulling' ? 'pulling' : 'ready', n.mode, pull, (ws.ammo[GRENADE_ID] ?? 0) > 0)
     }
     hud.setSpread(computeSpreadDeg(state, ws, def, selfCfg, simMs), dt * 1000, def.spread.pelletConeDeg ?? 0, def.spread.unscopedDeg !== undefined && adsT < 0.5)   // cùng hàm với lúc bắn (bloom hiện tại)
-    hud.setAmmo(def.name, ws.ammo[def.id]!, def.magSize, ws.reloadEndMs > 0, !!def.melee, !!def.consumable, !!economyFor(sessionRef?.config.settings.mode ?? 'tdm').infiniteReserve)
+    hud.setAmmo(def.name, ws.ammo[def.id]!, magSizeOf(def, ws.magMult), ws.reloadEndMs > 0, !!def.melee, !!def.consumable, !!economyFor(sessionRef?.config.settings.mode ?? 'tdm').infiniteReserve)
     {   // Zombie: thanh máu lớn + chiêu E thay ô vũ khí
       const me = snapStore?.me
       const zomb = !!me && ((snapStore!.flags & NetFlag.Zombie) !== 0)
@@ -796,6 +806,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     if (snapStore && isZombieMode(sessionRef?.config.settings.mode ?? 'tdm')) zoverlay.update(dt, lastSampled, playerId, camera)
     zombieWorldHud(state, dt)
     setFlashlightAllowed(night.night && !zombieSelf)
+    keyHints.setHidden(zombieSelf)
     night.update(camera, flashlightOn() && !dead && spectatingId === -2, lastSampled)
     grenades.update(dt, interp.currentRenderTime > 0 ? interp.currentRenderTime : clock.serverNow(), netStats.rttMs)
     tracers.update(dt * 1000)

@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'fs'
-import { Btn, DEFENSE, MATCH, MatchPhase, MsgType, WAVES, ZOMBIE_TYPES, defaultMovement, loadMap, waveClearBonus, type AnyMsg, type MapFile, type RoomOptions, type Transport } from '@fps/shared'
+import { Btn, CLAW_ID, WEAPONS, DEFENSE, MATCH, MatchPhase, MsgType, WAVES, ZOMBIE_TYPES, defaultMovement, loadMap, waveClearBonus, type AnyMsg, type MapFile, type RoomOptions, type Transport } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { RoomManager, type Player, type Room } from './room'
 import { enqueueCmds, stepRoom } from './simulation'
+import { resolveShot } from './shooting'
 import { buildNav, type NavGrid } from './bots/nav'
 import { handleDebugCmd } from './debugCmds'
 import type { DefenseMode } from './modes/defense'
@@ -217,6 +218,58 @@ describe('Thủ Thành – gục và cứu (T.6)', () => {
     expect(a.downed).toBe(false)
     expect(a.hp).toBe(DEFENSE.down.reviveHp)
     expect(a.speedMult).toBe(1)
+  })
+  it('người cuối cùng còn đứng bị hạ khi đồng đội đã chết hẳn → không gục, DEFEAT ngay', () => {
+    const s = twoPlayers()
+    const [a, b] = s.players as [Player, Player]
+    a.hp = 0; run(s.room, 32)
+    a.downUntil = s.room.serverNow - 1   // a chảy máu tới chết
+    run(s.room, 32)
+    expect(a.downed).toBe(false)
+    b.hp = 0
+    run(s.room, 64)
+    expect(b.downed).toBe(false)
+    expect(s.m.kind).toBe('defeat')
+  })
+  it('zombie cào trúng người đang gục không làm họ chết (chỉ chết khi hết giờ chảy máu); người đứng thì vẫn mất máu', () => {
+    const s = twoPlayers()
+    const [a, b] = s.players as [Player, Player]
+    a.hp = 0; run(s.room, 32)
+    expect(a.downed).toBe(true)
+    const z = (s.m as unknown as { spawnZombie(r: Room, t: string, p: [number, number, number], f: boolean): Player | null }).spawnZombie(s.room, 'walker', [a.state.pos[0], a.state.pos[1], a.state.pos[2] + 1.0], true)!
+    const claw = (target: Player) => {
+      z.state.pos = [target.state.pos[0], target.state.pos[1], target.state.pos[2] + 1.0]
+      z.invulnUntil = 0
+      resolveShot(z, s.room, { seq: 1, buttons: Btn.Fire, yaw: 0, pitch: 0, weapon: CLAW_ID }, defaultMovement, WEAPONS[CLAW_ID])   // yaw 0 nhìn −Z: về phía target
+    }
+    claw(a)
+    expect(a.hp).toBe(DEFENSE.down.reviveHp)
+    b.state.pos = [a.state.pos[0] + 40, a.state.pos[1], a.state.pos[2]]
+    const before = b.hp
+    claw(b)
+    expect(b.hp).toBeLessThan(before)
+  })
+  it('zombie tản ra khỏi người gục: không đứng chồng lên, để đồng đội vào cứu', async () => {
+    const s = twoPlayers()
+    const [a, b] = s.players as [Player, Player]
+    a.hp = 0; run(s.room, 32)
+    expect(a.downed).toBe(true)
+    b.state.pos = [a.state.pos[0] + 12, a.state.pos[1], a.state.pos[2]]   // mục tiêu nằm bên kia người gục: đường đi xuyên qua người gục
+    const spawn = (s.m as unknown as { spawnZombie(r: Room, t: string, p: [number, number, number], f: boolean): Player | null }).spawnZombie
+    const zs = [0, 1, 2].map(i => spawn.call(s.m, s.room, 'walker', [a.state.pos[0] - 1 - i * 0.4, a.state.pos[1], a.state.pos[2]], true)!)
+    await new Promise(r => setTimeout(r, 0))   // world của zombie NPC gắn bất đồng bộ
+    run(s.room, 6000)
+    for (const z of zs) expect(Math.hypot(z.state.pos[0] - a.state.pos[0], z.state.pos[2] - a.state.pos[2])).toBeGreaterThan(DEFENSE.down.clearRadiusM * 0.6)
+  })
+  it('zombie bò luôn ngồi (bò sát đất)', async () => {
+    const s = twoPlayers()
+    const [a, b] = s.players as [Player, Player]
+    b.state.pos = [a.state.pos[0] + 25, a.state.pos[1], a.state.pos[2]]
+    const spawn = (s.m as unknown as { spawnZombie(r: Room, t: string, p: [number, number, number], f: boolean): Player | null }).spawnZombie
+    const z = spawn.call(s.m, s.room, 'crawler', [a.state.pos[0] + 5, a.state.pos[1], a.state.pos[2]], true)!
+    await new Promise(r => setTimeout(r, 0))
+    run(s.room, 3000)
+    expect(z.state.crouching).toBe(true)
   })
   it('cả hai gục/chết cùng lúc → DEFEAT', () => {
     const s = twoPlayers()

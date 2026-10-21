@@ -143,6 +143,17 @@ describe('hình dáng zombie (ZF.1)', () => {
     expect(h.model).toBeNull()
     expect(zombieVariation(3, { tintOverride: '#c9b28a' }).tint).toBe('#c9b28a')
   })
+  it('model zombie: file có đủ, zombie thường không bao giờ nhận model của mẹ, mẹ nhận đúng model riêng', async () => {
+    const { zombieVariation, ZOMBIE_LOOK } = await import('./zombie')
+    expect(ZOMBIE_LOOK.models.length).toBeGreaterThanOrEqual(10)
+    const mother = ZOMBIE_LOOK.models.find(m => m.id === ZOMBIE_LOOK.motherModel)
+    expect(mother).toBeDefined()
+    const used = new Set<string>()
+    for (let id = 1; id <= 200; id++) used.add(zombieVariation(id).model!.id)
+    expect(used.has(mother!.id)).toBe(false)
+    expect(used.size).toBeGreaterThanOrEqual(8)
+    expect(zombieVariation(5, { fromHuman: true, modelOverride: mother!.id }).model).toBe(mother)
+  })
 })
 
 describe('leapFlight', () => {
@@ -154,5 +165,14 @@ describe('leapFlight', () => {
     expect(leapApex()).toBeCloseTo(4.33, 1)
     expect(leapFlight(4.6)).toBeNull()
     expect(leapFlight(2.2)!.dist).toBeGreaterThan(leapFlight(4.2)!.dist)   // thấp hơn thì bay lâu hơn (rơi xuống muộn)
+  })
+})
+
+describe('zombieMovement – tốc độ khi ngồi', () => {
+  it('zombie chậm (bò 3,5 m/s) không nhanh hơn khi ngồi; zombie nhanh giữ crouchSpeed của người', async () => {
+    const { zombieMovement } = await import('./zombie')
+    const { defaultMovement } = await import('./movement')
+    expect(zombieMovement(defaultMovement, 3.5).crouchSpeed).toBe(3.5)
+    expect(zombieMovement(defaultMovement, 7).crouchSpeed).toBe(defaultMovement.crouchSpeed)
   })
 })

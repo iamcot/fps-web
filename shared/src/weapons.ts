@@ -92,6 +92,7 @@ export interface WeaponState {
   lastShotMs: number[]    // theo id súng: thời điểm (thang seq) phát gần nhất
   shotBloomDeg: number    // bloom đã dùng cho phát vừa bắn (trước khi cộng bloom của chính nó): viên đầu không dính bloom của nó
   switchEndMs: number     // hết khoá đổi súng lúc này (thang seq): chưa tới thì không ngắm được
+  magMult: number         // băng đạn to gấp ngần này (EconomyConfig.magMult của thể thức; cố định cả ván)
 }
 
 // Thời gian khoá bắn sau khi đổi súng (khớp animation hạ/đưa súng 2×0.15s ở viewmodel)
@@ -207,14 +208,17 @@ export const MAX_PELLETS = 16
 /** Bộ mặc định lúc chưa biết đội (Cớm): Dao, Colt, —, M16, (không lựu đạn) */
 export const FALLBACK_SLOTS: readonly number[] = [6, 2, -1, 1, -1]
 
-export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS): WeaponState {
+/** Cỡ băng đạn thực của súng `def` với hệ số `mult` */
+export function magSizeOf(def: WeaponDef, mult = 1): number { return Math.round(def.magSize * mult) }
+
+export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS, magMult = 1): WeaponState {
   const slot = slots[DEFAULT_SLOT]! >= 0 ? DEFAULT_SLOT : Math.max(0, slots.findIndex(id => id >= 0))
   return {
     current:     slots[slot]!,
     slots:       [...slots],
     slot,
     wantSlot:    DEFAULT_SLOT,
-    ammo:        WEAPONS.map(w => w.magSize),
+    ammo:        WEAPONS.map(w => magSizeOf(w, magMult)),
     nade:        makeThrowState(),
     throwSeq:    0,
     quickHeld:   false,
@@ -228,5 +232,6 @@ export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS): Weap
     lastShotMs:  WEAPONS.map(() => 0),
     shotBloomDeg: 0,
     switchEndMs: 0,
+    magMult,
   }
 }

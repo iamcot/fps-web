@@ -108,3 +108,37 @@ export function createCommandBox(onSubmit: (cmd: string) => void) {
     open(): void { input.style.display = 'block'; input.value = '/'; document.exitPointerLock?.(); input.focus() },
   }
 }
+
+/** Cột bên phải màn hình, dưới killfeed (top:120px, tối đa 5 dòng): chứa gợi ý phím và bảng bot offline */
+export function getRightColumn(): HTMLDivElement {
+  let col = document.getElementById('hud-right-col') as HTMLDivElement | null
+  if (!col) {
+    col = document.createElement('div'); col.id = 'hud-right-col'
+    col.style.cssText = 'position:fixed;right:12px;top:290px;z-index:25;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none'
+    document.body.appendChild(col)
+  }
+  return col
+}
+
+/** Gợi ý phím tắt lúc chơi, bên phải màn hình. `setItems` đặt danh sách (phím, việc); `setHidden` ẩn (vd. đang làm zombie). */
+export function createKeyHints() {
+  const box = document.createElement('div')
+  box.style.cssText = 'display:flex;flex-direction:column;gap:3px;align-items:flex-end;color:#fff;font:13px monospace;text-shadow:0 0 4px #000;pointer-events:none'
+  getRightColumn().prepend(box)
+  let key = ''
+  let hidden = false
+  return {
+    setItems(items: readonly (readonly [string, string])[]): void {
+      const k = items.map(i => i.join('|')).join(';')
+      if (k === key) return
+      key = k
+      box.replaceChildren(...items.map(([label, code]) => {
+        const row = document.createElement('div')
+        row.style.cssText = 'background:rgba(0,0,0,.45);padding:2px 8px;border-radius:4px'
+        row.textContent = `${label} (${code})`
+        return row
+      }))
+    },
+    setHidden(v: boolean): void { if (v !== hidden) { hidden = v; box.style.display = v ? 'none' : 'flex' } },
+  }
+}

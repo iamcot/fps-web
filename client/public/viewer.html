@@ -226,7 +226,9 @@ function setupAnimations(gltf, model) {
     maxDrift = 0; p0.set(0, 0, 0);
   };
   sel.onchange = () => play(sel.value);
-  play(gltf.animations[0].name);
+  const first = params.get('anim') && THREE.AnimationClip.findByName(gltf.animations, params.get('anim')) ? params.get('anim') : gltf.animations[0].name;
+  sel.value = first;
+  play(first);
   viewerTick = (dt) => {
     mixer.update(dt);
     if (hips) {

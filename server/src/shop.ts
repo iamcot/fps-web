@@ -1,4 +1,4 @@
-import { MsgType, SWITCH_MS, TICK_RATE, applyBuy, grenadeCount, inBuyZone, loadoutWeaponIds, quoteBuy, weaponByKey } from '@fps/shared'
+import { MsgType, SWITCH_MS, TICK_RATE, applyBuy, grenadeCount, inBuyZone, magSizeOf, loadoutWeaponIds, quoteBuy, weaponByKey } from '@fps/shared'
 import type { Player, Room } from './room'
 
 function fail(p: Player, key: string, reason: string): void {
@@ -37,7 +37,7 @@ export function handleBuy(room: Room, p: Player, key: string): void {
   }
   ws.slot = q.slot
   ws.current = def.id
-  ws.ammo[def.id] = def.magSize
+  ws.ammo[def.id] = magSizeOf(def, ws.magMult)
   ws.reloadEndMs = 0
   ws.nextFireMs = Math.max(ws.nextFireMs, Math.max(0, p.lastProcessedSeq) * 1000 / TICK_RATE + SWITCH_MS)
   ws.triggerHeld = false

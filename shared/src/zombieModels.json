@@ -1,8 +1,25 @@
 {
-  "models": [],
+  "models": [
+    {"id": "z1", "file": "/models/zombies/zombie_1.glb", "scale": 0.89, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "z2", "file": "/models/zombies/zombie_2.glb", "scale": 0.91, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "z3", "file": "/models/zombies/zombie_3.glb", "scale": 0.78, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "z4", "file": "/models/zombies/zombie_4.glb", "scale": 0.9, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "z5", "file": "/models/zombies/zombie_5.glb", "scale": 0.91, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "z6", "file": "/models/zombies/zombie_6.glb", "scale": 0.89, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "z7", "file": "/models/zombies/zombie_7.glb", "scale": 0.91, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "z8", "file": "/models/zombies/zombie_8.glb", "scale": 1.0, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "z10", "file": "/models/zombies/zombie_10.glb", "scale": 0.91, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]},
+    {"id": "bighand", "file": "/models/zombies/zombie_bighand.glb", "scale": 1.0, "eyeBone": "mixamorigHead", "eyeOffset": [0, 0.09, 0.1]}
+  ],
+  "motherModel": "bighand",
   "variation": {
     "scaleJitter": 0.06,
-    "tints": ["#9fb59a", "#b5a99a", "#8fa0a8", "#a89a9a"],
+    "tints": [
+      "#9fb59a",
+      "#b5a99a",
+      "#8fa0a8",
+      "#a89a9a"
+    ],
     "tintStrength": 0.35,
     "infectedTint": "#7fa87a",
     "infectedTintStrength": 0.6,

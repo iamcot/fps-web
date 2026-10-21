@@ -1,4 +1,4 @@
-import { WEAPONS, SWITCH_MS, MAX_PELLETS, GRENADE_ID, GRENADE_SLOT, CLAW_ID, CLAW_HEAVY_ID } from './weapons'
+import { WEAPONS, SWITCH_MS, MAX_PELLETS, GRENADE_ID, magSizeOf, GRENADE_SLOT, CLAW_ID, CLAW_HEAVY_ID } from './weapons'
 import { onShotBloom } from './spread'
 import { GRENADE } from './grenade'
 import type { WeaponDef, WeaponState } from './weapons'
@@ -25,7 +25,7 @@ export type WeaponEvent = 'none' | 'fired' | 'dry' | 'reloadStart' | 'reloadEnd'
 /** Bắt đầu nạp đạn nếu cần. Trả true nếu thực sự bắt đầu. */
 export function startReload(ws: WeaponState, def: WeaponDef, nowMs: number): boolean {
   if (ws.reloadEndMs > 0) return false
-  if (ws.ammo[def.id]! >= def.magSize) return false
+  if (ws.ammo[def.id]! >= magSizeOf(def, ws.magMult)) return false
   ws.reloadEndMs = nowMs + def.reloadMs
   return true
 }
@@ -102,7 +102,7 @@ export function stepWeapon(
 
   if (ws.reloadEndMs > 0 && nowMs >= ws.reloadEndMs) {
     ws.reloadEndMs = 0
-    ws.ammo[def.id] = def.magSize
+    ws.ammo[def.id] = magSizeOf(def, ws.magMult)
     ws.triggerHeld = triggerDown   // giữ chuột qua lúc reload xong: súng bán tự động không tự bắn
     return 'reloadEnd'
   }
@@ -303,6 +303,7 @@ export function copyWeaponState(dst: WeaponState, src: WeaponState): void {
   for (let i = 0; i < src.bloomDeg.length; i++) { dst.bloomDeg[i] = src.bloomDeg[i]!; dst.lastShotMs[i] = src.lastShotMs[i]! }
   dst.shotBloomDeg = src.shotBloomDeg
   dst.switchEndMs = src.switchEndMs
+  dst.magMult = src.magMult
 }
 
 export function weaponStatesEqual(a: WeaponState, b: WeaponState): boolean {

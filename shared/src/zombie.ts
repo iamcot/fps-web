@@ -47,6 +47,7 @@ export function zombieMovement(base: MovementConfig, runSpeed: number): Movement
     c = {
       ...base,
       runSpeed,
+      crouchSpeed: Math.min(base.crouchSpeed, runSpeed),   // zombie chậm (bò) không nhanh hơn khi ngồi
       crouchHeight: ZOMBIE.crouchHeight,
       eyeCrouch: ZOMBIE.eyeCrouch,
       slideMinSpeed: Infinity,   // không trượt
@@ -122,6 +123,8 @@ import { hashSeed, mulberry32 } from './math'
 export interface ZombieModelDef { id: string; file: string; scale: number; eyeBone: string; eyeOffset: [number, number, number] }
 export interface ZombieLookDef {
   models: ZombieModelDef[]
+  /** id model riêng của zombie mẹ (Lây Nhiễm); không nằm trong lượt chọn ngẫu nhiên của zombie thường */
+  motherModel?: string
   variation: { scaleJitter: number; tints: string[]; tintStrength: number; infectedTint: string; infectedTintStrength: number; eyeGlow: string }
 }
 export const ZOMBIE_LOOK: ZombieLookDef = zombieModelsRaw as ZombieLookDef
@@ -137,8 +140,12 @@ export function zombieVariation(id: number, opts: { fromHuman?: boolean; tintOve
   const rng = mulberry32(hashSeed(id, 0x2b1e))
   const scale = 1 + (rng() * 2 - 1) * v.scaleJitter
   const tintPick = v.tints[Math.floor(rng() * v.tints.length)] ?? '#9fb59a'
-  const modelPick = ZOMBIE_LOOK.models.length > 0 ? ZOMBIE_LOOK.models[Math.floor(rng() * ZOMBIE_LOOK.models.length)]! : null
-  if (opts.fromHuman) return { model: null, scale, tint: v.infectedTint, tintStrength: v.infectedTintStrength }
+  const pool = ZOMBIE_LOOK.models.filter(m => m.id !== ZOMBIE_LOOK.motherModel)
+  const modelPick = pool.length > 0 ? pool[Math.floor(rng() * pool.length)]! : null
+  if (opts.fromHuman) {   // người bị lây giữ model của mình; riêng mẹ (modelOverride) có model zombie riêng, ít ngả màu để còn thấy texture gốc
+    const own = opts.modelOverride ? ZOMBIE_LOOK.models.find(m => m.id === opts.modelOverride) ?? null : null
+    return { model: own, scale, tint: v.infectedTint, tintStrength: own ? v.infectedTintStrength * 0.4 : v.infectedTintStrength }
+  }
   const model = opts.modelOverride ? ZOMBIE_LOOK.models.find(m => m.id === opts.modelOverride) ?? modelPick : modelPick
   return { model, scale, tint: opts.tintOverride ?? tintPick, tintStrength: opts.tintOverride ? Math.max(v.tintStrength, 0.5) : v.tintStrength }
 }

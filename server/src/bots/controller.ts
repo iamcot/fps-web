@@ -4,7 +4,7 @@
 //  think()  10Hz  : nhận thức, chọn hành vi (trung bình: máy trạng thái; khó: utility), tìm đường
 //  drive()  mỗi tick: ngắm + bắn (lớp chiến đấu, độc lập với hành vi di chuyển) + phím di chuyển
 import {
-  Btn, DEFAULT_SLOT, DT, GRENADE, GRENADE_ID, GRENADE_SLOT, MatchPhase, TICK_RATE, WEAPONS, defaultMovement, phaseButtonMask, stepGrenade, throwInitial, weaponByKey,
+  Btn, DEFAULT_SLOT, DT, GRENADE, GRENADE_ID, GRENADE_SLOT, MatchPhase, magSizeOf, TICK_RATE, WEAPONS, defaultMovement, phaseButtonMask, stepGrenade, throwInitial, weaponByKey,
   type AnyMsg, type BotDebugInfo, type BotDifficulty, type GrenadeState, type InputCmd, type PlayerState, type Transport, type Vec3,
 } from '@fps/shared'
 import type { Player, Room } from '../room'
@@ -275,7 +275,7 @@ export class BotController {
     const ws = me.weapon, def = WEAPONS[ws.current]!
     if (!def.melee && ws.current !== GRENADE_ID && ws.reloadEndMs === 0) {
       const ammo = ws.ammo[def.id]!
-      if (ammo <= 0 || (ammo < def.magSize * 0.4 && !best && this.state !== 'Engage')) this.reloadPress = true
+      if (ammo <= 0 || (ammo < magSizeOf(def, ws.magMult) * 0.4 && !best && this.state !== 'Engage')) this.reloadPress = true
     }
 
     this.checkStuck(now)

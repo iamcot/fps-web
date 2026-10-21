@@ -6,6 +6,7 @@ import { DEFAULT_ANIM, type CharacterRig } from './characters/types'
 import { poses } from './poses'
 import { SkeletonArm, FINGER_NAMES, type FingerBones } from './skeletonArm'
 import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, type Slot } from './locomotion'
+import { Z_CLIPS, Z_DEATH, ZOMBIE_ATTACK, ZOMBIE_JUMP_HOLD, ZOMBIE_RUN_BLEND, ZOMBIE_RUN_START, fitRate, zombieClipRate, zombieSlotClip, type ZombieAttackKind } from './zombieAnim'
 
 // Nhân vật có xương (plan 11, C.4): cop.glb / robber.glb dùng chung bộ animation Mixamo.
 // Chọn clip theo vận tốc nội suy, thân trên ngắm theo pitch (xoay các xương spine), súng nằm trong `aimPivot`.
@@ -65,6 +66,32 @@ export function requestCharacters(skin: SkinId): void {
   }
 }
 
+// ── Model zombie (plan 16, ZF.1): mỗi file zombies/*.glb có sẵn 12 clip z_*. Clip z_* dùng chung cho mọi model và cho cả
+// người bị lây (cùng bộ xương Mixamo 65 xương, track gọi xương theo tên) nên chỉ cần lấy từ file nào tải xong đầu tiên.
+const loadedZ = new Map<string, Loaded>()   // khoá = đường dẫn file
+const loadingZ = new Set<string>()
+let zombieClips: THREE.AnimationClip[] | null = null
+const zombieUpper = new Map<string, THREE.AnimationClip>()   // clip đòn cào chỉ thân trên
+
+export function requestZombieModels(files: string[]): void {
+  const loader = new GLTFLoader()
+  for (const file of files) {
+    if (loadingZ.has(file) || loadedZ.has(file)) continue
+    loadingZ.add(file)
+    loader.loadAsync(file).then(gltf => {
+      const clips = new Map<string, THREE.AnimationClip>()
+      for (const c of gltf.animations) clips.set(c.name, c)
+      loadedZ.set(file, { scene: gltf.scene, clips, upper: new Map() })
+      if (!zombieClips) {
+        zombieClips = gltf.animations.filter(c => c.name.startsWith('z_'))
+        for (const k of ['light', 'heavy'] as const) { const c = clips.get(ZOMBIE_ATTACK[k].clip); if (c) zombieUpper.set(k, upperBodyClip(c)) }
+      }
+    }).catch(err => console.warn(`characterRig: không load được ${file}`, err))
+  }
+}
+export function zombieModelReady(file: string): boolean { return loadedZ.has(file) }
+export function zombieClipsReady(): boolean { return zombieClips !== null }
+
 // Debug (chỉ khi chạy vite dev): window.__skelChars cho script kiểm tra IK từ trình duyệt
 const debugList: SkelCharacter[] = []
 if (import.meta.env?.DEV) (globalThis as { __skelChars?: SkelCharacter[] }).__skelChars = debugList
@@ -73,6 +100,13 @@ if (import.meta.env?.DEV) (globalThis as { __skelChars?: SkelCharacter[] }).__sk
 function upperBodyClip(clip: THREE.AnimationClip): THREE.AnimationClip {
   const tracks = clip.tracks.filter(t => !LOWER_BODY.test(t.name))
   return new THREE.AnimationClip(`${clip.name}_upper`, clip.duration, tracks)
+}
+
+let _zcfg: { src: typeof poses.character.anim; cfg: typeof poses.character.anim } | null = null
+/** Cấu hình loco của zombie: chuyển sang z_run sớm hơn người (cache, không cấp phát mỗi frame) */
+function zombieLocoCfg(cfg: typeof poses.character.anim): typeof poses.character.anim {
+  if (!_zcfg || _zcfg.src !== cfg) _zcfg = { src: cfg, cfg: { ...cfg, runStartSpeed: ZOMBIE_RUN_START, runBlendLen: ZOMBIE_RUN_BLEND } }
+  return _zcfg.cfg
 }
 
 export function skeletalReady(skin: SkinId, team: TeamId): boolean { return loaded.has(`${skin}:${team}`) }
@@ -132,9 +166,14 @@ export class SkelCharacter {
   private dead = false
   private deathClip = 'death_1'
   private deathT = 0
+  // Zombie: dùng clip z_* (xem requestZombieModels). Đòn cào/gào là clip phủ lên (thân trên / cả người) như động tác ném.
+  private zombie = false
+  private zov: { act: THREE.AnimationAction; t: number; dur: number } | null = null
+  private zovActions = new Map<string, THREE.AnimationAction>()
 
-  constructor(skin: SkinId, team: TeamId) {
-    const src = loaded.get(`${skin}:${forcedTeam() ?? team}`)!
+  /** `zombieFile`: dựng từ model zombie riêng (zombies/*.glb) thay vì model người của đội */
+  constructor(skin: SkinId, team: TeamId, zombieFile?: string) {
+    const src = (zombieFile ? loadedZ.get(zombieFile) : loaded.get(`${skin}:${forcedTeam() ?? team}`))!
     this.model = cloneSkinned(src.scene)
     this.model.rotation.y = Math.PI
     this.root.add(this.model)
@@ -180,6 +219,62 @@ export class SkelCharacter {
     }
     this.refreshGunAnchor()
     debugList.push(this)
+    if (zombieFile) this.setZombie(true)
+  }
+
+  // ── Zombie ───────────────────────────────────────────────────────────────────
+  get isZombie(): boolean { return this.zombie }
+  /** Bật/tắt bộ clip zombie. Trả về false nếu chưa có clip z_* (chưa tải xong): gọi lại frame sau. */
+  setZombie(on: boolean): boolean {
+    if (on === this.zombie) return true
+    if (!on) {
+      this.zombie = false
+      this.zov?.act.stop(); this.zov = null
+      for (const [n, a] of this.actions) if (n.startsWith('z_')) { a.stop(); this.weight.set(n, 0); this.target.set(n, 0) }
+      for (const a of this.zovActions.values()) a.stop()
+      return true
+    }
+    if (!zombieClips) return false
+    for (const clip of zombieClips) {
+      if (this.actions.has(clip.name)) continue
+      const isOnce = clip.name === 'z_jump' || clip.name.startsWith('z_death_')
+      const looped = (Z_CLIPS as readonly string[]).includes(clip.name) && clip.name !== 'z_jump'
+      if (!isOnce && !looped) {   // z_attack_*, z_scream, z_hit, z_transform: phát theo sự kiện (xem playZombie)
+        if (clip.name === 'z_scream') {
+          const a = this.mixer.clipAction(clip); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = false
+          this.zovActions.set('scream', a)
+        }
+        continue
+      }
+      const a = this.mixer.clipAction(clip)
+      if (isOnce) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true }
+      a.play(); a.setEffectiveWeight(0)
+      this.actions.set(clip.name, a); this.weight.set(clip.name, 0); this.target.set(clip.name, 0)
+    }
+    for (const [k, clip] of zombieUpper) {
+      if (this.zovActions.has(k)) continue
+      const a = this.mixer.clipAction(clip); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = false
+      this.zovActions.set(k, a)
+    }
+    this.zombie = true
+    this.cancelThrow()
+    for (const n of this.target.keys()) { if (!n.startsWith('z_')) { this.target.set(n, 0); this.weight.set(n, 0); this.actions.get(n)?.setEffectiveWeight(0) } }
+    this.weight.set('z_idle', 1); this.actions.get('z_idle')?.setEffectiveWeight(1)
+    return true
+  }
+
+  /** Cào (thân trên) hoặc gào (cả người, `sec` giây: biến hình) */
+  playZombie(kind: ZombieAttackKind | 'scream', sec = 0): void {
+    if (!this.zombie || this.dead) return
+    const act = this.zovActions.get(kind)
+    if (!act) return
+    this.zov?.act.stop()
+    const dur0 = act.getClip().duration
+    const w = kind === 'scream' ? { from: 0, to: 1, sec } : ZOMBIE_ATTACK[kind]
+    const rate = fitRate(dur0, w.from, w.to, w.sec)
+    act.reset(); act.setEffectiveWeight(0); act.play()
+    act.time = w.from * dur0; act.timeScale = rate
+    this.zov = { act, t: 0, dur: w.sec }
   }
 
   // ── Animation ────────────────────────────────────────────────────────────────
@@ -198,21 +293,23 @@ export class SkelCharacter {
     const spd = Math.hypot(vx, vz)
     this.speed += (spd - this.speed) * Math.min(1, f.dt * 12)
     const k = this.speed > 1e-4 && spd > 1e-4 ? this.speed / spd : 0   // hướng lấy từ vận tốc tức thời, độ lớn làm mượt
-    locoTargets({ vx: vx * k, vz: vz * k, yaw: f.yaw, grounded: f.grounded, crouching: f.crouching, sliding: f.sliding }, cfg, this.slotW)
+    locoTargets({ vx: vx * k, vz: vz * k, yaw: f.yaw, grounded: f.grounded, crouching: f.crouching, sliding: f.sliding }, this.zombie ? zombieLocoCfg(cfg) : cfg, this.slotW)
 
     for (const n of this.target.keys()) this.target.set(n, 0)
     for (const s of SLOTS) {
       const w = this.slotW[s]
       if (w <= 0) continue
-      const n = slotClip(s, f.pistol)
-      this.target.set(n, this.target.get(n)! + w)
+      const n = this.zombie ? zombieSlotClip(s) : slotClip(s, f.pistol)
+      this.target.set(n, (this.target.get(n) ?? 0) + w)
     }
     const jumpOn = this.slotW.jump > 0.5, slideOn = this.slotW.slide > 0.5
-    if (jumpOn && !this.jumpWasOn) this.restart('jump')
-    if (slideOn && !this.slideWasOn) this.restart('slide')
+    const jumpName = this.zombie ? 'z_jump' : 'jump'
+    if (jumpOn && !this.jumpWasOn) this.restart(jumpName)
+    if (slideOn && !this.slideWasOn && !this.zombie) this.restart('slide')
     this.jumpWasOn = jumpOn; this.slideWasOn = slideOn
-    const jump = this.actions.get('jump')
-    if (jump && jumpOn && jump.time > cfg.jumpHoldS) jump.time = cfg.jumpHoldS   // trên không: giữ frame giữa
+    const jump = this.actions.get(jumpName)
+    const holdS = this.zombie && jump ? jump.getClip().duration * ZOMBIE_JUMP_HOLD : cfg.jumpHoldS
+    if (jump && jumpOn && jump.time > holdS) jump.time = holdS   // trên không: giữ frame giữa
     const blend = 1 - Math.exp(-f.dt / (cfg.blendTime / 3))
     for (const [n, a] of this.actions) {
       const w = this.weight.get(n)! + (this.target.get(n)! - this.weight.get(n)!) * blend
@@ -221,8 +318,9 @@ export class SkelCharacter {
     }
     for (const s of SLOTS) {
       if (this.slotW[s] <= 0) continue
-      const a = this.actions.get(slotClip(s, f.pistol))
-      if (a) a.timeScale = clipRate(s, this.speed, cfg)
+      const zn = zombieSlotClip(s)
+      const a = this.actions.get(this.zombie ? zn : slotClip(s, f.pistol))
+      if (a) a.timeScale = this.zombie ? zombieClipRate(zn, this.speed) : clipRate(s, this.speed, cfg)
     }
     // Ngồi: hạ cả model thêm crouchDrop khi animation ngồi vẫn cao hơn hitbox
     if (this.throwing) {
@@ -236,8 +334,17 @@ export class SkelCharacter {
         th.act.setEffectiveWeight(e / (1 - e))
       }
     }
+    if (this.zov) {
+      const z = this.zov
+      z.t += f.dt
+      if (z.t >= z.dur) { z.act.stop(); this.zov = null }
+      else {   // cùng cách ghi đè như clip ném: trọng số e / (1 − e)
+        const e = Math.min(0.98, Math.min(1, z.t / 0.08), Math.min(1, (z.dur - z.t) / 0.12))
+        z.act.setEffectiveWeight(e / (1 - e))
+      }
+    }
     if (this.pullT > 0) this.pullT = Math.max(0, this.pullT - f.dt)
-    this.model.position.y = -(poses.character.crouchDrop * (this.weight.get('rifle_crouch_idle') ?? 0) + poses.character.crouchWalkDrop * (this.weight.get('rifle_crouch_walk') ?? 0))
+    this.model.position.y = this.zombie ? 0 : -(poses.character.crouchDrop * (this.weight.get('rifle_crouch_idle') ?? 0) + poses.character.crouchWalkDrop * (this.weight.get('rifle_crouch_walk') ?? 0))
     this.mixer.update(f.dt)
     this.root.updateMatrixWorld(true)
 
@@ -258,8 +365,9 @@ export class SkelCharacter {
   die(headshot: boolean): void {
     this.dead = true
     this.deathT = 0
-    this.deathClip = headshot ? 'death_2' : 'death_1'
-    for (const n of ['death_1', 'death_2']) this.actions.get(n)?.stop()
+    this.zov?.act.stop(); this.zov = null
+    this.deathClip = this.deathName(headshot)
+    for (const n of ['death_1', 'death_2', ...Z_DEATH]) this.actions.get(n)?.stop()
     const a = this.actions.get(this.deathClip)
     if (a) { a.reset(); a.play(); a.setEffectiveWeight(this.weight.get(this.deathClip) ?? 0) }
   }
@@ -306,13 +414,17 @@ export class SkelCharacter {
 
   /** Tin Kill báo headshot đến sau snapshot chết một chút: đổi sang đúng kiểu chết (giữ tiến độ). */
   setDeathVariant(headshot: boolean): void {
-    const want = headshot ? 'death_2' : 'death_1'
+    const want = this.deathName(headshot)
     if (!this.dead || this.deathT > DEATH_SWAP_S || want === this.deathClip) return
     const old = this.actions.get(this.deathClip), a = this.actions.get(want)
     if (!a) return
     old?.stop(); this.weight.set(this.deathClip, 0)
     this.deathClip = want
     a.reset(); a.play(); a.time = this.deathT; a.setEffectiveWeight(this.weight.get(want) ?? 0)
+  }
+
+  private deathName(headshot: boolean): string {
+    return this.zombie ? Z_DEATH[headshot ? 1 : 0] : headshot ? 'death_2' : 'death_1'
   }
 
   get isDead(): boolean { return this.dead }
@@ -322,9 +434,10 @@ export class SkelCharacter {
   /** Hồi sinh: reset mixer về idle, IK trở lại 1 trong IK_FADE_S */
   revive(): void {
     this.dead = false
-    for (const n of ['death_1', 'death_2']) { const a = this.actions.get(n); a?.stop(); this.weight.set(n, 0); this.target.set(n, 0) }
-    for (const [n, a] of this.actions) { if (n.startsWith('death_')) continue; a.play(); a.paused = false; a.setEffectiveWeight(0); this.weight.set(n, 0) }
-    this.weight.set('rifle_idle', 1); this.actions.get('rifle_idle')?.setEffectiveWeight(1)
+    for (const n of ['death_1', 'death_2', ...Z_DEATH]) { const a = this.actions.get(n); a?.stop(); this.weight.set(n, 0); this.target.set(n, 0) }
+    for (const [n, a] of this.actions) { if (n.includes('death_')) continue; a.play(); a.paused = false; a.setEffectiveWeight(0); this.weight.set(n, 0) }
+    const idle = this.zombie ? 'z_idle' : 'rifle_idle'
+    this.weight.set(idle, 1); this.actions.get(idle)?.setEffectiveWeight(1)
     this.hasLast = false; this.speed = 0; this.jumpWasOn = false; this.slideWasOn = false
     this.model.position.y = 0
     this.ikWeight = 0
@@ -393,8 +506,8 @@ export class SkelCharacter {
 }
 
 /** Vỏ CharacterRig cho nhân vật có xương: players.ts dùng chung luồng root/mats/gunAnchor, phần khối hộp là Group rỗng. */
-export function makeSkeletalRig(skin: SkinId, team: TeamId): CharacterRig {
-  const sk = new SkelCharacter(skin, team)
+export function makeSkeletalRig(skin: SkinId, team: TeamId, zombieFile?: string): CharacterRig {
+  const sk = new SkelCharacter(skin, team, zombieFile)
   const g = () => new THREE.Group()
   return {
     root: sk.root, legL: g(), legR: g(), upper: g(), headPivot: g(), armL: g(), armR: g(),

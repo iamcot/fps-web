@@ -17,6 +17,7 @@ export interface EconomyConfig {
   keepLoadoutOnDeath: boolean
   maxBuysPerSecond: number
   infiniteReserve?: boolean   // thể thức zombie: đạn dự trữ vô hạn (chỉ phải nạp băng) – HUD hiện `25 / ∞`
+  magMult?: number            // thể thức zombie: băng đạn to gấp ngần này (mặc định 1)
 }
 
 /** Hỗn Chiến (task 09) */
@@ -49,12 +50,16 @@ export const ECONOMY_ELIM = {
 }
 export type EliminationEconomy = typeof ECONOMY_ELIM
 
+/** Băng đạn của người trong thể thức zombie (Lây Nhiễm, Thủ Thành): ×2 vì zombie đông, 30 viên hết quá nhanh */
+export const ZOMBIE_MAG_MULT = 2
+
 /** Lây Nhiễm (plan 16): tiền đầu mỗi ván (không mang sang ván sau), mua ở pha chuẩn bị, đạn dự trữ vô hạn */
 export const ECONOMY_INFECTION: EconomyConfig = {
   ...ECONOMY,
   startMoney: INFECTION.startMoney,
   keepLoadoutOnDeath: true,
   infiniteReserve: true,
+  magMult: ZOMBIE_MAG_MULT,
 }
 
 /** Bộ kinh tế theo thể thức (server: mode.economy(); client dùng để hiển thị giá bán lại, tiền tối đa...) */
@@ -73,6 +78,7 @@ export const ECONOMY_DEFENSE: EconomyConfig = {
   startMoney: DEFENSE.startMoney,
   keepLoadoutOnDeath: true,
   infiniteReserve: true,
+  magMult: ZOMBIE_MAG_MULT,
   killReward: 0, bountyStreak: 1e9, bountyReward: 0,   // không có truy nã; tiền hạ zombie tính riêng theo loại
 }
 

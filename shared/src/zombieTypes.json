@@ -1,16 +1,16 @@
 {
-  "walker":   { "name": "Zombie thường", "hp": 150, "runSpeed": 4.5, "clawDamage": 15, "attackMs": 900,  "knockbackResist": 0.0,  "reward": 50,   "regenPerSec": 0,
+  "walker":   { "name": "Zombie thường", "hp": 150, "runSpeed": 3.0, "clawDamage": 15, "attackMs": 900,  "knockbackResist": 0.0,  "reward": 50,   "regenPerSec": 0,
                 "scale": 1.0,  "tintOverride": null,      "modelOverride": null, "abilities": [] },
-  "runner":   { "name": "Zombie chạy",   "hp": 90,  "runSpeed": 9.0, "clawDamage": 10, "attackMs": 600,  "knockbackResist": 0.0,  "reward": 75,   "regenPerSec": 0,
+  "runner":   { "name": "Zombie chạy",   "hp": 90,  "runSpeed": 6.0, "clawDamage": 10, "attackMs": 600,  "knockbackResist": 0.0,  "reward": 75,   "regenPerSec": 0,
                 "scale": 0.92, "tintOverride": "#c9b28a", "modelOverride": null, "abilities": [] },
-  "crawler":  { "name": "Zombie bò",     "hp": 110, "runSpeed": 5.0, "clawDamage": 12, "attackMs": 800,  "knockbackResist": 0.0,  "reward": 75,   "regenPerSec": 0,
+  "crawler":  { "name": "Zombie bò",     "hp": 110, "runSpeed": 3.5, "clawDamage": 12, "attackMs": 800,  "knockbackResist": 0.0,  "reward": 75,   "regenPerSec": 0,
                 "scale": 0.95, "tintOverride": "#8f9f8a", "modelOverride": null, "abilities": ["crawl_holes"] },
-  "leaper":   { "name": "Zombie nhảy",   "hp": 160, "runSpeed": 7.0, "clawDamage": 18, "attackMs": 850,  "knockbackResist": 0.1,  "reward": 100,  "regenPerSec": 0,
+  "leaper":   { "name": "Zombie nhảy",   "hp": 160, "runSpeed": 5.0, "clawDamage": 18, "attackMs": 850,  "knockbackResist": 0.1,  "reward": 100,  "regenPerSec": 0,
                 "scale": 1.0,  "tintOverride": "#9a8fb0", "modelOverride": null, "abilities": ["leap"] },
-  "brute":    { "name": "Zombie trâu",   "hp": 900, "runSpeed": 3.8, "clawDamage": 40, "attackMs": 1400, "knockbackResist": 0.8,  "reward": 300,  "regenPerSec": 0,
+  "brute":    { "name": "Zombie trâu",   "hp": 900, "runSpeed": 3.0, "clawDamage": 40, "attackMs": 1400, "knockbackResist": 0.8,  "reward": 300,  "regenPerSec": 0,
                 "scale": 1.35, "tintOverride": "#a87a6a", "modelOverride": null, "abilities": ["shove"] },
-  "screamer": { "name": "Zombie gào",    "hp": 250, "runSpeed": 5.0, "clawDamage": 10, "attackMs": 1000, "knockbackResist": 0.2,  "reward": 200,  "regenPerSec": 0,
+  "screamer": { "name": "Zombie gào",    "hp": 250, "runSpeed": 3.5, "clawDamage": 10, "attackMs": 1000, "knockbackResist": 0.2,  "reward": 200,  "regenPerSec": 0,
                 "scale": 1.05, "tintOverride": "#b0a060", "modelOverride": null, "abilities": ["rally"] },
-  "boss":     { "name": "Đại Ca Zombie", "hp": 12000, "runSpeed": 4.2, "clawDamage": 60, "attackMs": 1600, "knockbackResist": 0.95, "reward": 3000, "regenPerSec": 0,
+  "boss":     { "name": "Đại Ca Zombie", "hp": 12000, "runSpeed": 3.5, "clawDamage": 60, "attackMs": 1600, "knockbackResist": 0.95, "reward": 3000, "regenPerSec": 0,
                 "scale": 2.2,  "tintOverride": "#7a5050", "modelOverride": null, "abilities": ["slam", "summon", "charge"], "headMult": 3 }
 }

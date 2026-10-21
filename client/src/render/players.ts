@@ -1,13 +1,13 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
-import { defaultMovement, DEFENSE, ECONOMY, NetFlag, TEAMS, WEAPONS, ZOMBIE_TYPES, type TeamId } from '@fps/shared'
+import { defaultMovement, DEFENSE, ECONOMY, INFECTION, NetFlag, TEAMS, WEAPONS, ZOMBIE_LOOK, ZOMBIE_TYPES, zombieVariation, type TeamId } from '@fps/shared'
 import { makeBlobShadow } from './blobShadow'
 import { MUZZLE_FALLBACK, makeFlashTexture, adjustModel } from './viewmodel'
 import { BlockArm } from './blockArm'
 import { poses, weaponPose, getAnchor, scanModelAnchors, colorOf, type Vec3, type WeaponPose } from './poses'
 import { getCharacterSet, disposeRig, type CharacterRig } from './characters'
-import { makeSkeletalRig, requestCharacters, skeletalEnabled, skeletalReady, skinOfSet } from './characterRig'
+import { makeSkeletalRig, requestCharacters, requestZombieModels, skeletalEnabled, skeletalReady, skinOfSet, zombieModelReady } from './characterRig'
 import { GRENADE_ID } from '@fps/shared'
 import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './characters/animate'
 import { createDeathFx } from './characters/deathFx'
@@ -25,6 +25,8 @@ export interface TeamInfo {
   modelTeam?(id: number, flags: number): TeamId | undefined
   /** Vị trí mắt người xem (để tắt mắt zombie ở xa) */
   viewer?(): [number, number, number]
+  /** Phòng Lây Nhiễm / Thủ Thành: tải sẵn model zombie */
+  zombieMode?(): boolean
 }
 
 const FLASH_MS = 60
@@ -110,6 +112,7 @@ interface Actor {
   thrown: boolean           // vừa ném: sau khi hết animation ném, quả mới (nếu còn) hiện lại trong tay
   zfx: ZombieFx | null      // đang là zombie: tint + mắt đỏ
   deadAt: number            // zombie chết: mốc performance.now() (xác chìm xuống đất sau CORPSE_MS)
+  zfile: string             // đang dựng từ model zombie riêng (file glb); '' = model người
 }
 
 // Súng rơi khỏi tay người chết: rơi thẳng + xoay, nằm xuống sàn, mờ dần cùng xác
@@ -128,7 +131,8 @@ interface GunDrop {
 // Zombie Thủ Thành: tint theo loại (nhìn màu biết loại), cỡ theo loại; Lây Nhiễm: tint xanh xám cố định, mẹ to hơn một chút
 function zombieOpts(ztype?: string): { fromHuman?: boolean; tintOverride?: string | null; modelOverride?: string | null } {
   const def = ztype ? ZOMBIE_TYPES[ztype] : undefined
-  return def ? { tintOverride: def.tintOverride, modelOverride: def.modelOverride } : { fromHuman: true }
+  if (def) return { tintOverride: def.tintOverride, modelOverride: def.modelOverride }
+  return ztype === 'mother' ? { fromHuman: true, modelOverride: ZOMBIE_LOOK.motherModel ?? null } : { fromHuman: true }   // mẹ: model riêng (bighand)
 }
 function zombieSize(ztype?: string, zscale?: number): number {
   if (zscale) return zscale
@@ -154,7 +158,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   rig.gunAnchor.add(flash)
   rig.root.add(makeBlobShadow())
   if (rig.skel) {
-    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null, deadAt: 0 }
+    return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot: rig.skel.aimPivot, holder: rig.skel.holder, armR: null, armL: null, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null, deadAt: 0, zfile: '' }
   }
   const aimPivot = new THREE.Group()
   const holder = new THREE.Group()
@@ -167,7 +171,7 @@ function makeActor(rig: CharacterRig, dead: boolean): Actor {
   armR.setVisible(false); armL.setVisible(false)
   rig.upper.add(armR.root, armL.root)
   for (const arm of [armR, armL]) rig.mats.push(...arm.mats)
-  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null, deadAt: 0 }
+  return { rig, anim: makeAnimState(), gun: null, gunId: -1, flash, flashUntil: 0, wasDead: dead, aimPivot, holder, armR, armL, twoHand: null, drop: null, pulling: false, pinOff: false, thrown: false, zfx: null, deadAt: 0, zfile: '' }
 }
 
 function disposeActor(a: Actor, scene?: THREE.Scene): void {
@@ -297,7 +301,22 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   const requestSkin = (id: string): void => { const sk = skinOfSet(getCharacterSet(id).id); if (sk) requestCharacters(sk) }
   requestSkin(setId)   // chưa biết bộ của phòng → bộ mặc định
 
+  // File model zombie riêng của từng zombie (tất định theo id); cache theo ztype để khỏi tính lại mỗi frame
+  const zfileCache = new Map<number, { ztype: string | undefined; file: string; scale: number }>()
+  let zombiesRequested = false
+  function zombieModelOf(p: RenderPlayer): { file: string; scale: number } | null {
+    if (!(p.flags & NetFlag.Zombie)) return null
+    let c = zfileCache.get(p.id)
+    if (!c || c.ztype !== p.ztype) {
+      const m = zombieVariation(p.id, zombieOpts(p.ztype)).model
+      c = { ztype: p.ztype, file: m?.file ?? '', scale: m?.scale ?? 1 }
+      zfileCache.set(p.id, c)
+    }
+    return c.file ? c : null
+  }
+
   function dropActor(id: number, a: Actor): void {
+    zfileCache.delete(id)
     dropWanted(id)
     scene.remove(a.rig.root)
     disposeActor(a, scene)
@@ -306,14 +325,22 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   }
 
   // Dựng lại khi đội đổi (TeamAssigned đến sau snapshot đầu) hoặc đổi bộ nhân vật
-  function ensure(p: RenderPlayer): Actor {
+  function ensure(p: RenderPlayer): Actor | null {
     const team = info?.modelTeam?.(p.id, p.flags) ?? info?.teamOf(p.id) ?? 'A'
     const skin = skinOfSet(getCharacterSet(setId).id)   // bộ có xương (Bão Cát Sa Mạc, Cớm & Cướp) → skin tương ứng
-    const wantSkel = skeletalEnabled() && !!skin && skeletalReady(skin, team)
+    // Model zombie riêng (Thủ Thành, zombie mẹ): chưa tải xong thì zombie thường chưa vẽ, người bị lây vẫn đứng bằng model người
+    const zm = skeletalEnabled() ? zombieModelOf(p) : null
+    const zReady = !!zm && zombieModelReady(zm.file)
+    if (zm && !zReady) requestZombieModels([zm.file])
+    const zfile = zReady ? zm!.file : ''
+    const humanSkel = skeletalEnabled() && !!skin && skeletalReady(skin, team)
+    const wantSkel = humanSkel || zReady
     let a = actors.get(p.id)
-    if (a && (a.rig.team !== team || !!a.rig.skel !== wantSkel)) { dropActor(p.id, a); a = undefined }
+    if (!a && zm && !zReady && ZOMBIE_TYPES[p.ztype ?? '']) return null   // zombie Thủ Thành: đợi model
+    if (a && (a.rig.team !== team || !!a.rig.skel !== wantSkel || a.zfile !== zfile)) { dropActor(p.id, a); a = undefined }
     if (!a) {
-      a = makeActor(wantSkel ? makeSkeletalRig(skin!, team) : getCharacterSet(setId).build(team), (p.flags & NetFlag.Dead) !== 0)
+      a = makeActor(wantSkel ? makeSkeletalRig(skin ?? 'saber', team, zfile || undefined) : getCharacterSet(setId).build(team), (p.flags & NetFlag.Dead) !== 0)
+      a.zfile = zfile
       scene.add(a.rig.root)
       actors.set(p.id, a)
     }
@@ -452,8 +479,13 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       else if (!dead && sk.isDead) { sk.revive(); clearDrop(a) }
       a.wasDead = dead
       const zombie = (p.flags & NetFlag.Zombie) !== 0
-      if (zombie && !a.zfx) { a.zfx = makeZombieFx(scene, rig, p.id, zombieOpts(p.ztype), zombieSize(p.ztype, p.zscale)); a.deadAt = 0; hideGun(a) }
-      else if (!zombie && a.zfx) { removeZombieFx(scene, a.zfx, rig); a.zfx = null }
+      sk.setZombie(zombie)   // clip z_*: chưa tải xong thì giữ animation người, frame sau thử lại
+      if (zombie && !a.zfx) {
+        a.zfx = makeZombieFx(scene, rig, p.id, zombieOpts(p.ztype), zombieSize(p.ztype, p.zscale), 1, a.zfile ? zfileCache.get(p.id)?.scale ?? 1 : 1)
+        a.deadAt = 0; hideGun(a)
+        // Người vừa bị lây (bất tử + đứng yên trong lúc biến hình): gào
+        if ((p.flags & NetFlag.Invuln) && !ZOMBIE_TYPES[p.ztype ?? '']) sk.playZombie('scream', INFECTION.transformMs / 1000)
+      } else if (!zombie && a.zfx) { removeZombieFx(scene, a.zfx, rig); a.zfx = null }
       const frame = { dt, x: p.pos[0], z: p.pos[2], yaw: p.yaw, grounded, crouching, sliding, pitch: p.pitch ?? 0, pistol: zombie, dead }
       if (zombie && !dead) {   // zombie không cầm súng: tay buông theo animation
         sk.animate(frame)
@@ -521,6 +553,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       const now = performance.now()
       const dt = Math.min(0.1, (now - lastNow) / 1000)
       lastNow = now
+      if (!zombiesRequested && info?.zombieMode?.()) { zombiesRequested = true; requestZombieModels(ZOMBIE_LOOK.models.map(m => m.file)) }
       const want = info?.characterSet?.() ?? ''
       if (want !== setId) {   // đổi bộ nhân vật (vào phòng khác): dựng lại tất cả
         setId = want
@@ -530,6 +563,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       for (const p of players) {
         if (p.id === selfId) continue
         const a = ensure(p)
+        if (!a) continue
         lastSeen.set(p.id, frame)
         place(p, a, now, dt)
       }
@@ -557,6 +591,8 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       killMemory.set(victimId, { headshot, t: performance.now() })
       actors.get(victimId)?.rig.skel?.setDeathVariant(headshot)
     },
+    // Zombie cào (ShotFx của vuốt): clip thân trên
+    zombieAttack(id: number, heavy: boolean) { actors.get(id)?.rig.skel?.playZombie(heavy ? 'heavy' : 'light') },
     // Lửa đầu nòng khi nhận ShotFx của người này
     muzzleFlash(id: number) {
       const a = actors.get(id)

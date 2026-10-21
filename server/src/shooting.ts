@@ -92,7 +92,8 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, baseCfg:
     const headshot = tot.headshot
     // Bất tử tính theo giờ hiện tại của server (không tua). Chỉ trừ máu người còn sống và chưa bị chốt chết.
     const invuln = room.serverNow < target.invulnUntil
-    const applied = invuln || !target.alive || target.hp <= 0 ? 0 : Math.round(damage * target.takenMult)
+    // Zombie không đánh người đang gục (để đồng đội kịp chạy tới cứu; gục chỉ chết do hết giờ chảy máu)
+    const applied = invuln || !target.alive || target.hp <= 0 || (target.downed && shooter.npc) ? 0 : Math.round(damage * target.takenMult)
     if (applied > 0) {
       target.hp -= applied
       target.lastHurtAt = room.serverNow

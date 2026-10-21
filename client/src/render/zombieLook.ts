@@ -11,7 +11,7 @@ function glow(): THREE.CanvasTexture {
     c.width = c.height = 32
     const g = c.getContext('2d')!
     const grd = g.createRadialGradient(16, 16, 0, 16, 16, 16)
-    grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.25, ZOMBIE_LOOK.variation.eyeGlow); grd.addColorStop(1, 'rgba(255,40,20,0)')
+    grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.18, '#ffd0c0'); grd.addColorStop(0.4, ZOMBIE_LOOK.variation.eyeGlow); grd.addColorStop(1, 'rgba(255,40,20,0)')
     g.fillStyle = grd; g.fillRect(0, 0, 32, 32)
     glowTex = new THREE.CanvasTexture(c)
   }
@@ -31,7 +31,7 @@ const _right = new THREE.Vector3()
 function headNode(rig: CharacterRig): THREE.Object3D { return rig.skel?.headBone ?? rig.headPivot }
 
 /** Biến rig thành zombie: tint + cỡ + mắt. `opts` như zombieVariation (Thủ Thành: tint theo loại). */
-export function makeZombieFx(scene: THREE.Scene, rig: CharacterRig, id: number, opts: Parameters<typeof zombieVariation>[1], sizeMul = 1, eyeScale = 1): ZombieFx {
+export function makeZombieFx(scene: THREE.Scene, rig: CharacterRig, id: number, opts: Parameters<typeof zombieVariation>[1], sizeMul = 1, eyeScale = 1, modelScale = 1): ZombieFx {
   const v = zombieVariation(id, opts)
   const orig = new Map<THREE.MeshBasicMaterial | THREE.MeshLambertMaterial, number>()
   const tint = new THREE.Color(v.tint)
@@ -42,10 +42,11 @@ export function makeZombieFx(scene: THREE.Scene, rig: CharacterRig, id: number, 
     orig.set(mm, mm.color.getHex())
     mm.color.copy(white).lerp(tint, v.tintStrength)
   }
+  sizeMul *= modelScale   // model zombie riêng có chiều cao khác 1,8m: đưa về cỡ hitbox
   rig.root.scale.setScalar(v.scale * sizeMul)
   const mk = (): THREE.Sprite => {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow(), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false }))
-    s.scale.setScalar(0.09 * eyeScale * Math.sqrt(sizeMul))
+    s.scale.setScalar(0.22 * eyeScale * Math.sqrt(sizeMul))   // quầng to để thấy rõ từ xa trong đêm
     s.renderOrder = 9
     scene.add(s)
     return s

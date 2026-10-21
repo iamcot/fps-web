@@ -357,9 +357,12 @@ def fit_donor_rig(arm_c, body, donor_path):
     hand = {}
     for side in ("Left", "Right"):
         h = f"mixamorig:{side}Hand"
-        ci = cb[f"mixamorig:{side}HandIndex1"].head_local
-        di = drest[f"mixamorig:{side}HandIndex1"].translation
-        k = (ci - cb[h].head_local).length / (di - drest[h].translation).length
+        ik = f"mixamorig:{side}HandIndex1"
+        if ik in cb:
+            k = (cb[ik].head_local - cb[h].head_local).length / (drest[ik].translation - drest[h].translation).length
+        else:   # model thiếu ngón (vd. zombie cụt tay): suy tỉ lệ từ cẳng tay
+            fa = f"mixamorig:{side}ForeArm"
+            k = cb[fa].length / dlen[fa]
         M = cb[h].matrix_local.to_3x3() @ drest[h].to_3x3().inverted()
         hand[side] = (k, M, cb[h].head_local.copy(), drest[h].translation.copy())
         print("FIT", side, "finger scale k=%.3f" % k)
@@ -384,6 +387,23 @@ def fit_donor_rig(arm_c, body, donor_path):
     for m in list(body.modifiers):
         if m.type == 'ARMATURE':
             body.modifiers.remove(m)
+    # Nhóm đỉnh gắn vào xương donor không có (LeftEye/RightEye...): dồn trọng số sang xương tổ tiên gần nhất có trong donor
+    # (Head), nếu không mắt mất trọng số và trôi lơ lửng trên đầu khi có animation.
+    for vg in list(body.vertex_groups):
+        if vg.name in drest or vg.name not in cb:
+            continue
+        anc = cb[vg.name].parent
+        while anc is not None and anc.name not in drest:
+            anc = anc.parent
+        if anc is None:
+            continue
+        dst = body.vertex_groups.get(anc.name) or body.vertex_groups.new(name=anc.name)
+        for v in body.data.vertices:
+            for g in v.groups:
+                if g.group == vg.index and g.weight > 0:
+                    dst.add([v.index], g.weight, 'ADD')
+        print("FIT merged group", vg.name, "->", anc.name)
+        body.vertex_groups.remove(vg)
     mw = body.matrix_world.copy(); body.parent = None; body.matrix_world = mw
     bpy.data.objects.remove(arm_c, do_unlink=True)
     body.parent = arm_d
@@ -410,7 +430,9 @@ def _weight_missing_fingers(body, arm, missing, eps=1e-4):
         for n in new:
             if n not in body.vertex_groups:
                 body.vertex_groups.new(name=n)
-        hg = body.vertex_groups[f"mixamorig:{side}Hand"]
+        hg = body.vertex_groups.get(f"mixamorig:{side}Hand")
+        if hg is None:     # mesh không có bàn tay bên này (zombie cụt tay): không có gì để chia
+            continue
         segs_new = {n: (bones[n].head_local, bones[n].tail_local) for n in new}
         segs_old = [(bones[n].head_local, bones[n].tail_local) for n in old]
         moved = 0
@@ -438,13 +460,40 @@ def _weight_missing_fingers(body, arm, missing, eps=1e-4):
         print("FIT fingers", side, "vertices re-weighted:", moved)
 
 
+def _merge_skinned_meshes(arm):
+    """Mixamo hay kèm 'Cube' rác (không skin) và có model gồm nhiều mesh (thân, giày, tóc, kính...):
+    xoá mesh không có Armature modifier, gộp phần còn lại thành một body."""
+    meshes = [o for o in bpy.context.scene.objects if o.type == 'MESH']
+    skinned = [o for o in meshes if any(m.type == 'ARMATURE' for m in o.modifiers)]
+    for o in meshes:
+        if o not in skinned:
+            bpy.data.objects.remove(o, do_unlink=True)
+    body = max(skinned, key=lambda o: len(o.data.vertices))
+    if len(skinned) > 1:
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in skinned: o.select_set(True)
+        bpy.context.view_layer.objects.active = body
+        bpy.ops.object.join()
+    return body
+
+def _fix_bone_prefix(arm, body):
+    """Một số file Mixamo có tiền tố 'mixamorig1:' ... : đưa về 'mixamorig:'."""
+    import re
+    for b in arm.data.bones:
+        m = re.match(r"mixamorig\d+:(.*)", b.name)
+        if m:
+            vg = body.vertex_groups.get(b.name)
+            b.name = "mixamorig:" + m.group(1)
+            if vg: vg.name = b.name
+
 def prepare_rigged(rigged_path, donor_path=None):
     """Import <team>_rigged.fbx: gỡ rác Mixamo, apply cm→mét/Z-up, (tuỳ chọn) đổi sang bộ xương 65 của donor. Trả về (arm, body)."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.fbx(filepath=rigged_path)
     scene = bpy.context.scene
     arm = next(o for o in scene.objects if o.type == 'ARMATURE')
-    body = next(o for o in scene.objects if o.type == 'MESH')
+    body = _merge_skinned_meshes(arm)
+    _fix_bone_prefix(arm, body)
     for ac in list(bpy.data.actions):          # action kèm file rigged (1 khung T-pose) không dùng
         bpy.data.actions.remove(ac)
     # Mixamo gắn ảnh rác 0x0 vào Emission (+ Normal Map không ảnh): sẽ ra nhân vật trắng toát. Gỡ hết.
