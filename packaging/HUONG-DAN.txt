@@ -1,0 +1,26 @@
+FPS WEB {version} – HƯỚNG DẪN TỰ CHẠY SERVER
+
+1) Giải nén file zip ra một thư mục (ví dụ Desktop). Đừng chạy trực tiếp trong file zip.
+
+2) WINDOWS
+   - Nhấp đúp FPSWeb.exe.
+   - Nếu hiện màn hình "Windows protected your PC": bấm "More info" → "Run anyway".
+   - Nếu Tường lửa hỏi quyền: tick "Private networks" → bấm "Allow access".
+     (Không cho phép thì bạn bè trong mạng sẽ không vào được.)
+
+3) MAC
+   - Nhấp đúp file FPSWeb.
+   - Nếu báo không thể mở vì không xác minh được nhà phát triển:
+     mở System Settings → Privacy & Security → kéo xuống, bấm "Open Anyway" cạnh dòng FPSWeb,
+     rồi nhấp đúp FPSWeb lần nữa và chọn "Open".
+   - Nếu Mac hỏi cho phép nhận kết nối mạng: chọn "Allow".
+
+4) Cửa sổ đen (Terminal/Console) hiện ra và trình duyệt tự mở game.
+   - Bạn bè cùng mạng wifi/LAN: mở trình duyệt, gõ địa chỉ "Bạn bè cùng mạng" hiện trong cửa sổ đen.
+   - Nên dùng Chrome, Edge hoặc Firefox bản mới.
+
+5) Tắt server: đóng cửa sổ đen.
+
+6) Đổi cổng: mở config.json bằng Notepad/TextEdit, sửa "port", lưu lại, chạy lại.
+
+Gặp lỗi: chụp màn hình cửa sổ đen gửi cho người đã gửi game cho bạn.

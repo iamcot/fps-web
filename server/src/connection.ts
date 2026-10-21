@@ -14,6 +14,8 @@ export interface ServerContext {
   now(): number                        // serverTime (ms) để trả Pong
   allowDebugCmds: boolean              // lệnh debug M.8: false khi chạy production
   log?(text: string): void
+  /** Phiên bản server: có đặt thì client phải gửi cùng phiên bản ở ListRooms/Join, khác thì bị từ chối. Offline (cùng bundle với client) không đặt. */
+  version?: string
   /** Offline: tạo phòng riêng cho kết nối đầu tiên (thay vì Join thường). */
   joinOverride?(transport: Transport, name: string, msg: JoinMsg): { room: Room; player: Player } | null
   /** Sau khi người vào phòng (đã có world hay chưa): host offline đặt bot... */
@@ -27,8 +29,16 @@ export function handleConnection(ctx: ServerContext, transport: Transport): void
   const log = ctx.log ?? (() => {})
   let room: Room | null = null
   let player: Player | null = null
+  let refused = false   // đã bị từ chối vì khác phiên bản: bỏ qua mọi tin sau đó
 
   transport.onMessage(msg => {
+    if (refused) return
+    if (ctx.version !== undefined && (msg.t === MsgType.ListRooms || msg.t === MsgType.Join) && msg.version !== ctx.version) {
+      refused = true
+      log(`Từ chối client phiên bản ${String(msg.version)} (server ${ctx.version})`)
+      transport.send({ t: MsgType.JoinRejected, reason: 'version' })
+      return
+    }
     if (msg.t === MsgType.Ping) {
       transport.send({ t: MsgType.Pong, clientTime: msg.clientTime, serverTime: ctx.now() })
       if (player && typeof msg.rtt === 'number' && Number.isFinite(msg.rtt)) player.pingMs = Math.min(999, Math.max(0, msg.rtt))

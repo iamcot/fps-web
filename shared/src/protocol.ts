@@ -82,6 +82,7 @@ export interface JoinMsg {
   create?: boolean         // true: tạo phòng mới (lỗi nếu tên đã có); false: chỉ vào phòng có sẵn; thiếu: vào, chưa có thì tạo
   mapId?: string           // map của phòng mới (thiếu/sai → map đầu tiên)
   options?: RoomOptions    // thể thức + cài đặt của phòng mới (server kẹp theo SETTINGS_LIMITS)
+  version?: string         // phiên bản client; server có đặt version mà khác/thiếu thì từ chối ('version')
 }
 
 export type BotDifficulty = 'medium' | 'hard'
@@ -121,7 +122,7 @@ export interface NavDebugMsg { t: typeof MsgType.NavDebug; nodes: number[]; edge
 export interface DebugCmdMsg { t: typeof MsgType.DebugCmd; cmd: string }
 
 // Xin danh sách phòng đang có
-export interface ListRoomsMsg { t: typeof MsgType.ListRooms }
+export interface ListRoomsMsg { t: typeof MsgType.ListRooms; version?: string }   // version: phiên bản client (server đóng gói từ chối nếu khác)
 
 // Đổi đội (server áp luật cân bằng, trả lời bằng TeamAssigned)
 export interface ChooseTeamMsg {
@@ -155,7 +156,7 @@ export interface RoomInfo {
 }
 export interface MapInfo { id: string; name: string }
 export interface RoomListMsg { t: typeof MsgType.RoomList; rooms: RoomInfo[]; maps: MapInfo[] }
-export type JoinRejectReason = 'full' | 'exists' | 'missing' | 'bad'
+export type JoinRejectReason = 'full' | 'exists' | 'missing' | 'bad' | 'version'
 export interface JoinRejectedMsg { t: typeof MsgType.JoinRejected; reason: JoinRejectReason }
 
 export interface WelcomeMsg {

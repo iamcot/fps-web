@@ -1,0 +1,366 @@
+[
+  {
+    "file": "icons/weapons/ak47.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/colt.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/knife.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/m16.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/m67.png",
+    "author": "CHƯA XÁC MINH",
+    "source": "Render từ model lựu đạn M67 (models/grenades/m67.glb)",
+    "license": "Theo license của model m67 – CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/rulo.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/shotgun.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/smg.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/sniper.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "maps/deathmatch.png",
+    "author": "Dự án FPS Web",
+    "source": "Ảnh bản đồ nhỏ vẽ từ assets/maps/deathmatch.json",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "models/ak47.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/ak47.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/characters/cop.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model nhân vật lấy từ thư viện cộng đồng (plan 11: bản \"Dust2\" CT/T), rig bằng Mixamo, đã đổi tên cop/robber",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/characters/cop_fparms.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model nhân vật lấy từ thư viện cộng đồng (plan 11: bản \"Dust2\" CT/T), rig bằng Mixamo, đã đổi tên cop/robber",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/characters/robber.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model nhân vật lấy từ thư viện cộng đồng (plan 11: bản \"Dust2\" CT/T), rig bằng Mixamo, đã đổi tên cop/robber",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/characters/robber_fparms.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model nhân vật lấy từ thư viện cộng đồng (plan 11: bản \"Dust2\" CT/T), rig bằng Mixamo, đã đổi tên cop/robber",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/characters/saber_ct.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model nhân vật saber (assets/source/characters/mixamo_in/saber-*.fbx), rig bằng Mixamo",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/characters/saber_ct_fparms.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model nhân vật saber (assets/source/characters/mixamo_in/saber-*.fbx), rig bằng Mixamo",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/characters/saber_t.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model nhân vật saber (assets/source/characters/mixamo_in/saber-*.fbx), rig bằng Mixamo",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/characters/saber_t_fparms.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model nhân vật saber (assets/source/characters/mixamo_in/saber-*.fbx), rig bằng Mixamo",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/colt.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/colt.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/crate.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/texture/Crate.blend (dựng lại màu gỗ)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/grenades/m67.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/m67_hand_granade_-_low_poly.glb (tách chốt, thìa)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/knife_1.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/knife_1.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/knife_2.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/knife_2.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/m16.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/m16.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/rouleau.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/rouleau.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/shotgun.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/shotgun.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/sniper.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/sniper.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/submachine.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/guns/submachine.blend",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_1.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_10.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_2.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_3.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_4.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_5.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_6.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_7.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_8.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "models/zombies/zombie_bighand.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Model zombie rig bằng Mixamo (assets/source/characters/mixamo_out)",
+    "license": "Model: CHƯA XÁC MINH; rig/animation Mixamo: điều khoản Adobe Mixamo",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/dryfire_pistol.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/dryfire_pistol.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/dryfire_rifle.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/dryfire_rifle.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/reload_bolt.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/reload_bolt.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/reload_mag.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/reload_mag.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "textures/brick_1.jpg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/texture/ (resize 1024px)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "textures/concrete_1.jpg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/texture/ (resize 1024px)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "textures/concrete_2.jpg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/texture/ (resize 1024px)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "textures/greenfloor.jpg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/texture/ (resize 1024px)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "textures/stone_1.jpg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/texture/ (resize 1024px)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  }
+]

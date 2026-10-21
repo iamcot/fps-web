@@ -237,10 +237,10 @@ Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
 - ⚠️ Test `offline/host.test.ts > Lây Nhiễm offline` vẫn thỉnh thoảng fail (đo ~2/8 lần): mẹ sinh ở x≈30 (căn cứ B) đứng yên vel 0 suốt, không tìm được đường tới người → không ai bị lây trong 2 phút. Có từ trước (không do đổi số), cần xem nav/đường ra khỏi căn cứ B của zombie mẹ.
 
 ## 18 – Đóng gói nhấp đúp là chạy (Windows / Mac)
-- [ ] K.1 Server standalone: một cổng cho trang game + WebSocket, tự mở trình duyệt
-- [ ] K.2 Gom server thành một file JS (esbuild)
-- [ ] K.3 Đóng gói SEA cho nền tảng hiện tại (npm run package)
-- [ ] K.4 GitHub Actions build Windows + Mac chip M + Mac Intel
-- [ ] K.5 HUONG-DAN.txt cho người nhận
-- [ ] K.6 CREDITS + kiểm tra license asset
-- [ ] K.7 Phiên bản, kiểm tra client/server khớp, CHANGELOG
+- [x] K.1 Server standalone — `server/src/standalone.ts` (một cổng: HTTP tĩnh + WebSocket `/ws` bằng `noServer`), `staticServer.ts` (MIME, cache, ETag/304, SPA fallback, chặn `..`/`%2e%2e`/`\`/NUL; có test), `gameServer.ts` (lõi phòng + vòng 60Hz tách ra từ `main.ts`, dev vẫn dùng `main.ts`), `config.json` {port, openBrowser, maxRooms}, `--port`, `--no-open`, thử cổng tới +10, banner tiếng Việt kèm tên card mạng, lỗi nghiêm trọng chờ Enter. `RoomManager.maxRooms` mới (quá giới hạn = "phòng đầy"). Đã thử: curl `..`/`%2e%2e` → 400, `.glb` đúng MIME+cache, bản thứ hai tự sang 8081, vào phòng + chơi qua Chromium. Chưa thử LAN thật từ máy khác.
+- [x] K.2 esbuild — `scripts/bundle-server.mjs` → `build/server.cjs` (esbuild 0.25.12, cjs, node24, define `APP_VERSION`, script báo lỗi nếu còn require gói ngoài). Rapier compat chạy trong file gộp; thử trong thư mục trống không có node_modules. Map `deathmatch.json` được nhúng vào bundle (standalone chỉ có map này; thêm map mới phải import trong `standalone.ts`).
+- [x] K.3 `npm run package` — `scripts/package.mjs`: build client → bundle → SEA blob → copy node → (Mac: gỡ chữ ký) → postject → (Mac: ký ad-hoc) → copy game/config/HUONG-DAN/CREDITS → **chạy thử file vừa tạo** → nén. Dùng cách `postject` + `--experimental-sea-config` như plan (Node 24.22 chưa có `--build-sea`). Đã chạy thật trên **Linux x64 + Node 24.22.0** (có thêm bản `linux-x64`), file chạy khi `env -i` (không PATH). **Chưa chạy trên Mac/Windows** (nhánh codesign/Compress-Archive chưa kiểm). Biến `FPS_NODE_BINARY` + `FPS_TARGET` cho build chéo (Mac Intel trên runner M). `.nvmrc` = 24.22.0.
+- [x] K.4 `.github/workflows/release.yml` (tag `v*` hoặc chạy tay; 3 job windows-latest / macos-latest / macos-15-intel; job Release dùng `gh release create`, ghi chú từ `CHANGELOG.md` qua `scripts/release-notes.mjs`, tag có `-` là prerelease). **Chưa chạy trên GitHub**. Cần kiểm label runner Intel còn hỗ trợ không.
+- [x] K.5 `packaging/HUONG-DAN.txt` (đúng nội dung plan, thay `{version}` lúc đóng gói). Chưa có ảnh minh hoạ `docs/`.
+- [~] K.6 `assets/CREDITS.json` (52 asset) + kiểm tra khi đóng gói (thiếu khai báo → dừng, nêu tên file) + `CREDITS.txt` + mục "Ghi công" ở menu. **Tác giả/giấy phép của 43/52 file đang ghi "CHƯA XÁC MINH"** (repo không có thông tin) — người dùng phải điền (C.8). Đóng gói chỉ cảnh báo, không dừng vì việc này.
+- [x] K.7 Phiên bản `1.3.0` ở `package.json` gốc → vite define `__APP_VERSION__` (client), `APP_VERSION` (server). Menu chính hiện `v1.3.0 · Ghi công`. `ListRooms`/`Join` có `version`; server (dev + standalone) trả `JoinRejected('version')` nếu khác/thiếu, client hiện "Phiên bản game không khớp, tải lại trang (Ctrl+F5)". Offline (worker cùng bundle) không kiểm. `CHANGELOG.md` mới.

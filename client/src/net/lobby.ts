@@ -2,6 +2,8 @@ import { isZombieMode, MsgType, TEAMS, CHARACTER_SETS, DEFAULT_CHARACTER_SET, DE
 import { connectWebSocket, maybeNetsim } from './transport'
 import { getCharacterSet } from '../render/characters'
 import { createLocalTransport, startOfflineWorker } from './localTransport'
+import { APP_VERSION } from '../version'
+import { showCredits } from './credits'
 
 export interface Session {
   transport: Transport
@@ -27,6 +29,7 @@ function loadSaved(): { name: string; team: string; characters: string } {
 }
 
 const REJECT_TEXT: Record<JoinRejectReason, string> = {
+  version: 'Phiên bản game không khớp, tải lại trang (Ctrl+F5)',
   full: 'Phòng đã đầy', exists: 'Tên phòng đã có người dùng', missing: 'Phòng không còn nữa', bad: 'Tên hoặc tên phòng không hợp lệ',
 }
 
@@ -82,7 +85,7 @@ function joinRoom(transport: Transport, o: JoinOpts): Promise<Session> {
       if (!welcomed) reject(new Error('Server đóng kết nối'))
       else log('Mất kết nối server')
     })
-    transport.send({ t: MsgType.Join, name: o.name, room: o.room, team: o.team, characterSet: o.characterSet, create: o.create, mapId: o.mapId, options: o.options })
+    transport.send({ t: MsgType.Join, name: o.name, room: o.room, team: o.team, characterSet: o.characterSet, create: o.create, mapId: o.mapId, options: o.options, version: APP_VERSION })
   })
 }
 
@@ -169,6 +172,12 @@ export function showLobby(): Promise<Session | null> {
         }, () => { err.textContent = 'Không kết nối được server' })
       })
       el.appendChild(form)
+      // Góc dưới menu chính: phiên bản + Ghi công
+      const foot = mk('div', 'position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:12px;opacity:.7')
+      const credit = mk('button', 'background:none;border:none;color:#9bf;cursor:pointer;font:inherit;text-decoration:underline', 'Ghi công')
+      credit.type = 'button'; credit.addEventListener('click', showCredits)
+      foot.append(`v${APP_VERSION} · `, credit)
+      el.appendChild(foot)
       nameIn.focus()
       // Quay về từ "Về phòng chờ": đã có tên thì đi thẳng tới danh sách phòng
       let back = false
@@ -323,6 +332,7 @@ export function showLobby(): Promise<Session | null> {
 
       let sig = ''
       transport.onMessage(msg => {
+        if (msg.t === MsgType.JoinRejected && msg.reason === 'version') { clearInterval(poll); err.textContent = REJECT_TEXT.version; return }
         if (msg.t !== MsgType.RoomList) return
         const next = JSON.stringify(msg)
         if (next === sig) return   // không đổi thì không vẽ lại (đang mở dropdown phe sẽ bị đóng)
@@ -332,7 +342,7 @@ export function showLobby(): Promise<Session | null> {
         drawRooms()
       })
       transport.onClose(() => { clearInterval(poll); err.textContent = 'Mất kết nối server — tải lại trang' })
-      const ask = () => transport.send({ t: MsgType.ListRooms })
+      const ask = () => transport.send({ t: MsgType.ListRooms, version: APP_VERSION })
       const poll = setInterval(() => { if (!busy) ask() }, 2000)
       ask()
     }

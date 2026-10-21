@@ -43,7 +43,10 @@ const previewCache = (): Plugin => ({
   },
 })
 
+const { version } = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8')) as { version: string }
+
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(version) },
   plugins: [botsJsonHot(), previewCache()],
   server: shared,
   preview: { ...shared, port: 4173 },

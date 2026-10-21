@@ -418,6 +418,8 @@ export class RoomManager {
   readonly maps = new Map<string, { name: string; map: LoadedMap }>()
   /** Lưới di chuyển theo map (zombie Thủ Thành và bot cần). Host dựng lúc khởi động; map chưa có lưới thì phòng không có zombie đi được. */
   readonly navs = new Map<string, NavGrid>()
+  /** Số phòng tối đa cùng lúc (standalone đặt từ config.json); phòng mới quá giới hạn bị từ chối như phòng đầy. */
+  maxRooms = Infinity
 
   constructor(private map: LoadedMap, private now: () => number = () => performance.now(), private rules: MatchRules = MATCH, private defaultMapId = 'default') {
     this.maps.set(defaultMapId, { name: map.name, map })
@@ -433,6 +435,7 @@ export class RoomManager {
   }
 
   tryJoin(roomId: string, name: string, transport: Transport, tick = 0, team: TeamId | 'auto' = 'auto', characterSet: CharacterSetId = DEFAULT_CHARACTER_SET, mapId?: string, options?: RoomOptions): { room: Room; player: Player } | null {
+    if (!this.rooms.has(roomId) && this.rooms.size >= this.maxRooms) return null
     const room = this.rooms.get(roomId) ?? this.createRoom(roomId, characterSet, mapId, options)
     const player = room.join(name, transport, tick, this.now(), team)
     return player ? { room, player } : null
