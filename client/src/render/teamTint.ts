@@ -10,16 +10,17 @@ export interface TeamTintDef {
   lumRef: number     // luma tuyến tính của texel được coi là "sáng đầy" (≈ 2–3 lần trung bình texture)
   lift: number       // sàn sáng 0..1: vùng tối nhất của texture không xuống dưới mức này
   gamma: number      // < 1 nâng vùng tối
+  strength: number   // pha giữa màu gốc (0) và màu đội (1)
 }
 
 const TINT: Record<string, Record<TeamId, TeamTintDef>> = {
   saber:   {
-    A: { color: 0x5a90f0, lumRef: 0.07, lift: 0.30, gamma: 0.8 },   // Cớm: xanh dương
-    B: { color: 0xffeccb, lumRef: 0.08, lift: 0.50, gamma: 0.8 },   // Cướp: trắng kem
+    A: { color: 0x5a90f0, lumRef: 0.07, lift: 0.30, gamma: 0.8, strength: 0.3 },   // Cớm: xanh dương
+    B: { color: 0xffeccb, lumRef: 0.08, lift: 0.50, gamma: 0.8, strength: 0.5 },   // Cướp: trắng kem
   },
   classic: {
-    A: { color: 0x5a90f0, lumRef: 0.03, lift: 0.30, gamma: 0.8 },
-    B: { color: 0xffeccb, lumRef: 0.09, lift: 0.50, gamma: 0.8 },
+    A: { color: 0x5a90f0, lumRef: 0.03, lift: 0.30, gamma: 0.8, strength: 0.3 },
+    B: { color: 0xffeccb, lumRef: 0.09, lift: 0.50, gamma: 0.8, strength: 0.5 },
   },
 }
 
@@ -31,14 +32,11 @@ export function liftedLuma(luma: number, d: Pick<TeamTintDef, 'lumRef' | 'lift' 
   return d.lift + (1 - d.lift) * Math.pow(n, d.gamma)
 }
 
-/** Mức pha giữa màu gốc (0) và màu đội (1) */
-export const TEAM_TINT_STRENGTH = 0.5
+export interface TeamTintHandle { strength: { value: number }; readonly base: number }
 
-export interface TeamTintHandle { strength: { value: number } }
-
-/** Vá MeshLambertMaterial: thay phần lấy mẫu texture. `strength` 0 = nguyên bản (zombie), TEAM_TINT_STRENGTH = pha màu đội. */
+/** Vá MeshLambertMaterial: thay phần lấy mẫu texture. `strength` 0 = nguyên bản (zombie), `base` = mức của đội. */
 export function applyTeamTint(mat: THREE.MeshLambertMaterial, d: TeamTintDef): TeamTintHandle {
-  const handle: TeamTintHandle = { strength: { value: TEAM_TINT_STRENGTH } }
+  const handle: TeamTintHandle = { strength: { value: d.strength }, base: d.strength }
   const tint = new THREE.Color(d.color)
   mat.onBeforeCompile = shader => {
     shader.uniforms.uTint = { value: tint }
