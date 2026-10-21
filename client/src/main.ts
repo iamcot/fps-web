@@ -366,10 +366,12 @@ function setupOffline(session: Session): void {
     if (e.code === 'BracketLeft') send({ t: MsgType.OfflineCmd, cmd: 'addBot', difficulty: 'medium', ally: e.shiftKey })
     else if (e.code === 'BracketRight') send({ t: MsgType.OfflineCmd, cmd: 'addBot', difficulty: 'hard', ally: e.shiftKey })
     else if (e.code === 'Backslash') send({ t: MsgType.OfflineCmd, cmd: 'clearBots' })
-    else if (e.code === 'F11' || e.code === 'Semicolon') { e.preventDefault(); botDebug.toggle() }   // F11: lưới di chuyển + trạng thái bot (`;` dự phòng vì trình duyệt giữ F11)
+    else if (e.code === 'Semicolon' && DEBUG_KEYS) { e.preventDefault(); botDebug.toggle() }   // `;`: lưới di chuyển + trạng thái bot (không dùng F11: người chơi bấm F11 để toàn màn hình)
   })
 }
 
+// Phím debug (khung hitscan, lưới bot) chỉ bật khi chạy dev hoặc mở ?debug=1, để người chơi không bấm nhầm
+const DEBUG_KEYS = import.meta.env.DEV || new URLSearchParams(location.search).has('debug')
 const sessionP = showLobby()
 sessionP.then(session => {
   if (!session) {
@@ -578,7 +580,7 @@ sessionP.then(session => {
   // F7: server gửi DebugShot (tia + hitbox đã tua) cho mỗi phát của mình
   let debugOn = false
   document.addEventListener('keydown', e => {
-    if (e.code !== 'F7') return
+    if (e.code !== 'F7' || !DEBUG_KEYS) return
     e.preventDefault()
     debugOn = !debugOn
     session.transport.send({ t: MsgType.SetDebug, shots: debugOn })
