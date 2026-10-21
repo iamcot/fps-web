@@ -82,6 +82,6 @@ createWorld(map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => {
   w.dispose()
   server.listen(PORT, () => {
     console.log(`listening ${PORT} (mọi card mạng)`)
-    for (const a of lanAddresses()) console.log(`  LAN ${a.iface}: ws://${a.address}:${PORT}   → máy khác mở http://${a.address}:5173`)
+    for (const a of lanAddresses()) console.log(`  LAN ${a.iface}: ws://${a.address}:${PORT}   → máy khác mở http://${a.address}:${process.env.FPS_WEB_PORT ?? 5173}`)
   })
 })
