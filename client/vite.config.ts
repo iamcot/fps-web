@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Plugin, type PreviewServer } from 'vite'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 
@@ -19,10 +19,34 @@ const shared = {
   proxy: { '/ws': { target: 'ws://localhost:8081', ws: true } },
 }
 
+// `vite preview` (sirv) có thể ghi đè header, nên bọc res.writeHead để chèn Cache-Control ngay trước lúc gửi phản hồi.
+// /assets/ (tên file có hash) cache 1 năm; model/âm thanh/icon cache 7 ngày; index.html không đặt (luôn kiểm tra lại).
+const previewCache = (): Plugin => ({
+  name: 'preview-cache-control',
+  configurePreviewServer(server: PreviewServer) {
+    server.middlewares.use((req, res, next) => {
+      const url = (req.url ?? '').split('?')[0]!
+      const value = url.startsWith('/assets/') ? 'public, max-age=31536000, immutable'
+        : /^\/(models|sounds|icons)\//.test(url) ? 'public, max-age=604800' : null
+      if (value) {
+        const writeHead = res.writeHead.bind(res) as (...a: unknown[]) => typeof res
+        res.writeHead = ((...args: unknown[]) => {
+          // sirv truyền header qua đối số của writeHead (đè setHeader): ghi đè Cache-Control ở cả hai nơi
+          const h = args.find(x => x && typeof x === 'object' && !Array.isArray(x)) as Record<string, unknown> | undefined
+          if (h) { for (const k of Object.keys(h)) if (k.toLowerCase() === 'cache-control') delete h[k]; h['Cache-Control'] = value }
+          res.setHeader('Cache-Control', value)
+          return writeHead(...args)
+        }) as typeof res.writeHead
+      }
+      next()
+    })
+  },
+})
+
 export default defineConfig({
-  plugins: [botsJsonHot()],
+  plugins: [botsJsonHot(), previewCache()],
   server: shared,
-  preview: shared,
+  preview: { ...shared, port: 4173 },
   optimizeDeps: {
     entries: ['index.html'],
   },

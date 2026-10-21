@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "dev": "node dev.mjs",
+    "build": "npm run build -w client",
+    "play": "npm run build && node play.mjs",
     "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w client",
     "test": "vitest run",
     "bot-bench": "npm run bot-bench -w server"
