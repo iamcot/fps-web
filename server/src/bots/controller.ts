@@ -14,6 +14,7 @@ import { EdgeKind, Zone, type Waypoint } from './nav'
 import { Perception, bodyPoint, eyeOf, type Known } from './perception'
 import { getBotParams, rand, randInt, type BotParams } from './params'
 import { ZombieBrain } from '../zombies/brain'
+import { isZombieMode } from '@fps/shared'
 
 export type BotState = 'Patrol' | 'Engage' | 'Search' | 'Reload' | 'Hunt' | 'TakeCover' | 'Peek' | 'Flank' | 'Push'
 
@@ -27,6 +28,7 @@ const COVER_RAYS = 14
 const NADE_COOLDOWN_MS = 20_000
 const STICKY = 0.15
 const BUY_GAP_MS = 230
+const KITE_RANGE = 14   // zombie trong ngần này thì người lùi lại (thể thức zombie)
 
 const cfg = defaultMovement
 const _tmpA: Vec3 = [0, 0, 0]
@@ -753,7 +755,8 @@ export class BotController {
         if (this.peekPhase === 'fight' && this.rng() < 0.002) this.wantCrouch = true
         break
     }
-    if (targetVisible && this.hard && this.state !== 'Engage' && this.state !== 'Push' && !this.hasWish) this.strafe(now, def.spread.accurateSpeed)
+    if (this.zombieKite(now, def.spread.accurateSpeed)) { /* lùi vừa bắn: đã đặt wish/speedCap */ }
+    else if (targetVisible && this.hard && this.state !== 'Engage' && this.state !== 'Push' && !this.hasWish) this.strafe(now, def.spread.accurateSpeed)
     if (reloading && this.state === 'Engage' && !this.hard) this.hasWish = false
 
     // chiếu hướng muốn đi lên W/A/S/D theo yaw hiện tại
@@ -771,6 +774,64 @@ export class BotController {
     if (this.wantJump && me.state.grounded) buttons |= Btn.Jump
     if (this.wantCrouch) buttons |= Btn.Crouch
     return buttons
+  }
+
+  // ── Thể thức zombie: người không đứng bắn hay lao vào đám zombie mà vừa bắn vừa lùi (thả diều) ──────────────────────────
+  private kiteAt = 0
+  private readonly kiteNodes: number[] = []
+  private readonly kiteThreats: { x: number; z: number; d: number }[] = []
+
+  /** Có zombie trong tầm đe doạ → lùi tới chỗ xa zombie hơn (hướng về đồng đội, ưu tiên điểm núp); true nếu đã tự điều khiển di chuyển tick này */
+  private zombieKite(now: number, accurateSpeed: number): boolean {
+    const room = this.room, me = this.me
+    if (me.role !== 'human' || !isZombieMode(room.config.settings.mode)) return false
+    const th = this.kiteThreats
+    th.length = 0
+    let nearest = Infinity, anyFar = false
+    for (const z of room.players.values()) {
+      if (z.role !== 'zombie' || !z.alive) continue
+      const d = Math.hypot(z.state.pos[0] - me.state.pos[0], z.state.pos[2] - me.state.pos[2])
+      if (Math.abs(z.state.pos[1] - me.state.pos[1]) > 3.5) continue
+      if (d < KITE_RANGE) { th.push({ x: z.state.pos[0], z: z.state.pos[2], d }); if (d < nearest) nearest = d }
+      else if (d < 40) anyFar = true
+    }
+    if (th.length === 0) {
+      // zombie còn xa: giữ chỗ (không Hunt/Push/Flank lao tới), để chúng tự tới trong tầm bắn
+      if (anyFar && (this.state === 'Hunt' || this.state === 'Flank' || this.state === 'Push' || this.state === 'Peek')) { this.hasWish = false; return true }
+      return false
+    }
+    const nav = room.nav
+    if (nav && (now >= this.kiteAt || !this.path)) {
+      this.kiteAt = now + 450
+      const near = nav.nodesNear(me.state.pos[0], me.state.pos[1], me.state.pos[2], 13, 2.5, this.kiteNodes)
+      let best = -1, bestScore = -Infinity
+      const step = Math.max(1, Math.floor(near.length / 90))
+      for (let k = 0; k < near.length; k += step) {
+        const n = near[k]!
+        const nx = nav.x[n]!, nz = nav.z[n]!
+        const travel = Math.hypot(nx - me.state.pos[0], nz - me.state.pos[2])
+        if (travel < 4) continue
+        let minZ = Infinity
+        for (const t of th) minZ = Math.min(minZ, Math.hypot(nx - t.x, nz - t.z))
+        if (minZ < nearest + 2) continue                       // phải thật sự xa zombie hơn chỗ đang đứng
+        let mates = 0, cnt = 0
+        for (const o of room.players.values()) if (o !== me && o.role === 'human' && o.alive && !o.npc) { mates += Math.hypot(nx - o.state.pos[0], nz - o.state.pos[2]); cnt++ }
+        const score = minZ - travel * 0.25 - (cnt ? (mates / cnt) * 0.08 : 0) + (nav.cover[n] ? 1.5 : 0)
+        if (score > bestScore) { bestScore = score; best = n }
+      }
+      if (best >= 0) this.goTo([nav.x[best]!, nav.y[best]!, nav.z[best]!], true)
+      else this.path = null
+    }
+    if (!this.follow(now)) {   // không có đường: bỏ chạy thẳng ra xa trọng tâm đám zombie
+      let rx = 0, rz = 0
+      for (const t of th) { const w = 1 / Math.max(1, t.d * t.d); rx += (me.state.pos[0] - t.x) * w; rz += (me.state.pos[2] - t.z) * w }
+      const l = Math.hypot(rx, rz) || 1
+      this.wishX = rx / l; this.wishZ = rz / l; this.hasWish = true
+    }
+    // còn xa thì lùi chậm để vẫn bắn chuẩn, sát rồi thì chạy hết tốc
+    this.speedCap = nearest > 8 ? Math.max(accurateSpeed * 1.4, 4) : Infinity
+    this.wantCrouch = false
+    return true
   }
 
   /** Đi theo đường; true nếu đang di chuyển */

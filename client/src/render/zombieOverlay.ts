@@ -5,7 +5,7 @@ import { DEFENSE, ZOMBIE_TYPES, type TelegraphMsg } from '@fps/shared'
 
 const BAR_SHOW_MS = 3000
 const ALWAYS_NAME = new Set(['brute', 'screamer', 'boss'])
-const NAME_COLOR: Record<string, string> = { brute: '#e8956a', screamer: '#f0e070', boss: '#ff5050' }
+const NAME_COLOR: Record<string, string> = { mother: '#9be07a', brute: '#e8956a', screamer: '#f0e070', boss: '#ff5050' }
 const STEPS = 20
 
 interface Overlay { sprite: THREE.Sprite; key: string }
@@ -29,7 +29,7 @@ function barTexture(type: string, step: number, withName: boolean): THREE.Canvas
     const W = 128, H = 28
     if (withName) {
       g.font = 'bold 16px monospace'; g.textAlign = 'center'; g.textBaseline = 'top'
-      const name = ZOMBIE_TYPES[type]?.name ?? type
+      const name = type === 'mother' ? 'Zombie mẹ' : ZOMBIE_TYPES[type]?.name ?? type
       g.lineWidth = 4; g.strokeStyle = '#000'; g.strokeText(name, W / 2, 0)
       g.fillStyle = NAME_COLOR[type] ?? '#fff'; g.fillText(name, W / 2, 0)
     }
@@ -132,13 +132,13 @@ export function createZombieOverlay(scene: THREE.Scene) {
         if (p.id === selfId) continue
         const dead = (p.flags & 8) !== 0   // NetFlag.Dead
         // ── thanh máu / nhãn zombie
-        if (p.hpMax > 0 && p.ztype && ZOMBIE_TYPES[p.ztype] && !dead) {
+        if (p.hpMax > 0 && p.ztype && !dead) {   // mọi zombie luôn hiện máu trên đầu (Lây Nhiễm: mẹ/thường; Thủ Thành: theo loại)
           const prev = lastHp.get(p.id)
           if (prev !== undefined && p.hp < prev) hitAt.set(p.id, now)
           lastHp.set(p.id, p.hp)
-          const showName = ALWAYS_NAME.has(p.ztype)
-          const recent = now - (hitAt.get(p.id) ?? -1e9) < BAR_SHOW_MS
-          if (showName || recent) {
+          const showName = ALWAYS_NAME.has(p.ztype) || p.ztype === 'mother'
+          const far = Math.hypot(p.pos[0] - camera.position.x, p.pos[2] - camera.position.z) > 45
+          if (!far) {
             const step = Math.max(0, Math.min(STEPS, Math.ceil(STEPS * p.hp / p.hpMax)))
             let o = bars.get(p.id)
             if (!o) { o = { sprite: mkSprite(1.1, 0.24), key: '' }; bars.set(p.id, o) }
@@ -165,7 +165,6 @@ export function createZombieOverlay(scene: THREE.Scene) {
       for (const id of [...bars.keys()]) if (!seen.has(id)) drop(bars, id)
       for (const id of [...crosses.keys()]) if (!seen.has(-id - 1)) drop(crosses, id)
       for (const id of [...hitAt.keys()]) if (now - hitAt.get(id)! > 10_000) { hitAt.delete(id); lastHp.delete(id) }
-      void camera
       // số damage
       for (const f of floaters) {
         if (f.age >= f.life) { f.sprite.visible = false; continue }
