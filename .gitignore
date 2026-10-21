@@ -1,6 +1,7 @@
 assets-raw
 node_modules
 .DS_Store
+client/dist
 # Đóng gói (plan 18)
 release/
 build/
