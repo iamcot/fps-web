@@ -6,7 +6,7 @@ import { DEFAULT_ANIM, type CharacterRig } from './characters/types'
 import { poses } from './poses'
 import { SkeletonArm, FINGER_NAMES, type FingerBones } from './skeletonArm'
 import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, type Slot } from './locomotion'
-import { applyTeamTint, teamTintDef, type TeamTintHandle } from './teamTint'
+import { TEAM_TINT_STRENGTH, applyTeamTint, teamTintDef, type TeamTintHandle } from './teamTint'
 import { Z_CLIPS, Z_DEATH, ZOMBIE_ATTACK, ZOMBIE_JUMP_HOLD, ZOMBIE_RUN_BLEND, ZOMBIE_RUN_START, fitRate, zombieClipRate, zombieSlotClip, type ZombieAttackKind } from './zombieAnim'
 
 // Nhân vật có xương (plan 11, C.4): cop.glb / robber.glb dùng chung bộ animation Mixamo.
@@ -234,7 +234,7 @@ export class SkelCharacter {
     if (on === this.zombie) return true
     if (!on) {
       this.zombie = false
-      for (const t of this.tints) t.strength.value = 1
+      for (const t of this.tints) t.strength.value = TEAM_TINT_STRENGTH
       this.zov?.act.stop(); this.zov = null
       for (const [n, a] of this.actions) if (n.startsWith('z_')) { a.stop(); this.weight.set(n, 0); this.target.set(n, 0) }
       for (const a of this.zovActions.values()) a.stop()

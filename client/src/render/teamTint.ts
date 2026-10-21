@@ -31,11 +31,14 @@ export function liftedLuma(luma: number, d: Pick<TeamTintDef, 'lumRef' | 'lift' 
   return d.lift + (1 - d.lift) * Math.pow(n, d.gamma)
 }
 
+/** Mức pha giữa màu gốc (0) và màu đội (1) */
+export const TEAM_TINT_STRENGTH = 0.5
+
 export interface TeamTintHandle { strength: { value: number } }
 
-/** Vá MeshLambertMaterial: thay phần lấy mẫu texture. `strength` 0 = nguyên bản (zombie), 1 = màu đội. */
+/** Vá MeshLambertMaterial: thay phần lấy mẫu texture. `strength` 0 = nguyên bản (zombie), TEAM_TINT_STRENGTH = pha màu đội. */
 export function applyTeamTint(mat: THREE.MeshLambertMaterial, d: TeamTintDef): TeamTintHandle {
-  const handle: TeamTintHandle = { strength: { value: 1 } }
+  const handle: TeamTintHandle = { strength: { value: TEAM_TINT_STRENGTH } }
   const tint = new THREE.Color(d.color)
   mat.onBeforeCompile = shader => {
     shader.uniforms.uTint = { value: tint }
