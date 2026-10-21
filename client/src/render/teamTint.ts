@@ -15,12 +15,12 @@ export interface TeamTintDef {
 
 const TINT: Record<string, Record<TeamId, TeamTintDef>> = {
   saber:   {
-    A: { color: 0x5a90f0, lumRef: 0.07, lift: 0.30, gamma: 0.8, rim: 0.7 },   // Cớm: xanh dương
-    B: { color: 0xffeccb, lumRef: 0.08, lift: 0.50, gamma: 0.8, rim: 0.7 },   // Cướp: trắng kem
+    A: { color: 0x5a90f0, lumRef: 0.07, lift: 0.30, gamma: 0.8, rim: 1.1 },   // Cớm: xanh dương
+    B: { color: 0xffeccb, lumRef: 0.08, lift: 0.50, gamma: 0.8, rim: 1.1 },   // Cướp: trắng kem
   },
   classic: {
-    A: { color: 0x5a90f0, lumRef: 0.03, lift: 0.30, gamma: 0.8, rim: 0.7 },
-    B: { color: 0xffeccb, lumRef: 0.09, lift: 0.50, gamma: 0.8, rim: 0.7 },
+    A: { color: 0x5a90f0, lumRef: 0.03, lift: 0.30, gamma: 0.8, rim: 1.1 },
+    B: { color: 0xffeccb, lumRef: 0.09, lift: 0.50, gamma: 0.8, rim: 1.1 },
   },
 }
 
@@ -64,7 +64,7 @@ export function applyTeamTint(mat: THREE.MeshLambertMaterial, d: TeamTintDef): T
         diffuseColor *= texel;
       #endif`)
       .replace('#include <opaque_fragment>', `
-      float rimF = pow( 1.0 - clamp( dot( normalize( normal ), normalize( vViewPosition ) ), 0.0, 1.0 ), 3.0 );
+      float rimF = pow( 1.0 - clamp( dot( normalize( normal ), normalize( vViewPosition ) ), 0.0, 1.0 ), 2.0 );
       outgoingLight += uRimColor * rimF * uRim * uStrength;
       #include <opaque_fragment>`)
   }
