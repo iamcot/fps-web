@@ -12,7 +12,7 @@ import { lanAddresses } from './lan'
 import { RoomManager } from './room'
 import { handleConnection, type ServerContext } from './connection'
 
-const PORT = 8081
+const PORT = Number(process.env.FPS_PORT) || 8081   // npm run play dùng 8082 để chạy song song với npm run dev
 const stamp = () => new Date().toTimeString().slice(0, 8)
 
 const mapFile = JSON.parse(

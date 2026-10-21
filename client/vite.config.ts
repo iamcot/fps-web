@@ -16,7 +16,7 @@ const botsJsonHot = (): Plugin => ({
 const shared = {
   host: true,   // nghe mọi card mạng để máy khác trong LAN vào được (Vite in dòng Network)
   allowedHosts: ['.ngrok-free.app', '.ngrok.app', '.ngrok.io', '.ngrok-free.dev'],   // Vite chặn tên miền lạ
-  proxy: { '/ws': { target: 'ws://localhost:8081', ws: true } },
+  proxy: { '/ws': { target: `ws://localhost:${process.env.FPS_PORT ?? 8081}`, ws: true } },
 }
 
 // `vite preview` (sirv) có thể ghi đè header, nên bọc res.writeHead để chèn Cache-Control ngay trước lúc gửi phản hồi.
