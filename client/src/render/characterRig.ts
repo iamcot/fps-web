@@ -6,7 +6,7 @@ import { DEFAULT_ANIM, type CharacterRig } from './characters/types'
 import { poses } from './poses'
 import { SkeletonArm, FINGER_NAMES, type FingerBones } from './skeletonArm'
 import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, type Slot } from './locomotion'
-import { RIM_ALLY, RIM_ENEMY, applyTeamTint, teamTintDef, type TeamTintHandle } from './teamTint'
+import { applyTeamTint, teamTintDef, type TeamTintHandle } from './teamTint'
 import { Z_CLIPS, Z_DEATH, ZOMBIE_ATTACK, ZOMBIE_JUMP_HOLD, ZOMBIE_RUN_BLEND, ZOMBIE_RUN_START, fitRate, zombieClipRate, zombieSlotClip, type ZombieAttackKind } from './zombieAnim'
 
 // Nhân vật có xương (plan 11, C.4): cop.glb / robber.glb dùng chung bộ animation Mixamo.
@@ -228,8 +228,6 @@ export class SkelCharacter {
   }
 
   // ── Zombie ───────────────────────────────────────────────────────────────────
-  /** Viền sáng: xanh nếu là đồng đội của người xem, đỏ nếu là kẻ thù */
-  setAlly(ally: boolean): void { for (const t of this.tints) t.rimColor.value.setHex(ally ? RIM_ALLY : RIM_ENEMY) }
   get isZombie(): boolean { return this.zombie }
   /** Bật/tắt bộ clip zombie. Trả về false nếu chưa có clip z_* (chưa tải xong): gọi lại frame sau. */
   setZombie(on: boolean): boolean {
