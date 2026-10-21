@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tên tag để tạo Release (ví dụ v1.3.0). Để trống = chỉ build, lấy zip ở Artifacts'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -40,7 +45,9 @@ jobs:
   release:
     name: GitHub Release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -51,11 +58,12 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Lấy ghi chú từ CHANGELOG.md
-        run: node scripts/release-notes.mjs "${GITHUB_REF_NAME}" > notes.md
+        run: node scripts/release-notes.mjs "$TAG" > notes.md
       - name: Tạo Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           flags=""
-          case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" dist/*.zip --title "FPS Web $GITHUB_REF_NAME" --notes-file notes.md $flags
+          case "$TAG" in *-*) flags="--prerelease" ;; esac
+          # Tag chưa có thì gh tự tạo trên commit đang build (--target)
+          gh release create "$TAG" dist/*.zip --target "$GITHUB_SHA" --title "FPS Web $TAG" --notes-file notes.md $flags
