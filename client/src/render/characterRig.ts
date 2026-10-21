@@ -6,6 +6,7 @@ import { DEFAULT_ANIM, type CharacterRig } from './characters/types'
 import { poses } from './poses'
 import { SkeletonArm, FINGER_NAMES, type FingerBones } from './skeletonArm'
 import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, type Slot } from './locomotion'
+import { applyTeamTint, teamTintDef, type TeamTintHandle } from './teamTint'
 import { Z_CLIPS, Z_DEATH, ZOMBIE_ATTACK, ZOMBIE_JUMP_HOLD, ZOMBIE_RUN_BLEND, ZOMBIE_RUN_START, fitRate, zombieClipRate, zombieSlotClip, type ZombieAttackKind } from './zombieAnim'
 
 // Nhân vật có xương (plan 11, C.4): cop.glb / robber.glb dùng chung bộ animation Mixamo.
@@ -135,6 +136,7 @@ export class SkelCharacter {
   readonly root = new THREE.Group()
   readonly model: THREE.Object3D
   readonly mats: THREE.Material[] = []
+  private readonly tints: TeamTintHandle[] = []   // zombie (Lây Nhiễm) dùng lại model người: tắt màu đội để giữ tint zombie
   readonly aimPivot = new THREE.Group()   // con của root, ở ngực, xoay theo pitch (hệ game: nòng −Z)
   readonly holder = new THREE.Group()     // súng 2 tay nằm ở đây
   readonly gunAnchor = new THREE.Group()  // súng 1 tay: con của xương bàn tay phải
@@ -183,8 +185,11 @@ export class SkelCharacter {
       o.castShadow = false; o.receiveShadow = false
       // Lambert như các khối còn lại của game (rẻ hơn Standard, cùng kiểu ánh sáng hemi + mặt trời)
       const old = o.material as THREE.MeshStandardMaterial
-      o.material = new THREE.MeshLambertMaterial({ map: old.map, color: old.color })
-      this.mats.push(o.material)
+      const mat = new THREE.MeshLambertMaterial({ map: old.map, color: old.color })
+      const td = zombieFile ? null : teamTintDef(skin, forcedTeam() ?? team)   // texture gốc quá tối: tô màu theo đội (cớm xanh, cướp trắng kem)
+      if (td) this.tints.push(applyTeamTint(mat, td))
+      o.material = mat
+      this.mats.push(mat)
       if (o instanceof THREE.SkinnedMesh) this.skinned.push(o)
     })
     this.root.updateMatrixWorld(true)
@@ -229,12 +234,14 @@ export class SkelCharacter {
     if (on === this.zombie) return true
     if (!on) {
       this.zombie = false
+      for (const t of this.tints) t.strength.value = 1
       this.zov?.act.stop(); this.zov = null
       for (const [n, a] of this.actions) if (n.startsWith('z_')) { a.stop(); this.weight.set(n, 0); this.target.set(n, 0) }
       for (const a of this.zovActions.values()) a.stop()
       return true
     }
     if (!zombieClips) return false
+    for (const t of this.tints) t.strength.value = 0
     for (const clip of zombieClips) {
       const had = this.actions.get(clip.name)
       if (had) {   // đã có từ lần làm zombie trước: setZombie(false) đã stop() nên phải chạy lại, không thì bộ xương đứng ở T-pose
