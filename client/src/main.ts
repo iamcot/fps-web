@@ -188,6 +188,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyQ' && prevSlot >= 0) requestSlot(prevSlot)
   if (e.code === 'KeyB') shop.toggle()
+  if (e.code === 'KeyT' && isLocked()) vm.inspect()   // xem/múa dao
   if (e.code === 'Backquote') { e.preventDefault(); askSwitchTeam() }
   if (e.code === 'F4' && debugLines) { debugLines.visible = !debugLines.visible; spawnMarkers.visible = debugLines.visible; e.preventDefault() }
 })
@@ -735,6 +736,11 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     hud.bottom.setSlots(slotKeysBuf, ws.slot, slotCountsBuf)
     shop.tick()
 
+    {   // dao: quán tính theo chuột, nghiêng khi đi ngang, nhảy/tiếp đất (yaw = 0 nhìn -Z: phải = (cos, 0, -sin))
+      const c = Math.cos(yaw), sn = Math.sin(yaw)
+      vm.setMove(state.vel[0] * c - state.vel[2] * sn, state.vel[1])
+      vm.setLook(yaw, pitch)
+    }
     vm.setMotion(speed, state.grounded)
     vm.setReload(ws.reloadEndMs > 0 && def.reloadMs > 0 ? 1 - (ws.reloadEndMs - simMs) / def.reloadMs : -1)
     {   // lựu đạn: pha + tiến độ rút chốt cho viewmodel
