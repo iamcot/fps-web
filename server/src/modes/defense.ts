@@ -380,8 +380,8 @@ export class DefenseMode implements MatchMode {
   }
 
   statusText(room: Room): string {
-    if (this.kind === 'waiting') return 'Đang chờ'
-    return `Đợt ${Math.max(1, this.wave)}/${this.waves} · ${this.humans(room).length} người`
+    if (this.kind === 'waiting') return 'Waiting'
+    return `Wave ${Math.max(1, this.wave)}/${this.waves} · ${this.humans(room).length} players`
   }
 
   stateMessage(room: Room): MatchStateMsg {

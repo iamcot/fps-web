@@ -21,9 +21,9 @@ export function createOfflinePanel(deps: OfflinePanelDeps) {
   }
   const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px'
   row.append(
-    mkBtn('+ Bot ngu ([)', e => deps.addBot('medium', e.shiftKey)),
-    mkBtn('+ Bot khôn (])', e => deps.addBot('hard', e.shiftKey)),
-    mkBtn('Xóa bot (\\)', () => deps.clearBots()),
+    mkBtn('+ Easy bot ([)', e => deps.addBot('medium', e.shiftKey)),
+    mkBtn('+ Hard bot (])', e => deps.addBot('hard', e.shiftKey)),
+    mkBtn('Clear bots (\\)', () => deps.clearBots()),
   )
   const list = document.createElement('div'); list.style.cssText = 'line-height:1.7;pointer-events:none;text-align:right'
   box.append(row, list)
@@ -33,11 +33,11 @@ export function createOfflinePanel(deps: OfflinePanelDeps) {
 
   function drawBots(bots: readonly OfflineBotInfo[]): void {
     list.replaceChildren()
-    const head = document.createElement('span'); head.textContent = bots.length ? 'Bot: ' : 'Chưa có bot'
+    const head = document.createElement('span'); head.textContent = bots.length ? 'Bot: ' : 'No bots'
     list.appendChild(head)
     bots.forEach((b, i) => {
       if (i > 0) list.appendChild(document.createTextNode(' · '))
-      const name = b.name.replace(/^\[BOT\]\s*/, '').replace(/\s+(TB|KHÓ)$/, '')
+      const name = b.name.replace(/^\[BOT\]\s*/, '').replace(/\s+(TB|HARD)$/, '')
       const s = document.createElement('span')
       s.textContent = `${name} (${BOT_TAG[b.difficulty]}) `
       s.style.color = b.team === myTeam ? '#8fe08f' : '#ff9a9a'

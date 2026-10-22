@@ -302,8 +302,8 @@ export class InfectionMode implements MatchMode {
   }
 
   statusText(room: Room): string {
-    if (room.phase === MatchPhase.Waiting) return 'Đang chờ'
-    return `Ván ${Math.min(this.round, this.s.rounds)}/${this.s.rounds} · ${this.humans(room)} người – ${this.zombies(room)} zombie`
+    if (room.phase === MatchPhase.Waiting) return 'Waiting'
+    return `Round ${Math.min(this.round, this.s.rounds)}/${this.s.rounds} · ${this.humans(room)} humans – ${this.zombies(room)} zombies`
   }
 
   stateMessage(room: Room): MatchStateMsg {

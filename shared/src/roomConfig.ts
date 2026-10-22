@@ -6,16 +6,16 @@ export function isGameMode(v: unknown): v is GameMode { return typeof v === 'str
 export function isZombieMode(m: GameMode): boolean { return m === 'infection' || m === 'defense' }
 
 export const MODE_LABEL: Record<GameMode, string> = {
-  elimination: 'Sinh Tử',
-  tdm: 'Hỗn Chiến',
-  infection: 'Lây Nhiễm',
-  defense: 'Thủ Thành',
+  elimination: 'Elimination',
+  tdm: 'Team Deathmatch',
+  infection: 'Infection',
+  defense: 'Defense',
 }
 export const MODE_DESC: Record<GameMode, string> = {
-  elimination: 'Mỗi ván một mạng. Thắng 10 ván trước.',
-  tdm: 'Hồi sinh liên tục. Bắn tới 50 mạng hoặc hết giờ.',
-  infection: 'Zombie mẹ lây nhiễm cả phòng. Trụ tới hết giờ để thắng.',
-  defense: 'Cả đội giữ thành chống 10 đợt zombie, đợt cuối có boss.',
+  elimination: 'One life per round. First to win 10 rounds.',
+  tdm: 'Continuous respawns. First to 50 kills, or when time runs out.',
+  infection: 'The mother zombie infects the room. Survive until time runs out to win.',
+  defense: 'Hold the base against 10 zombie waves. The last wave has a boss.',
 }
 
 export interface EliminationSettings {

@@ -23,5 +23,5 @@ export function weaponIcon(key: string, name: string, css = ''): HTMLElement {
 
 /** Tên hiển thị trong cửa hàng */
 export const WEAPON_LABEL: Record<string, string> = {
-  knife: 'Dao', colt: 'Colt', rulo: 'Rulô', shotgun: 'Shotgun', smg: 'SMG', ak47: 'AK47', m16: 'M16', sniper: 'Sniper',
+  knife: 'Knife', colt: 'Colt', rulo: 'Revolver', shotgun: 'Shotgun', smg: 'SMG', ak47: 'AK47', m16: 'M16', sniper: 'Sniper',
 }

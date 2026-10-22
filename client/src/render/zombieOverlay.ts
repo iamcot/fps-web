@@ -29,7 +29,7 @@ function barTexture(type: string, step: number, withName: boolean): THREE.Canvas
     const W = 128, H = 28
     if (withName) {
       g.font = 'bold 16px monospace'; g.textAlign = 'center'; g.textBaseline = 'top'
-      const name = type === 'mother' ? 'Zombie mẹ' : ZOMBIE_TYPES[type]?.name ?? type
+      const name = type === 'mother' ? 'Mother zombie' : ZOMBIE_TYPES[type]?.name ?? type
       g.lineWidth = 4; g.strokeStyle = '#000'; g.strokeText(name, W / 2, 0)
       g.fillStyle = NAME_COLOR[type] ?? '#fff'; g.fillText(name, W / 2, 0)
     }

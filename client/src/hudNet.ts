@@ -66,7 +66,7 @@ export function createDeathScreen() {
   return {
     /** respawnInMs < 0: không hồi sinh (Sinh Tử) → không hiện đồng hồ */
     show(killerName: string, respawnInMs: number): void {
-      who.textContent = killerName ? `Bị ${killerName} hạ` : 'Bạn đã chết'
+      who.textContent = killerName ? `Killed by ${killerName}` : 'You died'
       until = respawnInMs < 0 ? 0 : performance.now() + respawnInMs
       timer.textContent = ''
       lastSec = -1
@@ -78,7 +78,7 @@ export function createDeathScreen() {
       const sec = Math.max(0, Math.ceil((until - performance.now()) / 1000))
       if (sec === lastSec) return   // chỉ ghi DOM khi đổi giây
       lastSec = sec
-      timer.textContent = `Hồi sinh sau ${sec}s`
+      timer.textContent = `Respawn in ${sec}s`
     },
   }
 }
@@ -125,7 +125,7 @@ export function createBountyBanner() {
   let timer = 0
   return {
     show(victimName: string, streak: number): void {
-      el.textContent = `TRUY NÃ! Hạ ${victimName} (chuỗi ${streak})`
+      el.textContent = `BOUNTY! Killed ${victimName} (streak ${streak})`
       el.style.opacity = '1'
       clearTimeout(timer)
       timer = window.setTimeout(() => { el.style.opacity = '0' }, 1500)
@@ -142,7 +142,7 @@ export function createSpectateLabel() {
   let last = ''
   return {
     set(name: string | null | undefined, hp: number): void {
-      const text = name === undefined ? '' : name === null ? 'Không còn đồng đội để xem' : `Đang xem: ${name}   ♥ ${Math.max(0, Math.round(hp))}   (Click / Space: đổi người)`
+      const text = name === undefined ? '' : name === null ? 'No teammates left to watch' : `Watching: ${name}   ♥ ${Math.max(0, Math.round(hp))}   (Click / Space: next player)`
       if (text === last) return
       last = text
       el.textContent = text

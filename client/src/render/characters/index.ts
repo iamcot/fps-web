@@ -5,7 +5,7 @@ import type { CharacterSet } from './types'
 
 // Đăng ký bộ nhân vật. Thêm bộ mới: thêm id vào CHARACTER_SETS (shared) + module + một dòng ở đây.
 // Bão Cát Sa Mạc có xương (characterRig.ts); khối hộp chỉ là dự phòng khi glb lỗi hoặc ?blocky=1
-const saberDesert: CharacterSet = { ...blocky, id: 'saberDesert', label: 'Bão Cát Sa Mạc' }
+const saberDesert: CharacterSet = { ...blocky, id: 'saberDesert', label: 'Desert Storm' }
 const REGISTRY: Record<CharacterSetId, CharacterSet> = { saberDesert, copRobber: blocky, robot }
 
 export function getCharacterSet(id: string): CharacterSet {

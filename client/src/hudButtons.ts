@@ -9,11 +9,11 @@ export interface TopButtonsDeps {
 export function createTopButtons(deps: TopButtonsDeps, showSwitch: boolean) {
   const box = document.createElement('div')
   box.style.cssText = 'position:fixed;left:12px;top:12px;z-index:30;display:flex;gap:8px;pointer-events:none'
-  const scores = document.createElement('button'); scores.textContent = 'Xem thành tích (TAB)'; scores.style.cssText = BTN
+  const scores = document.createElement('button'); scores.textContent = 'Scoreboard (TAB)'; scores.style.cssText = BTN
   scores.addEventListener('click', () => deps.onScores())
   box.appendChild(scores)
   if (showSwitch) {
-    const sw = document.createElement('button'); sw.textContent = 'Đổi phe (~)'; sw.style.cssText = BTN
+    const sw = document.createElement('button'); sw.textContent = 'Switch team (~)'; sw.style.cssText = BTN
     sw.addEventListener('click', () => deps.onSwitch())
     box.appendChild(sw)
   }
@@ -30,8 +30,8 @@ export function createConfirmPrompt() {
   card.style.cssText = 'background:rgba(15,18,28,.95);border:1px solid #667;border-radius:10px;padding:18px 22px;display:flex;flex-direction:column;gap:14px;min-width:300px;text-align:center'
   const text = document.createElement('div')
   const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;justify-content:center'
-  const ok = document.createElement('button'); ok.textContent = 'Đồng ý (Enter)'; ok.style.cssText = BTN
-  const no = document.createElement('button'); no.textContent = 'Hủy (Esc)'; no.style.cssText = BTN
+  const ok = document.createElement('button'); ok.textContent = 'Confirm (Enter)'; ok.style.cssText = BTN
+  const no = document.createElement('button'); no.textContent = 'Cancel (Esc)'; no.style.cssText = BTN
   row.append(ok, no); card.append(text, row); el.appendChild(card)
   document.body.appendChild(el)
   let onYes: (() => void) | null = null
@@ -69,7 +69,7 @@ export function createToast() {
 /** Nút góc trên phải: về màn hình chọn phòng */
 export function createLeaveButton(onClick: () => void): void {
   const b = document.createElement('button')
-  b.textContent = 'Về phòng chờ'
+  b.textContent = 'Back to lobby'
   b.style.cssText = BTN + ';position:fixed;right:12px;top:12px;z-index:30'
   b.addEventListener('click', onClick)
   document.body.appendChild(b)
@@ -82,7 +82,7 @@ export function createRoomLabel(text: string, link: string | null, onCopied: () 
   const t = document.createElement('span'); t.textContent = text
   box.append(t)
   if (link !== null) {   // offline không có link vào phòng
-    const b = document.createElement('button'); b.textContent = 'Sao chép link'; b.style.cssText = BTN + ';padding:2px 8px;font-size:11px'
+    const b = document.createElement('button'); b.textContent = 'Copy link'; b.style.cssText = BTN + ';padding:2px 8px;font-size:11px'
     b.addEventListener('click', () => {
       void navigator.clipboard?.writeText(link).then(onCopied, () => {})
     })

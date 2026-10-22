@@ -4,7 +4,7 @@ export type WeaponCategory = 'claw' | 'knife' | 'pistol' | 'mid' | 'long' | 'gre
 /** Ô vũ khí (phím 1–5) của từng dòng. Ô 5 = lựu đạn (hàng tiêu hao, không tính vào 4 dòng súng) */
 export const CATEGORY_SLOT: Record<WeaponCategory, 0 | 1 | 2 | 3 | 4> = { claw: 0, knife: 0, pistol: 1, mid: 2, long: 3, grenade: 4 }
 export const CATEGORY_LABEL: Record<WeaponCategory, string> = {
-  claw: 'Vuốt', knife: 'Dao', pistol: 'Súng ngắn', mid: 'Súng vừa', long: 'Súng dài', grenade: 'Lựu đạn',
+  claw: 'Claw', knife: 'Knife', pistol: 'Pistol', mid: 'Mid-range', long: 'Long gun', grenade: 'Grenade',
 }
 export const SLOT_COUNT = 5
 /** Ô lựu đạn */
@@ -177,7 +177,7 @@ export const WEAPONS: WeaponDef[] = [
   },
   {
     // Vuốt zombie (plan 16, ZF.2): chuột trái. Sát thương thật lấy theo loại zombie (Player.zstats.clawDamage), `damage` chỉ là chỗ giữ
-    id: 9, key: 'claw', name: 'VUỐT', category: 'claw', price: 0, buyable: false, moveSpeedMul: 1, melee: true,
+    id: 9, key: 'claw', name: 'CLAW', category: 'claw', price: 0, buyable: false, moveSpeedMul: 1, melee: true,
     auto: true, damage: 1, headMult: 1, legMult: 1,
     fireIntervalMs: 550, magSize: 0, reloadMs: 0, range: 1.8,
     spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
@@ -185,7 +185,7 @@ export const WEAPONS: WeaponDef[] = [
   },
   {
     // Cào mạnh (chuột phải): vung 0,3s rồi mới trúng (xem ZOMBIE.heavyWindupMs), damage ×ZOMBIE.heavyDamageMult
-    id: 10, key: 'claw_heavy', name: 'VUỐT MẠNH', category: 'claw', price: 0, buyable: false, moveSpeedMul: 1, melee: true,
+    id: 10, key: 'claw_heavy', name: 'HEAVY CLAW', category: 'claw', price: 0, buyable: false, moveSpeedMul: 1, melee: true,
     auto: true, damage: 1, headMult: 1, legMult: 1,
     fireIntervalMs: 1100, magSize: 0, reloadMs: 0, range: 2.0,
     spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },

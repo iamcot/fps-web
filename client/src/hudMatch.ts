@@ -14,21 +14,21 @@ export function sortRows(rows: readonly ScoreboardRow[], team: TeamId): Scoreboa
 export function bannerText(phase: MatchPhase, scoreA: number, scoreB: number): string {
   if (phase !== MatchPhase.Ended) return ''
   const w = winnerOf(scoreA, scoreB)
-  return w ? `${TEAMS[w].name.toUpperCase()} THẮNG` : 'HOÀ'
+  return w ? `${TEAMS[w].name.toUpperCase()} WIN` : 'DRAW'
 }
 
 export const REASON_TEXT: Record<RoundEndReason, string> = {
-  elimination: 'Tiêu diệt toàn bộ',
-  time_alive: 'Hết giờ · còn nhiều người hơn',
-  time_hp: 'Hết giờ · còn nhiều máu hơn',
-  draw: 'Hai bên cùng hạ gục',
-  infected_all: 'Zombie đã lây nhiễm tất cả',
-  time_survive: 'Hết giờ · còn người sống sót',
+  elimination: 'Team eliminated',
+  time_alive: 'Time up · more players alive',
+  time_hp: 'Time up · more health left',
+  draw: 'Both teams wiped out',
+  infected_all: 'Zombies infected everyone',
+  time_survive: 'Time up · humans survived',
 }
 
 /** Tiêu đề kết thúc ván (Sinh Tử) */
 export function roundBannerText(winner: TeamId | null, round: number): string {
-  return winner ? `${TEAMS[winner].name.toUpperCase()} THẮNG VÁN ${round}` : 'VÁN HOÀ'
+  return winner ? `${TEAMS[winner].name.toUpperCase()} WIN ROUND ${round}` : 'ROUND DRAW'
 }
 
 /** Màu đồng hồ: FREEZE vàng; LIVE dưới 10 giây đỏ */
@@ -103,25 +103,25 @@ export function createMatchHud(sounds?: MatchSounds) {
     let clock = '', bigT = '', subT = '', topSub = ''
     const maxR = st.maxRounds
     switch (st.phase) {
-      case MatchPhase.Waiting: clock = 'Chờ thêm người chơi…'; break
-      case MatchPhase.Countdown: clock = 'Chuẩn bị'; bigT = String(Math.max(0, Math.ceil(left / 1000))); subT = st.sideSwapped ? 'Đã đổi bên' : ''; break
+      case MatchPhase.Waiting: clock = 'Waiting for more players…'; break
+      case MatchPhase.Countdown: clock = 'Get ready'; bigT = String(Math.max(0, Math.ceil(left / 1000))); subT = st.sideSwapped ? 'Sides swapped' : ''; break
       case MatchPhase.Playing: clock = unlimited ? '∞' : formatClock(left); break
-      case MatchPhase.Freeze: clock = formatClock(left); bigT = `VÁN ${st.round}`; subT = 'Mua súng: B'; break
+      case MatchPhase.Freeze: clock = formatClock(left); bigT = `ROUND ${st.round}`; subT = 'Buy weapons: B'; break
       case MatchPhase.RoundEnd:
         clock = '0:00'
         if (lastEnd) { bigT = roundBannerText(lastEnd.winner, lastEnd.round); subT = REASON_TEXT[lastEnd.reason] + (roundMoney > 0 ? `   +$${roundMoney}` : '') }
         break
-      case MatchPhase.Halftime: clock = 'Nghỉ'; bigT = 'HẾT HIỆP 1 · ĐỔI BÊN'; subT = `${TEAMS.A.name} ${st.scoreA} — ${st.scoreB} ${TEAMS.B.name}`; break
+      case MatchPhase.Halftime: clock = 'Break'; bigT = 'HALF TIME · SWITCH SIDES'; subT = `${TEAMS.A.name} ${st.scoreA} — ${st.scoreB} ${TEAMS.B.name}`; break
       case MatchPhase.Ended:
-        clock = elim ? `Trận mới sau ${formatClock(left)}` : 'Hết trận'
+        clock = elim ? `New match in ${formatClock(left)}` : 'Match over'
         if (elim && matchEnd) {
-          bigT = matchEnd.winner ? `${TEAMS[matchEnd.winner].name.toUpperCase()} THẮNG TRẬN` : 'HOÀ'
+          bigT = matchEnd.winner ? `${TEAMS[matchEnd.winner].name.toUpperCase()} WIN THE MATCH` : 'DRAW'
           subT = `${matchEnd.scoreA} — ${matchEnd.scoreB}${mvpName ? `   MVP: ${mvpName}` : ''}`
         } else bigT = bannerText(st.phase, st.scoreA, st.scoreB)
         break
     }
-    if (elim && st.phase !== MatchPhase.Waiting) topSub = `Ván ${Math.min(st.round, maxR)} / ${maxR}`
-    else if (!elim && config?.settings.mode === 'tdm') topSub = unlimited ? 'Không giới hạn' : `Mục tiêu: ${config.settings.killLimit} mạng`
+    if (elim && st.phase !== MatchPhase.Waiting) topSub = `Round ${Math.min(st.round, maxR)} / ${maxR}`
+    else if (!elim && config?.settings.mode === 'tdm') topSub = unlimited ? 'No limit' : `Target: ${config.settings.killLimit} kills`
     setText(clockEl, clock); setText(big, bigT); setText(sub, subT); setText(subTop, topSub)
 
     if (elim && st.phase === MatchPhase.Playing && left > 0 && left <= 10_000) {
@@ -185,9 +185,9 @@ export function createScoreboard() {
     head.style.cssText = `font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:${TEAMS[team].uiColor === '#2f6fd6' ? '#6fa0ff' : TEAMS[team].uiColor}`
     t.appendChild(head)
     const hr = t.insertRow()
-    for (const h of ['Tên', '$', 'K', 'D', 'Ping']) {
+    for (const h of ['Name', '$', 'K', 'D', 'Ping']) {
       const c = hr.insertCell(); c.textContent = h
-      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Tên' ? 'left' : 'right')
+      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Name' ? 'left' : 'right')
     }
     for (const r of sortRows(rows, team)) {
       const tr = t.insertRow()
@@ -203,13 +203,13 @@ export function createScoreboard() {
     const t = document.createElement('table')
     t.style.cssText = 'border-collapse:collapse;min-width:460px'
     const head = document.createElement('caption')
-    head.textContent = 'Lây Nhiễm'
+    head.textContent = 'Infection'
     head.style.cssText = 'font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:#7ed957'
     t.appendChild(head)
     const hr = t.insertRow()
-    for (const h of ['Tên', 'Điểm', 'Lây', 'Hạ ZB', 'Vai', 'Ping']) {
+    for (const h of ['Name', 'Points', 'Infected', 'Zombie kills', 'Role', 'Ping']) {
       const c = hr.insertCell(); c.textContent = h
-      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Tên' ? 'left' : 'right')
+      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Name' ? 'left' : 'right')
     }
     for (const r of rows.slice().sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0) || a.id - b.id)) {
       const tr = t.insertRow()
@@ -225,13 +225,13 @@ export function createScoreboard() {
     const t = document.createElement('table')
     t.style.cssText = 'border-collapse:collapse;min-width:420px'
     const head = document.createElement('caption')
-    head.textContent = 'Thủ Thành'
+    head.textContent = 'Defense'
     head.style.cssText = 'font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:#6fa0ff'
     t.appendChild(head)
     const hr = t.insertRow()
-    for (const h of ['Tên', '$', 'Zombie hạ', 'Sát thương', 'Cứu', 'Ping']) {
+    for (const h of ['Name', '$', 'Zombie kills', 'Damage', 'Revives', 'Ping']) {
       const c = hr.insertCell(); c.textContent = h
-      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Tên' ? 'left' : 'right')
+      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Name' ? 'left' : 'right')
     }
     for (const r of rows.slice().sort((a, b) => (b.zk ?? 0) - (a.zk ?? 0) || a.id - b.id)) {
       const tr = t.insertRow()

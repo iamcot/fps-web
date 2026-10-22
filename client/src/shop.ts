@@ -79,7 +79,7 @@ export function createShop(deps: ShopDeps) {
   document.body.appendChild(panel)
   const head = document.createElement('div')
   head.className = 'shop-head'
-  head.innerHTML = '<span>CỬA HÀNG</span><span class="m"></span>'
+  head.innerHTML = '<span>SHOP</span><span class="m"></span>'
   const moneyEl = head.querySelector('.m') as HTMLElement
   panel.appendChild(head)
 
@@ -126,7 +126,7 @@ export function createShop(deps: ShopDeps) {
   foot.className = 'shop-line'
   const footTxt = document.createElement('div')
   footTxt.className = 'shop-foot'
-  footTxt.textContent = `Mỗi dòng súng chỉ mang được 1 loại. Mua trùng dòng sẽ tự bán súng đang có (${Math.round((deps.eco?.() ?? ECONOMY).sellRatio * 100)}%).\nLựu đạn tối đa ${GRENADE.maxCarry} quả, không bán lại.`
+  footTxt.textContent = `You can carry one gun per slot. Buying into a taken slot sells your current gun (${Math.round((deps.eco?.() ?? ECONOMY).sellRatio * 100)}%).\nMax ${GRENADE.maxCarry} grenades, not refundable.`
   footTxt.style.whiteSpace = 'pre-line'
   panel.append(foot, footTxt)
 
@@ -170,7 +170,7 @@ export function createShop(deps: ShopDeps) {
       const owned = !q.ok && q.reason === 'already_owned'
       const full = !q.ok && q.reason === 'max_carry'
       const cnt = def.consumable ? (old?.count ?? 0) : 0
-      r.pr.textContent = owned ? 'Đang dùng' : full ? `Đã đủ (${cnt}/${GRENADE.maxCarry})` : def.consumable && cnt > 0 ? `${cnt}/${GRENADE.maxCarry} · $${def.price}` : `$${def.price}`
+      r.pr.textContent = owned ? 'In use' : full ? `Full (${cnt}/${GRENADE.maxCarry})` : def.consumable && cnt > 0 ? `${cnt}/${GRENADE.maxCarry} · $${def.price}` : `$${def.price}`
       r.pr.classList.toggle('bad', !q.ok && q.reason === 'not_enough_money')
       r.el.classList.toggle('dim', !q.ok)
       r.el.classList.toggle('owned', owned)
@@ -179,8 +179,8 @@ export function createShop(deps: ShopDeps) {
         const oldName = WEAPON_LABEL[old.key] ?? old.key
         const refund = q.refund
         sub = refund > 0
-          ? `bán ${oldName} +$${refund} · ${q.net >= 0 ? 'trả' : 'nhận'} $${Math.abs(q.net)}`
-          : `${oldName} cấp sẵn, không bán lại`
+          ? `sell ${oldName} +$${refund} · ${q.net >= 0 ? 'pay' : 'get'} $${Math.abs(q.net)}`
+          : `${oldName} is a starter weapon, no refund`
       }
       r.sub.textContent = sub
       r.el.classList.toggle('has-sub', sub !== '')

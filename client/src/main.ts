@@ -335,7 +335,7 @@ const toast = createToast()
 // Về phòng chờ: tải lại trang (đóng kết nối nên server cho rời phòng), lobby bỏ qua bước nhập tên
 createLeaveButton(() => {
   if (teamPrompt.isOpen) return
-  teamPrompt.open('Về phòng chờ? Bạn sẽ rời trận này.', () => {
+  teamPrompt.open('Back to the lobby? You will leave this match.', () => {
     try { sessionStorage.setItem(BACK_KEY, '1') } catch { /* bỏ qua */ }
     location.reload()
   })
@@ -392,16 +392,16 @@ sessionP.then(session => {
     if (!mine || teamPrompt.isOpen) return
     const other = mine === 'A' ? 'B' : 'A'
     if (session.offline) {   // offline: đổi chỗ cả bot với người chơi (bot địch vẫn là địch, đồng đội vẫn là đồng đội)
-      teamPrompt.open(`Đổi sang phe ${TEAMS[other].name}? Bot cũng đổi phe theo.`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.OfflineCmd, cmd: 'swapSide' }) })
+      teamPrompt.open(`Switch to ${TEAMS[other].name}? Bots switch sides too.`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.OfflineCmd, cmd: 'swapSide' }) })
       return
     }
-    teamPrompt.open(`Đổi sang phe ${TEAMS[other].name}?`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.ChooseTeam, team: other }) })
+    teamPrompt.open(`Switch to ${TEAMS[other].name}?`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.ChooseTeam, team: other }) })
   }
   session.transport.onMessage(msg => {
     if (msg.t !== MsgType.TeamAssigned || msg.id !== session.yourId) return
     const changed = lastTeam !== undefined && lastTeam !== msg.team
-    if (pendingSwitch) { pendingSwitch = false; toast(changed ? `Đã sang phe ${TEAMS[msg.team].name}` : 'Không đổi được: phe kia đã đông hơn') }
-    else if (changed) toast(`Bạn được chuyển sang phe ${TEAMS[msg.team].name} để cân bằng`)
+    if (pendingSwitch) { pendingSwitch = false; toast(changed ? `Switched to ${TEAMS[msg.team].name}` : 'Cannot switch: the other team is larger') }
+    else if (changed) toast(`You were moved to ${TEAMS[msg.team].name} to balance the teams`)
     lastTeam = msg.team
   })
   playerId = session.yourId
@@ -414,12 +414,12 @@ sessionP.then(session => {
   }
   if (session.offline) matchHud.setUnlimited(true)
   createRoomLabel(session.offline ? `Offline · ${session.mapName} · ${MODE_LABEL[session.config.settings.mode]}` : `${MODE_LABEL[session.config.settings.mode]} · ${session.mapName} · ${session.roomName}`,
-    session.offline ? null : `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast('Đã sao chép link phòng'))
+    session.offline ? null : `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast('Room link copied'))
   {   // gợi ý phím bên phải màn hình (dưới killfeed)
     const st = session.config.settings
-    const items: [string, string][] = [['Đổi súng nhanh', 'Q'], ['Thay đạn', 'R']]
-    if ((st.mode === 'infection' || st.mode === 'defense') && st.lighting === 'night') items.push(['Bật tắt đèn', 'F'])
-    if (st.mode === 'defense') items.push(['Cứu đồng đội', 'E'])
+    const items: [string, string][] = [['Quick switch', 'Q'], ['Reload', 'R']]
+    if ((st.mode === 'infection' || st.mode === 'defense') && st.lighting === 'night') items.push(['Flashlight', 'F'])
+    if (st.mode === 'defense') items.push(['Revive teammate', 'E'])
     keyHints.setItems(items)
   }
   if (session.offline) setupOffline(session)

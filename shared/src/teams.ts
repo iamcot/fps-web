@@ -1,8 +1,8 @@
 import { Btn } from './movement'
 
 export const TEAMS = {
-  A: { name: 'Cớm',  color: 0x2f6fd6, uiColor: '#2f6fd6' },
-  B: { name: 'Cướp', color: 0x2b2b2b, uiColor: '#e0a030' },
+  A: { name: 'Cops',  color: 0x2f6fd6, uiColor: '#2f6fd6' },
+  B: { name: 'Robbers', color: 0x2b2b2b, uiColor: '#e0a030' },
 } as const
 export type TeamId = 'A' | 'B'
 
