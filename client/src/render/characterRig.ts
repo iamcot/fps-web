@@ -6,7 +6,7 @@ import { DEFAULT_ANIM, type CharacterRig } from './characters/types'
 import { poses } from './poses'
 import { SkeletonArm, FINGER_NAMES, type FingerBones } from './skeletonArm'
 import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, type Slot } from './locomotion'
-import { applyTeamTint, makeOutlineMesh, outlineColorFor, teamTintDef, type TeamTintHandle } from './teamTint'
+import { applyTeamTint, makeOutlineMesh, OUTLINE_ALLY, OUTLINE_ENEMY, teamTintDef, type TeamTintHandle } from './teamTint'
 import { Z_CLIPS, Z_DEATH, ZOMBIE_ATTACK, ZOMBIE_JUMP_HOLD, ZOMBIE_RUN_BLEND, ZOMBIE_RUN_START, fitRate, zombieClipRate, zombieSlotClip, type ZombieAttackKind } from './zombieAnim'
 
 // Nhân vật có xương (plan 11, C.4): cop.glb / robber.glb dùng chung bộ animation Mixamo.
@@ -194,10 +194,9 @@ export class SkelCharacter {
       if (o instanceof THREE.SkinnedMesh) this.skinned.push(o)
     })
     // Viền 2D: back-face normal-offset cho từng SkinnedMesh (chỉ nhân vật người, không dùng cho zombie model riêng)
-    const oc = zombieFile ? null : outlineColorFor(skin, forcedTeam() ?? team)
-    if (oc !== null) {
+    if (!zombieFile) {
       for (const sm of this.skinned) {
-        const outline = makeOutlineMesh(sm, oc)
+        const outline = makeOutlineMesh(sm)
         sm.parent!.add(outline)
         this.outlines.push(outline)
       }
@@ -238,6 +237,11 @@ export class SkelCharacter {
   }
 
   // ── Zombie ───────────────────────────────────────────────────────────────────
+  /** Đổi màu viền 2D: xanh nếu đồng đội, đỏ nếu kẻ thù */
+  setAlly(ally: boolean): void {
+    const hex = ally ? OUTLINE_ALLY : OUTLINE_ENEMY
+    for (const o of this.outlines) (o.material as THREE.MeshLambertMaterial).color.setHex(hex)
+  }
   get isZombie(): boolean { return this.zombie }
   /** Bật/tắt bộ clip zombie. Trả về false nếu chưa có clip z_* (chưa tải xong): gọi lại frame sau. */
   setZombie(on: boolean): boolean {

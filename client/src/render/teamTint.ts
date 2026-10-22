@@ -33,25 +33,19 @@ export function liftedLuma(luma: number, d: Pick<TeamTintDef, 'lumRef' | 'lift' 
 }
 
 // ── Viền 2D (back-face normal offset) ────────────────────────────────────────
-const OUTLINE_COLOR: Record<string, Record<TeamId, number>> = {
-  saber:   { A: 0x4499ff, B: 0xFF0000 },
-  classic: { A: 0x4499ff, B: 0xffaa44 },
-}
-export function outlineColorFor(skin: string, team: TeamId): number | null {
-  return OUTLINE_COLOR[skin]?.[team] ?? null
-}
+export const OUTLINE_ALLY  = 0x44aaff   // xanh = đồng đội
+export const OUTLINE_ENEMY = 0xff3333   // đỏ   = kẻ thù
 
 /**
  * Tạo SkinnedMesh viền 2D cho `src`: back-face render, đẩy đỉnh ra theo normal.
- * Caller tự add vào cùng parent với src và gắn skeleton.
+ * Màu khởi tạo bằng `OUTLINE_ENEMY`; gọi `setAlly()` trên `SkelCharacter` để đổi sau.
  */
 export function makeOutlineMesh(
   src: THREE.SkinnedMesh,
-  color: number,
   thickness = 0.013,
   opacity = 0.9,
 ): THREE.SkinnedMesh {
-  const mat = new THREE.MeshLambertMaterial({ color, side: THREE.BackSide, transparent: true, opacity, depthWrite: false })
+  const mat = new THREE.MeshLambertMaterial({ color: OUTLINE_ENEMY, side: THREE.BackSide, transparent: true, opacity, depthWrite: false })
   const t = thickness.toFixed(4)
   mat.onBeforeCompile = shader => {
     shader.vertexShader = shader.vertexShader.replace(
@@ -59,7 +53,7 @@ export function makeOutlineMesh(
       `transformed += normalize(objectNormal) * ${t};\n#include <displacementmap_vertex>`,
     )
   }
-  mat.customProgramCacheKey = () => `outline:${color}:${t}:${opacity}`
+  mat.customProgramCacheKey = () => `outline:${t}:${opacity}`
   const mesh = new THREE.SkinnedMesh(src.geometry, mat)
   mesh.skeleton = src.skeleton
   mesh.bindMatrix.copy(src.bindMatrix)
