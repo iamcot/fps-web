@@ -46,6 +46,7 @@ Làm trong `client/src/render/knifeAnim.ts` (thuần, có test) cộng vào gunG
 ## 3. Hệ thống combo
 
 - Chuột trái (L) = chém ngang. Chuột phải (R) = xoay dao dọc cầm ngược, đâm xuống.
+- **Đổi 22/10/2026 (người dùng chọn):** luôn cầm xuôi, không lật dao cầm ngược. R1 = đâm thẳng mạnh về trước, RR = đâm thẳng 2 nhát; LR / LLR vẫn giáng xuống nhưng cầm xuôi. Các mô tả "cầm ngược" bên dưới không còn áp dụng.
 - Sau mỗi chiêu có cửa sổ nối ~300 ms. Bấm trong cửa sổ thì sang chiêu kế của cây combo; bấm muộn hoặc sai nhánh thì quay về chiêu cơ bản. Đệm input ~150 ms.
 - Chiêu nối nhanh hơn bấm lẻ. Chiêu kết có hồi chiêu dài, đánh trượt bị phạt.
 - Chiêu và cây combo là **dữ liệu** trong `shared/`.

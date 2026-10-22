@@ -13,12 +13,12 @@ import { KNIFE_SET, moveDurationMs, type MeleeMove } from '@fps/shared'
 export type Pose = readonly [number, number, number, number, number, number]
 const REST: Pose = [0, 0, 0, 0, 0, 0]
 
-export interface SwingStyle { wind: Pose; hit: Pose; perHit?: Pose; reverse?: boolean }   // reverse: lật dao cầm ngược (lưỡi lòi phía ngón út, chúc xuống)
+export interface SwingStyle { wind: Pose; hit: Pose; perHit?: Pose }
 
 /** Dao đặt đứng trong nắm tay; khi ra đòn cổ tay ngửa ra trước (chưa tới mức chỉa thẳng) */
 const FWD = -0.55
-/** Cầm ngược: lưỡi chúc xuống, nghiêng mũi về phía trái màn hình */
-const REV_ROLL = -0.4
+/** Đâm thẳng: cổ tay ngửa hẳn ra trước cho mũi chỉa vào mục tiêu */
+const STAB = -0.9
 /** Cầm xuôi khi ra đòn: mũi ngả sang trái về giữa màn hình (như dao CS2) */
 const LEAN = 0.6
 /** Tư thế cao điểm của từng chiêu: `wind` = lúc gồng (tới đúng giờ nhát đánh), `hit` = cuối cung quét */
@@ -26,12 +26,12 @@ export const SWING_STYLES: Record<string, SwingStyle> = {
   knife_l1:   { wind: [0.45, 0.05, 0, FWD, 0, LEAN], hit: [-0.4, 0, 0.12, FWD, 0, LEAN] },                                  // chém ngang trái → phải
   knife_l2:   { wind: [-0.4, -0.05, 0, FWD, 0, LEAN], hit: [0.45, 0.05, 0.12, FWD, 0, LEAN] },                              // chém ngược phải → trái
   knife_l3:   { wind: [0, 0.02, -0.2, FWD, 0, LEAN], hit: [0, 0, 0.12, FWD, 0, LEAN] },                                       // đâm liên hoàn: co tay rồi duỗi thẳng
-  knife_llr:  { wind: [0.05, 0.28, -0.05, 0, 0, REV_ROLL], hit: [0, 0, 0.12, 0, 0, REV_ROLL], reverse: true },                           // giơ cao rồi giáng xuống
+  knife_llr:  { wind: [0.05, 0.28, -0.05, FWD, 0, 0], hit: [0, 0, 0.12, FWD, 0, 0] },                           // giơ cao rồi giáng xuống
   knife_spin: { wind: [0.6, 0.1, -0.05, FWD, 0, LEAN], hit: [-0.45, 0.05, 0.12, FWD, 0, LEAN] },                              // bão dao: quét hết tầm nhìn
-  knife_lr:   { wind: [-0.05, 0.28, -0.05, 0, 0, REV_ROLL], hit: [0.05, 0, 0.12, 0, 0, REV_ROLL], reverse: true },
+  knife_lr:   { wind: [-0.05, 0.28, -0.05, FWD, 0, 0], hit: [0.05, 0, 0.12, FWD, 0, 0] },
   knife_rise: { wind: [0.05, -0.35, -0.05, FWD + 0.4, 0, 0], hit: [0, 0.3, 0.12, FWD + 0.4, 0, 0] },                           // khoét từ thấp lên cao
-  knife_r1:   { wind: [0, 0.28, -0.1, 0, 0, REV_ROLL], hit: [0, -0.02, 0.12, 0, 0, REV_ROLL], reverse: true },                              // cầm ngược, đâm xuống
-  knife_rr:   { wind: [0, 0.28, -0.05, 0, 0, REV_ROLL], hit: [0, 0, 0.12, 0, 0, REV_ROLL], reverse: true },                              // xoáy kép: hai nhát giáng liền
+  knife_r1:   { wind: [0, 0, -0.12, STAB, 0, 0.3], hit: [0, 0, 0.12, STAB, 0, 0.3] },                                     // đâm thẳng mạnh
+  knife_rr:   { wind: [0.03, 0, -0.1, STAB, 0, 0.3], hit: [0.03, 0, 0.12, STAB, 0, 0.3] },                               // đâm thẳng hai nhát liền
   knife_flip: { wind: [0.45, 0, 0, FWD, 0, LEAN], hit: [-0.4, 0.05, 0.12, FWD, 0, LEAN] },                                    // lật tay chém nhanh
 }
 
@@ -43,11 +43,8 @@ const PARRY_KICK: Pose = [0.25, 0.08, 0.05, 0, 0.2, 0]                       // 
 const CANCEL_TAU = 0.07   // s: về tư thế nghỉ khi chiêu bị huỷ
 const STATE_TAU = 0.06    // s: vào/ra tư thế đỡ, choáng
 const KICK_TAU = 0.09
-const GRIP_TAU = 0.045    // s: lật dao xuôi ↔ ngược
-const GRIP_BACK_MS = 160  // lật về cầm xuôi trước khi chiêu cầm ngược kết thúc bấy nhiêu ms
 
-/** grip: 0 = cầm xuôi, 1 = cầm ngược (mượt) */
-export interface SwingFx { yaw: number; pitch: number; ext: number; wx: number; wy: number; wz: number; grip: number }
+export interface SwingFx { yaw: number; pitch: number; ext: number; wx: number; wy: number; wz: number }
 
 interface Key { t: number; p: Pose; strike: boolean }
 
@@ -71,11 +68,10 @@ export function buildKeys(m: MeleeMove, style: SwingStyle): Key[] {
 }
 
 export class MeleeSwing {
-  readonly fx: SwingFx = { yaw: 0, pitch: 0, ext: 0, wx: 0, wy: 0, wz: 0, grip: 0 }
+  readonly fx: SwingFx = { yaw: 0, pitch: 0, ext: 0, wx: 0, wy: 0, wz: 0 }
 
   private readonly keys: Key[][] = KNIFE_SET.moves.map(m => buildKeys(m, SWING_STYLES[m.key] ?? { wind: REST, hit: REST }))
   private readonly durations: number[] = KNIFE_SET.moves.map(m => moveDurationMs(m))
-  private readonly reverse: boolean[] = KNIFE_SET.moves.map(m => !!SWING_STYLES[m.key]?.reverse)
   private move = -1
   private t = 0                 // ms từ lúc bắt đầu chiêu
   // Phần bị huỷ đang hồi về nghỉ
@@ -111,7 +107,7 @@ export class MeleeSwing {
 
   /** Tắt hết ngay (đổi vũ khí) */
   reset(): void {
-    this.move = -1; this.guardW = this.staggerW = 0; this.fx.grip = 0; this.guardOn = this.staggerOn = false
+    this.move = -1; this.guardW = this.staggerW = 0; this.guardOn = this.staggerOn = false
     for (let i = 0; i < 6; i++) this.fade[i] = this.kick[i] = 0
   }
 
@@ -170,10 +166,6 @@ export class MeleeSwing {
     // Giật phản ứng
     const kK = Math.exp(-dt / KICK_TAU)
     for (let i = 0; i < 6; i++) { this.kick[i]! *= kK; c[i]! += this.kick[i]! }
-
-    // Cầm xuôi / ngược
-    const rev = this.move >= 0 && this.reverse[this.move]! && this.t < this.durations[this.move]! - GRIP_BACK_MS
-    f.grip += ((rev ? 1 : 0) - f.grip) * (1 - Math.exp(-dt / GRIP_TAU))
 
     f.yaw = c[0]!; f.pitch = c[1]!; f.ext = c[2]!; f.wx = c[3]!; f.wy = c[4]!; f.wz = c[5]!
   }

@@ -109,16 +109,4 @@ describe('MeleeSwing', () => {
     const q = vec(s)
     expect(Math.max(...q.map((v, i) => Math.abs(v - p[i]!)))).toBeLessThan(0.6)
   })
-
-  it('chiêu cầm ngược lật dao (grip → 1) rồi lật lại cầm xuôi trước khi hết chiêu; chiêu chém giữ cầm xuôi', () => {
-    const r1 = KNIFE_SET.moves.findIndex(m => m.key === 'knife_r1')
-    const s = new MeleeSwing()
-    s.start(r1); run(s, KNIFE_SET.moves[r1]!.windupMs)
-    expect(s.fx.grip).toBeGreaterThan(0.95)
-    run(s, 1500)
-    expect(s.fx.grip).toBeLessThan(0.05)
-    const t = new MeleeSwing()
-    t.start(0); run(t, 150)
-    expect(t.fx.grip).toBe(0)
-  })
 })
