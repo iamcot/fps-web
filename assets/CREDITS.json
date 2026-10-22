@@ -362,5 +362,411 @@
     "source": "assets/source/texture/ (resize 1024px)",
     "license": "CHƯA XÁC MINH",
     "url": ""
+  },
+  {
+    "file": "sounds/common/claw_hit.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/claw_hit.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/growl_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/growl_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/growl_02.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/growl_02.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/kill.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/kill.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/kill_head.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/kill_head.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/match_start.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/match_start.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/shell_pistol_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/shell_pistol_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/shell_rifle_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/shell_rifle_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/ten_kill_remain.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/ten_kill_remain.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/zombie_death.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/zombie_death.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/zombie_defend_start.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/common/zombie_defend_start.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/grenade/explode_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/grenade/explode_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/grenade/explode_02.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/grenade/explode_02.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/grenade/explode_03.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/grenade/explode_03.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/ak47/shot_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/ak47/shot_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/ak47/tail_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/ak47/tail_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/colt/shot_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/colt/shot_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/colt/tail_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/colt/tail_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/m16/shot_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/m16/shot_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/m16/tail_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/m16/tail_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/rulo/reload_open.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/rulo/reload_open.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/rulo/shot_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/rulo/shot_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/rulo/tail_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/rulo/tail_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/shotgun/shot_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/shotgun/shot_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/shotgun/tail_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/shotgun/tail_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/smg/shot_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/smg/shot_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/smg/tail_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/smg/tail_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/sniper/shot_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/sniper/shot_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/sniper/tail_01.mp3",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "sounds/guns/sniper/tail_01.ogg",
+    "author": "CHƯA XÁC MINH",
+    "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
   }
 ]
