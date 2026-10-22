@@ -15,15 +15,25 @@ function fileExt(): 'ogg' | 'mp3' {
   return ok ? 'ogg' : 'mp3'
 }
 
+// Nhiều file .ogg trong repo thực chất là FLAC-trong-Ogg: canPlayType('vorbis') vẫn "có" nhưng decodeAudioData lỗi ở trình duyệt không giải được FLAC
+// (Safari...) → thử đuôi .mp3 trước khi chịu dùng âm tổng hợp.
+async function fetchDecode(ctx: BaseAudioContext, key: string, ext: string): Promise<AudioBuffer> {
+  const res = await fetch(`/sounds/${key}.${ext}`)
+  if (!res.ok) throw new Error(String(res.status))
+  return ctx.decodeAudioData(await res.arrayBuffer())   // HTML fallback của dev server sẽ lỗi ở đây
+}
+
 /** Nạp song song; trả danh sách khoá bị thiếu. */
 export async function preload(ctx: BaseAudioContext, keys: string[]): Promise<string[]> {
   const ext = fileExt()
   const missing: string[] = []
   await Promise.all([...new Set(keys)].map(async (key) => {
     try {
-      const res = await fetch(`/sounds/${key}.${ext}`)
-      if (!res.ok) throw new Error(String(res.status))
-      const buf = await ctx.decodeAudioData(await res.arrayBuffer())   // HTML fallback của dev server sẽ lỗi ở đây
+      let buf: AudioBuffer
+      try { buf = await fetchDecode(ctx, key, ext) } catch (e) {
+        if (ext === 'mp3') throw e
+        buf = await fetchDecode(ctx, key, 'mp3')
+      }
       buffers.set(key, buf)
     } catch {
       missing.push(key)

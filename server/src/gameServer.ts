@@ -1,5 +1,5 @@
 import { loadMap, MATCH, defaultMovement, type MapFile, type MatchRules } from '@fps/shared'
-import { createWorld } from '@fps/shared/physics/world'
+import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { WebSocketServer } from 'ws'
 import { buildNav } from './bots/nav'
 import { wrapWebSocket } from './transport'
@@ -81,9 +81,11 @@ export function createGameServer(opts: GameServerOptions): GameServer {
 
   // Rapier khởi tạo wasm ở lần createWorld đầu; nhiều createWorld đồng thời lúc nguội làm hỏng bộ nhớ
   // ("recursive use of an object"). Khởi tạo xong rồi mới nhận kết nối.
+  // NavGrid giữ world này để truy vấn đường đi (findPath → smooth → castRay) suốt đời server: KHÔNG dispose sớm, chỉ dispose ở close()
+  let navWorld: CollisionWorld | null = null
   const ready = createWorld(rooms.maps.get(defId)!.map, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(w => {
+    navWorld = w
     rooms.navs.set(defId, buildNav(w, rooms.maps.get(defId)!.map, cfg))   // zombie Thủ Thành + bot đi theo lưới này
-    w.dispose()
   })
 
   return {
@@ -91,6 +93,7 @@ export function createGameServer(opts: GameServerOptions): GameServer {
     close() {
       clearInterval(sweep); clearInterval(pump); if (tickLog) clearInterval(tickLog)
       stopHeartbeat?.()
+      navWorld?.dispose(); navWorld = null
     },
   }
 }
