@@ -1,5 +1,5 @@
 // Lệnh debug trong game (task M.8). main.ts chỉ gọi khi NODE_ENV !== 'production'.
-import { MsgType, PLAYER_MAX_HP } from '@fps/shared'
+import { CATEGORY_SLOT, MsgType, PLAYER_MAX_HP, loadoutWeaponIds, magSizeOf, weaponByKey } from '@fps/shared'
 import { broadcastMatch } from './match'
 import type { Player, Room } from './room'
 
@@ -28,6 +28,20 @@ export function handleDebugCmd(room: Room, p: Player, raw: string): boolean {
       if (!Number.isFinite(num) || !p.alive) return false
       p.hp = Math.min(PLAYER_MAX_HP, Math.max(1, Math.round(num)))
       return true
+    case '/gun': {   // bảng F9 (client/render/poseEditor): cầm súng `arg` ngay, đạn đầy, không trừ tiền
+      const def = arg ? weaponByKey(arg) : undefined
+      if (!def || def.consumable || !p.alive) return false
+      const slot = CATEGORY_SLOT[def.category]
+      const slots = p.loadout.slots.slice()
+      slots[slot] = { key: def.key, paid: 0 }
+      p.loadout = { slots }
+      const ws = p.weapon
+      ws.slots = loadoutWeaponIds(p.loadout)
+      ws.slot = slot; ws.current = def.id
+      ws.ammo[def.id] = magSizeOf(def, ws.magMult)
+      ws.reloadEndMs = 0; ws.triggerHeld = false
+      return true
+    }
     case '/kill':
       if (!p.alive) return false
       p.killerId = p.id; p.hp = 0

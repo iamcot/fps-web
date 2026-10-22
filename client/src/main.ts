@@ -126,8 +126,9 @@ window.addEventListener('resize', () => {
 // ── Viewmodel ─────────────────────────────────────────────────────────────────
 const vm = createViewmodel(window.innerWidth / window.innerHeight)
 const poseEditor = createPoseEditor(vm, () => vm.currentWeapon, id => {
-  // F9 chọn súng → cầm luôn (chỉ offline; online súng do server cấp). Nhét vào ô theo dòng của nó rồi đổi sang ô đó
-  if (sessionRef || dead) return
+  // F9 chọn súng → cầm luôn. Trong phòng (kể cả offline, vì súng do server/host cấp) gửi lệnh debug `/gun`; chưa vào phòng thì tự nhét vào ô theo dòng của súng rồi đổi sang ô đó
+  if (dead) return
+  if (sessionRef) { sessionRef.transport.send({ t: MsgType.DebugCmd, cmd: `/gun ${WEAPONS[id]!.key}` }); return }
   const slot = CATEGORY_SLOT[WEAPONS[id]!.category]
   ws.slots[slot] = id; ws.slot = slot; ws.current = id; ws.wantSlot = slot; ws.reloadEndMs = 0
   setWantedWeapon(slot)
