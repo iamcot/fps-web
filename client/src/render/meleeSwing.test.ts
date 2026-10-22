@@ -70,12 +70,12 @@ describe('MeleeSwing', () => {
   it('đỡ: vào tư thế đỡ khi rảnh tay, ra khỏi thì về nghỉ; đang ra chiêu thì không đỡ', () => {
     const s = new MeleeSwing()
     s.sync(true, false, false); run(s, 400)
-    expect(s.fx.wy).toBeCloseTo(GUARD_POSE[4], 1)
+    expect(s.fx.wz).toBeCloseTo(GUARD_POSE[5], 1)
     s.sync(false, false, false); run(s, 400)
     expect(offRest(s)).toBeLessThan(0.01)
     const t = new MeleeSwing()
     t.sync(true, false, true); t.start(0); run(t, 10)
-    expect(Math.abs(t.fx.wy)).toBeLessThan(0.5)   // chưa kịp kéo về tư thế đỡ giữa lúc đánh
+    expect(Math.abs(t.fx.wz)).toBeLessThan(0.5)   // chưa kịp kéo về tư thế đỡ giữa lúc đánh
   })
 
   it('choáng: dao tụt xuống; hết choáng thì hồi', () => {

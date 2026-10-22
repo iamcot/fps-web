@@ -14,6 +14,9 @@ import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf,
 // ── Hằng số ────────────────────────────────────────────────────────────────────
 const GUN_DEFAULT_POS = new THREE.Vector3(0.28, -0.3, -0.45);
 // Tay phụ khi cầm dao (không gian camera): trước ngực chếch trái, thấp hơn dao; góc bàn tay: lòng bàn tay hướng vào trong
+/** Xoay dao so với bàn tay phải (độ, XYZ cục bộ của dao) */
+const KNIFE_IN_HAND_DEG: Vec3 = [60, 0, 0];
+const KNIFE_HAND_COUNTER: Vec3 = [-KNIFE_IN_HAND_DEG[0], 0, 0];   // bàn tay hoàn lại phần xoay trên (chỉ đúng khi xoay một trục)
 const SUPPORT_REST: readonly [number, number, number] = [-0.14, -0.3, -0.5];
 const SUPPORT_ROT_DEG: readonly [number, number, number] = [10, -40, 15];
 const GUN_HIDDEN_Y = -0.55;
@@ -607,15 +610,24 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
         if (len > 1e-6) _arm.multiplyScalar((len + sf.ext) / len);
         gunGroup.position.set(sh[0] + _arm.x, sh[1] + _arm.y, sh[2] + _arm.z);
         gunGroup.quaternion.premultiply(_armQ);
-        if (sf.wx !== 0 || sf.wy !== 0 || sf.wz !== 0) {   // cổ tay xoay quanh bàn tay (không quanh gốc model) để bàn tay đứng yên trên cánh tay
+        if (sf.wx !== 0 || sf.wy !== 0 || sf.wz !== 0) {   // cổ tay bẻ quanh bàn tay, theo trục camera (x: chúc/ngửa, z: nghiêng) để không phụ thuộc góc đặt dao
           _wristQ.setFromEuler(_armE.set(sf.wx, sf.wy, sf.wz, "XYZ"));
-          getAnchor(currentWeapon, "hand_r", _hand);
-          _wh.copy(_hand).applyQuaternion(_wristQ);
-          _hand.sub(_wh).multiplyScalar(pose.scale).applyQuaternion(gunGroup.quaternion);
-          gunGroup.position.add(_hand);
-          gunGroup.quaternion.multiply(_wristQ);
+          getAnchor(currentWeapon, "hand_r", _hand).multiplyScalar(pose.scale).applyQuaternion(gunGroup.quaternion).add(gunGroup.position);   // điểm nắm trong không gian camera
+          _wh.copy(gunGroup.position).sub(_hand).applyQuaternion(_wristQ).add(_hand);
+          gunGroup.position.copy(_wh);
+          gunGroup.quaternion.premultiply(_wristQ);
         }
       }
+    }
+
+    // Dao nằm trong nắm tay: xoay dao quanh điểm nắm (cán trong nắm, lưỡi chỉa lên từ phía ngón cái), bàn tay giữ nguyên hướng
+    if (!nadeOut && isKnife(currentWeapon)) {
+      _wristQ.setFromEuler(_armE.set(KNIFE_IN_HAND_DEG[0] * DEG, KNIFE_IN_HAND_DEG[1] * DEG, KNIFE_IN_HAND_DEG[2] * DEG, "XYZ"));
+      getAnchor(currentWeapon, "hand_r", _hand);
+      _wh.copy(_hand).applyQuaternion(_wristQ);
+      _hand.sub(_wh).multiplyScalar(pose.scale).applyQuaternion(gunGroup.quaternion);
+      gunGroup.position.add(_hand);
+      gunGroup.quaternion.multiply(_wristQ);
     }
 
     // Tay: giải IK SAU khi mọi hiệu ứng đã áp lên súng (thứ tự này tránh tay trễ súng một frame)
@@ -660,6 +672,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       const sf = swing.fx;
       targetL.set(SUPPORT_REST[0] - sf.yaw * 0.08 - guardPull * 0.06, SUPPORT_REST[1] + sf.pitch * 0.08 + guardPull * 0.05, SUPPORT_REST[2] - sf.ext * 0.4 - guardPull * 0.04);
       armL.solve(shoulderL, targetL, poleL);
+      nadeRotR = KNIFE_HAND_COUNTER;
     } else if (leftOn) {
       const keys = rl.keys;
       if (rp >= 0 && keys.length >= 2) {

@@ -8,29 +8,30 @@ import { KNIFE_SET, moveDurationMs, type MeleeMove } from '@fps/shared'
  * [yaw, pitch, ext, wx, wy, wz]
  * yaw / pitch (rad): xoay cả cánh tay quanh vai trong không gian camera. +yaw = quơ sang trái, +pitch = nâng lên.
  * ext (m): duỗi tay ra / co về dọc hướng vai → tay. Tay dài tối đa ~0,9 m, tư thế nghỉ đã ~0,77 m nên ext tối đa ~ +0,12.
- * wx, wy, wz (rad): góc cổ tay GIỮ CỐ ĐỊNH suốt chiêu (cầm ngược mũi chúc xuống...), cộng lên góc cầm nghỉ.
+ * wx, wy, wz (rad): góc cổ tay quanh bàn tay, theo trục CAMERA (wx âm = ngửa ra trước, wz dương = nghiêng lưỡi sang trái), cộng lên góc cầm nghỉ (dao đứng trong nắm tay).
  */
 export type Pose = readonly [number, number, number, number, number, number]
 const REST: Pose = [0, 0, 0, 0, 0, 0]
 
 export interface SwingStyle { wind: Pose; hit: Pose; perHit?: Pose }
 
-const DOWN = -0.8   // cổ tay cầm ngược: mũi dao chúc xuống (vừa phải: bẻ quá thì cổ tay gãy gập)
+/** Dao đặt đứng trong nắm tay; khi ra đòn cổ tay ngửa ra trước (chưa tới mức chỉa thẳng) */
+const FWD = -0.55
 /** Tư thế cao điểm của từng chiêu: `wind` = lúc gồng (tới đúng giờ nhát đánh), `hit` = cuối cung quét */
 export const SWING_STYLES: Record<string, SwingStyle> = {
-  knife_l1:   { wind: [0.45, 0.05, 0, 0, 0, 0], hit: [-0.4, 0, 0.12, 0, 0, 0] },                                  // chém ngang trái → phải
-  knife_l2:   { wind: [-0.4, -0.05, 0, 0, 0, 0], hit: [0.45, 0.05, 0.12, 0, 0, 0] },                              // chém ngược phải → trái
-  knife_l3:   { wind: [0, 0.02, -0.2, 0, 0, 0], hit: [0, 0, 0.12, 0, 0, 0] },                                       // đâm liên hoàn: co tay rồi duỗi thẳng
-  knife_llr:  { wind: [0.05, 0.28, -0.05, DOWN, 0, 0], hit: [0, -0.1, 0.12, DOWN, 0, 0] },                           // giơ cao rồi giáng xuống
-  knife_spin: { wind: [0.6, 0.1, -0.05, 0, 0, 0], hit: [-0.45, 0.05, 0.12, 0, 0, 0] },                              // bão dao: quét hết tầm nhìn
-  knife_lr:   { wind: [-0.05, 0.28, -0.05, DOWN, 0, 0], hit: [0.05, -0.1, 0.12, DOWN, 0, 0] },
-  knife_rise: { wind: [0.05, -0.35, -0.05, 0.4, 0, 0], hit: [0, 0.3, 0.12, 0.4, 0, 0] },                           // khoét từ thấp lên cao
-  knife_r1:   { wind: [0, 0.28, -0.1, DOWN, 0, 0], hit: [0, -0.15, 0.12, DOWN, 0, 0] },                              // cầm ngược, đâm xuống
-  knife_rr:   { wind: [0, 0.28, -0.05, DOWN, 0, 0], hit: [0, -0.1, 0.12, DOWN, 0, 0] },                              // xoáy kép: hai nhát giáng liền
-  knife_flip: { wind: [0.45, 0, 0, 0, 0, 0], hit: [-0.4, 0.05, 0.12, 0, 0, 0] },                                    // lật tay chém nhanh
+  knife_l1:   { wind: [0.45, 0.05, 0, FWD, 0, 0], hit: [-0.4, 0, 0.12, FWD, 0, 0] },                                  // chém ngang trái → phải
+  knife_l2:   { wind: [-0.4, -0.05, 0, FWD, 0, 0], hit: [0.45, 0.05, 0.12, FWD, 0, 0] },                              // chém ngược phải → trái
+  knife_l3:   { wind: [0, 0.02, -0.2, FWD, 0, 0], hit: [0, 0, 0.12, FWD, 0, 0] },                                       // đâm liên hoàn: co tay rồi duỗi thẳng
+  knife_llr:  { wind: [0.05, 0.28, -0.05, FWD, 0, 0], hit: [0, -0.1, 0.12, FWD, 0, 0] },                           // giơ cao rồi giáng xuống
+  knife_spin: { wind: [0.6, 0.1, -0.05, FWD, 0, 0], hit: [-0.45, 0.05, 0.12, FWD, 0, 0] },                              // bão dao: quét hết tầm nhìn
+  knife_lr:   { wind: [-0.05, 0.28, -0.05, FWD, 0, 0], hit: [0.05, -0.1, 0.12, FWD, 0, 0] },
+  knife_rise: { wind: [0.05, -0.35, -0.05, FWD + 0.4, 0, 0], hit: [0, 0.3, 0.12, FWD + 0.4, 0, 0] },                           // khoét từ thấp lên cao
+  knife_r1:   { wind: [0, 0.28, -0.1, FWD, 0, 0], hit: [0, -0.15, 0.12, FWD, 0, 0] },                              // cầm ngược, đâm xuống
+  knife_rr:   { wind: [0, 0.28, -0.05, FWD, 0, 0], hit: [0, -0.1, 0.12, FWD, 0, 0] },                              // xoáy kép: hai nhát giáng liền
+  knife_flip: { wind: [0.45, 0, 0, FWD, 0, 0], hit: [-0.4, 0.05, 0.12, FWD, 0, 0] },                                    // lật tay chém nhanh
 }
 
-export const GUARD_POSE: Pose = [0.2, 0.1, -0.04, 0, 1.3, 0.1]             // cánh tay đưa chếch trái, lưỡi ngang trước mặt
+export const GUARD_POSE: Pose = [0.2, 0.1, -0.04, -0.2, 0, 1.2]             // cánh tay đưa chếch trái, lưỡi ngang trước mặt
 export const STAGGER_POSE: Pose = [0, -0.25, -0.1, 0.35, 0, 0.2]             // tay hạ xuống, dao ngóc lên
 const BLOCK_KICK: Pose = [0, 0.05, -0.06, 0, 0, 0]                           // giật lại khi đỡ trúng
 const PARRY_KICK: Pose = [0.25, 0.08, 0.05, 0, 0.2, 0]                       // gạt ra khi parry thành công
