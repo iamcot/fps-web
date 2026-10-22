@@ -85,10 +85,10 @@ export class TdmMode implements MatchMode {
   canSwitchTeam(): boolean { return true }
 
   statusText(room: Room): string {
-    if (room.phase === MatchPhase.Waiting) return 'Đang chờ'
+    if (room.phase === MatchPhase.Waiting) return 'Waiting'
     const left = Math.max(0, Math.ceil((room.phaseEndsAt - room.serverNow) / 1000))
     const clock = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`
-    return room.phase === MatchPhase.Playing ? `Còn ${clock} · ${room.scoreA}–${room.scoreB}` : room.phase === MatchPhase.Ended ? 'Kết thúc' : 'Chuẩn bị'
+    return room.phase === MatchPhase.Playing ? `${clock} left · ${room.scoreA}–${room.scoreB}` : room.phase === MatchPhase.Ended ? 'Ended' : 'Get ready'
   }
 
   stateMessage(room: Room): MatchStateMsg {

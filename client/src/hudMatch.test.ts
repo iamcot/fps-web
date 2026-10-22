@@ -18,21 +18,21 @@ describe('hudMatch', () => {
   })
   it('bannerText chỉ hiện ở ENDED: thắng / hoà', () => {
     expect(bannerText(MatchPhase.Playing, 5, 1)).toBe('')
-    expect(bannerText(MatchPhase.Ended, 5, 1)).toBe('CỚM THẮNG')
-    expect(bannerText(MatchPhase.Ended, 1, 5)).toBe('CƯỚP THẮNG')
-    expect(bannerText(MatchPhase.Ended, 3, 3)).toBe('HOÀ')
+    expect(bannerText(MatchPhase.Ended, 5, 1)).toBe('COPS WIN')
+    expect(bannerText(MatchPhase.Ended, 1, 5)).toBe('ROBBERS WIN')
+    expect(bannerText(MatchPhase.Ended, 3, 3)).toBe('DRAW')
   })
 })
 
 describe('HUD Sinh Tử', () => {
   it('banner kết thúc ván + lý do', async () => {
     const { roundBannerText, REASON_TEXT, clockColor } = await import('./hudMatch')
-    expect(roundBannerText('A', 5)).toBe('CỚM THẮNG VÁN 5')
-    expect(roundBannerText('B', 12)).toBe('CƯỚP THẮNG VÁN 12')
-    expect(roundBannerText(null, 3)).toBe('VÁN HOÀ')
-    expect(REASON_TEXT.elimination).toBe('Tiêu diệt toàn bộ')
-    expect(REASON_TEXT.time_alive).toBe('Hết giờ · còn nhiều người hơn')
-    expect(REASON_TEXT.time_hp).toBe('Hết giờ · còn nhiều máu hơn')
+    expect(roundBannerText('A', 5)).toBe('COPS WIN ROUND 5')
+    expect(roundBannerText('B', 12)).toBe('ROBBERS WIN ROUND 12')
+    expect(roundBannerText(null, 3)).toBe('ROUND DRAW')
+    expect(REASON_TEXT.elimination).toBe('Team eliminated')
+    expect(REASON_TEXT.time_alive).toBe('Time up · more players alive')
+    expect(REASON_TEXT.time_hp).toBe('Time up · more health left')
     expect(clockColor(4, 3000)).toBe('#ffd23c')   // FREEZE vàng
     expect(clockColor(2, 9000)).toBe('#ff5555')   // LIVE < 10s đỏ
     expect(clockColor(2, 30_000)).toBe('#fff')

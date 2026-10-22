@@ -1,6 +1,7 @@
 // Cảnh báo lựu đạn gần (G.9): icon đỏ dưới tâm ngắm + mũi tên quay theo hướng quả gần nhất. Quả của đồng đội bị bỏ qua (do caller lọc).
 import { GRENADE } from '@fps/shared'
 import { weaponIcon } from './weaponIcon'
+import { t } from './i18n'
 
 const BLINK_SLOW_HZ = 2, BLINK_FAST_HZ = 8
 const ARROW_RADIUS_PX = 78
@@ -16,7 +17,7 @@ export function createGrenadeWarning() {
   arrow.style.cssText = `position:absolute;left:-12px;top:${-ARROW_RADIUS_PX - 12}px;width:24px;height:24px;` +
     'background:#ff3030;clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%);filter:drop-shadow(0 0 3px #000)'
   ring.appendChild(arrow)
-  const icon = weaponIcon('m67', 'Lựu đạn', 'width:44px;height:44px;filter:sepia(1) saturate(8) hue-rotate(-35deg) drop-shadow(0 0 4px #000)')
+  const icon = weaponIcon('m67', t('Grenade'), 'width:44px;height:44px;filter:sepia(1) saturate(8) hue-rotate(-35deg) drop-shadow(0 0 4px #000)')
   const iconBox = document.createElement('div')
   iconBox.style.cssText = 'position:absolute;left:-22px;top:46px;width:44px;height:44px'
   iconBox.appendChild(icon)

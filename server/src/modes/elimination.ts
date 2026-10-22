@@ -199,8 +199,8 @@ export class EliminationMode implements MatchMode {
   canSwitchTeam(room: Room): boolean { return room.phase === MatchPhase.Waiting || room.phase === MatchPhase.Freeze }
 
   statusText(room: Room): string {
-    if (room.phase === MatchPhase.Waiting) return 'Đang chờ'
-    return `Ván ${Math.min(this.round, this.maxRounds)}/${this.maxRounds} · ${room.scoreA}–${room.scoreB}`
+    if (room.phase === MatchPhase.Waiting) return 'Waiting'
+    return `Round ${Math.min(this.round, this.maxRounds)}/${this.maxRounds} · ${room.scoreA}–${room.scoreB}`
   }
 
   stateMessage(room: Room): MatchStateMsg {

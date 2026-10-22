@@ -1,6 +1,7 @@
 // HUD dưới màn hình (H.6): tiền + máu bên trái, 4 ô vũ khí ở giữa, đạn bên phải. DOM thuần, chỉ ghi khi giá trị đổi.
 import { CATEGORY_LABEL, SLOT_COUNT, WEAPON_BY_KEY } from '@fps/shared'
 import { weaponIcon } from './weaponIcon'
+import { categoryLabel } from './i18n'
 
 const STYLE = `
 :root{
@@ -133,7 +134,7 @@ export function createBottomHud() {
         if (key) {
           const def = WEAPON_BY_KEY.get(key)
           el.insertBefore(weaponIcon(key, def?.name ?? key), el.firstChild)
-          el.title = def ? CATEGORY_LABEL[def.category] : ''
+          el.title = def ? categoryLabel(def.category) : ''
         }
       }
     },

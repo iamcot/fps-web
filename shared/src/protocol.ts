@@ -87,7 +87,7 @@ export interface JoinMsg {
 
 export type BotDifficulty = 'medium' | 'hard'
 export const BOT_DIFFICULTIES: readonly BotDifficulty[] = ['medium', 'hard']
-export const BOT_TAG: Record<BotDifficulty, string> = { medium: 'TB', hard: 'KHÓ' }
+export const BOT_TAG: Record<BotDifficulty, string> = { medium: 'TB', hard: 'HARD' }
 
 // Phòng offline (plan 15, B.7). `ally`: bot phe mình (Shift); mặc định bot phe địch.
 export type OfflineCmdMsg = { t: typeof MsgType.OfflineCmd } & (
@@ -152,7 +152,7 @@ export interface RoomInfo {
   teamA: number
   teamB: number
   mode: GameMode
-  status: string             // 'Đang chờ' | 'Ván 5/19 · 3–2' | 'Còn 06:12 · 23–18'
+  status: string             // 'Waiting' | 'Round 5/19 · 3–2' | '06:12 left · 23–18'
 }
 export interface MapInfo { id: string; name: string }
 export interface RoomListMsg { t: typeof MsgType.RoomList; rooms: RoomInfo[]; maps: MapInfo[] }

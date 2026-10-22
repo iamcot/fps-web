@@ -12,7 +12,7 @@ export function connectWebSocket(url: string): Promise<Transport> {
     // Reload/đóng tab: đóng socket chủ động để server thấy ngay thay vì chờ timeout
     window.addEventListener('pagehide', () => ws.close(1000))
     ws.onclose = () => { for (const cb of closeCbs) cb() }
-    ws.onerror = () => reject(new Error(`WebSocket lỗi: ${url}`))
+    ws.onerror = () => reject(new Error(`WebSocket error: ${url}`))
     ws.onopen = () => resolve({
       send: msg => { if (ws.readyState === WebSocket.OPEN) ws.send(encode(msg)) },
       onMessage: cb => { msgCbs.push(cb) },

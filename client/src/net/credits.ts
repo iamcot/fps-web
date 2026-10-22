@@ -1,4 +1,5 @@
 import credits from '@assets/CREDITS.json'
+import { t } from '../i18n'
 
 interface CreditEntry { file: string; author: string; source: string; license: string; url?: string }
 
@@ -11,9 +12,9 @@ export function showCredits(): void {
   wrap.style.cssText = 'width:min(900px,94vw);display:flex;flex-direction:column;gap:6px'
   const head = document.createElement('div')
   head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;font-size:20px;margin-bottom:8px'
-  head.textContent = 'Ghi công'
+  head.textContent = t('Credits')
   const close = document.createElement('button')
-  close.textContent = 'Đóng'
+  close.textContent = t('Close')
   close.style.cssText = 'padding:6px 12px;background:#2a3550;color:#fff;border:1px solid #556;border-radius:6px;cursor:pointer;font:inherit'
   close.addEventListener('click', () => box.remove())
   head.appendChild(close)

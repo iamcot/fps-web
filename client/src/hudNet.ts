@@ -1,6 +1,7 @@
 // HUD phần mạng (4.5): killfeed, màn hình chết, viền đỏ khi bị bắn. DOM thuần, không cấp phát theo frame.
 
 import { weaponIcon } from './weaponIcon'
+import { t } from './i18n'
 
 const KILLFEED_MAX = 5
 const KILLFEED_LIFE_MS = 5000
@@ -66,7 +67,7 @@ export function createDeathScreen() {
   return {
     /** respawnInMs < 0: không hồi sinh (Sinh Tử) → không hiện đồng hồ */
     show(killerName: string, respawnInMs: number): void {
-      who.textContent = killerName ? `Bị ${killerName} hạ` : 'Bạn đã chết'
+      who.textContent = killerName ? t('Killed by {name}', { name: killerName }) : t('You died')
       until = respawnInMs < 0 ? 0 : performance.now() + respawnInMs
       timer.textContent = ''
       lastSec = -1
@@ -78,7 +79,7 @@ export function createDeathScreen() {
       const sec = Math.max(0, Math.ceil((until - performance.now()) / 1000))
       if (sec === lastSec) return   // chỉ ghi DOM khi đổi giây
       lastSec = sec
-      timer.textContent = `Hồi sinh sau ${sec}s`
+      timer.textContent = t('Respawn in {s}s', { s: sec })
     },
   }
 }
@@ -125,7 +126,7 @@ export function createBountyBanner() {
   let timer = 0
   return {
     show(victimName: string, streak: number): void {
-      el.textContent = `TRUY NÃ! Hạ ${victimName} (chuỗi ${streak})`
+      el.textContent = t('BOUNTY! Killed {name} (streak {n})', { name: victimName, n: streak })
       el.style.opacity = '1'
       clearTimeout(timer)
       timer = window.setTimeout(() => { el.style.opacity = '0' }, 1500)
@@ -142,7 +143,7 @@ export function createSpectateLabel() {
   let last = ''
   return {
     set(name: string | null | undefined, hp: number): void {
-      const text = name === undefined ? '' : name === null ? 'Không còn đồng đội để xem' : `Đang xem: ${name}   ♥ ${Math.max(0, Math.round(hp))}   (Click / Space: đổi người)`
+      const text = name === undefined ? '' : name === null ? t('No teammates left to watch') : t('Watching: {name}   ♥ {hp}   (Click / Space: next player)', { name, hp: Math.max(0, Math.round(hp)) })
       if (text === last) return
       last = text
       el.textContent = text

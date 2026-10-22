@@ -1,11 +1,12 @@
 import { TEAMS } from '@fps/shared'
 import { createKit } from './kit'
 import type { CharacterSet } from './types'
+import { t } from '../../i18n'
 
 // Cớm (xanh, mũ kê-pi) vs Cướp (áo xám đậm, quần đen, mặt nạ xám, tóc nâu)
 export const blocky: CharacterSet = {
   id: 'copRobber',
-  label: 'Cớm & Cướp',
+  label: t('Cops & Robbers'),
   build(team) {
     const cop = team === 'A'
     const cloth = cop ? TEAMS.A.color : 0x3a3a3a

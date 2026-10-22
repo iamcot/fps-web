@@ -49,7 +49,7 @@ describe('offline host (phòng Room chạy không cần server Node)', () => {
       expect(st.bots.filter(b => b.team === 'A').length).toBe(4)   // phe địch (B) 5, phe mình 4 sau khi đầy
       expect(new Set(st.bots.map(b => b.name)).size).toBe(st.bots.length)
       expect(st.bots.every(b => b.name.startsWith('[BOT] '))).toBe(true)
-      expect(st.bots.some(b => b.name.endsWith('KHÓ'))).toBe(true)
+      expect(st.bots.some(b => b.name.endsWith('HARD'))).toBe(true)
     }
     host.dispose()
   })

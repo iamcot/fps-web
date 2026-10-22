@@ -16,7 +16,7 @@ import { createZombieOverlay } from './render/zombieOverlay'
 import { createSniffFx } from './render/sniffFx'
 import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase, setTransforming, setDowned } from './loop'
 import { initDebugOverlay } from './debug'
-import { showLobby, BACK_KEY, type Session } from './net/lobby'
+import { showLobby, BACK_KEY, clearRoomFromUrl, type Session } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
 import { clock } from './net/clock'
 import { attachSnapshots, type SnapshotStore } from './net/snapshots'
@@ -38,6 +38,7 @@ import { createBotDebug } from './render/botDebug'
 import { MsgType, MatchPhase, NetFlag, DEFAULT_CHARACTER_SET, type TeamId } from '@fps/shared'
 import { skinOfSet } from './render/characterRig'
 import { initTuningPanel } from './tuning'
+import { t, teamName, modeLabel } from './i18n'
 import { createViewmodel } from './render/viewmodel'
 import { createPoseEditor } from './render/poseEditor'
 import { createBloodFx } from './render/bloodFx'
@@ -335,8 +336,9 @@ const toast = createToast()
 // Về phòng chờ: tải lại trang (đóng kết nối nên server cho rời phòng), lobby bỏ qua bước nhập tên
 createLeaveButton(() => {
   if (teamPrompt.isOpen) return
-  teamPrompt.open('Về phòng chờ? Bạn sẽ rời trận này.', () => {
+  teamPrompt.open(t('Back to the lobby? You will leave this match.'), () => {
     try { sessionStorage.setItem(BACK_KEY, '1') } catch { /* bỏ qua */ }
+    clearRoomFromUrl()   // otherwise ?room= sends the player straight back into this room
     location.reload()
   })
 })
@@ -392,16 +394,16 @@ sessionP.then(session => {
     if (!mine || teamPrompt.isOpen) return
     const other = mine === 'A' ? 'B' : 'A'
     if (session.offline) {   // offline: đổi chỗ cả bot với người chơi (bot địch vẫn là địch, đồng đội vẫn là đồng đội)
-      teamPrompt.open(`Đổi sang phe ${TEAMS[other].name}? Bot cũng đổi phe theo.`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.OfflineCmd, cmd: 'swapSide' }) })
+      teamPrompt.open(t('Switch to {team}? Bots switch sides too.', { team: teamName(other) }), () => { pendingSwitch = true; session.transport.send({ t: MsgType.OfflineCmd, cmd: 'swapSide' }) })
       return
     }
-    teamPrompt.open(`Đổi sang phe ${TEAMS[other].name}?`, () => { pendingSwitch = true; session.transport.send({ t: MsgType.ChooseTeam, team: other }) })
+    teamPrompt.open(t('Switch to {team}?', { team: teamName(other) }), () => { pendingSwitch = true; session.transport.send({ t: MsgType.ChooseTeam, team: other }) })
   }
   session.transport.onMessage(msg => {
     if (msg.t !== MsgType.TeamAssigned || msg.id !== session.yourId) return
     const changed = lastTeam !== undefined && lastTeam !== msg.team
-    if (pendingSwitch) { pendingSwitch = false; toast(changed ? `Đã sang phe ${TEAMS[msg.team].name}` : 'Không đổi được: phe kia đã đông hơn') }
-    else if (changed) toast(`Bạn được chuyển sang phe ${TEAMS[msg.team].name} để cân bằng`)
+    if (pendingSwitch) { pendingSwitch = false; toast(changed ? t('Switched to {team}', { team: teamName(msg.team) }) : t('Cannot switch: the other team is larger')) }
+    else if (changed) toast(t('You were moved to {team} to balance the teams', { team: teamName(msg.team) }))
     lastTeam = msg.team
   })
   playerId = session.yourId
@@ -413,13 +415,13 @@ sessionP.then(session => {
     night.setNight(st.mode === 'infection' || st.mode === 'defense' ? st.lighting === 'night' : false)
   }
   if (session.offline) matchHud.setUnlimited(true)
-  createRoomLabel(session.offline ? `Offline · ${session.mapName} · ${MODE_LABEL[session.config.settings.mode]}` : `${MODE_LABEL[session.config.settings.mode]} · ${session.mapName} · ${session.roomName}`,
-    session.offline ? null : `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast('Đã sao chép link phòng'))
+  createRoomLabel(session.offline ? `Offline · ${session.mapName} · ${modeLabel(session.config.settings.mode)}` : `${modeLabel(session.config.settings.mode)} · ${session.mapName} · ${session.roomName}`,
+    session.offline ? null : `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast(t('Room link copied')))
   {   // gợi ý phím bên phải màn hình (dưới killfeed)
     const st = session.config.settings
-    const items: [string, string][] = [['Đổi súng nhanh', 'Q'], ['Thay đạn', 'R']]
-    if ((st.mode === 'infection' || st.mode === 'defense') && st.lighting === 'night') items.push(['Bật tắt đèn', 'F'])
-    if (st.mode === 'defense') items.push(['Cứu đồng đội', 'E'])
+    const items: [string, string][] = [[t('Quick switch'), 'Q'], [t('Reload'), 'R']]
+    if ((st.mode === 'infection' || st.mode === 'defense') && st.lighting === 'night') items.push([t('Flashlight'), 'F'])
+    if (st.mode === 'defense') items.push([t('Revive teammate'), 'E'])
     keyHints.setItems(items)
   }
   if (session.offline) setupOffline(session)

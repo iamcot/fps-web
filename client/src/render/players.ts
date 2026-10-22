@@ -480,6 +480,8 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       a.wasDead = dead
       const zombie = (p.flags & NetFlag.Zombie) !== 0
       sk.setZombie(zombie)   // clip z_*: chưa tải xong thì giữ animation người, frame sau thử lại
+      const myT = info?.myTeam(), theirT = info?.teamOf(p.id)
+      sk.setAlly(myT === undefined || theirT === myT)
       if (zombie && !a.zfx) {
         a.zfx = makeZombieFx(scene, rig, p.id, zombieOpts(p.ztype), zombieSize(p.ztype, p.zscale), 1, a.zfile ? zfileCache.get(p.id)?.scale ?? 1 : 1)
         a.deadAt = 0; hideGun(a)

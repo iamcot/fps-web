@@ -1,4 +1,5 @@
 import { encode, decode, type Transport } from '@fps/shared'
+import { t } from '../i18n'
 
 /** Transport nói chuyện với Web Worker offline qua postMessage; vẫn encode/decode msgpack như mạng thật. Không áp netsim (ping = 0). */
 export function createLocalTransport(worker: Worker): Transport {
@@ -24,13 +25,13 @@ export function createLocalTransport(worker: Worker): Transport {
 export function startOfflineWorker(): Promise<Worker> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('../../../server/src/offline/worker.ts', import.meta.url), { type: 'module' })
-    const timer = setTimeout(() => { worker.terminate(); reject(new Error('Worker offline không khởi động được')) }, 20000)
+    const timer = setTimeout(() => { worker.terminate(); reject(new Error(t('Offline worker failed to start'))) }, 20000)
     worker.addEventListener('message', function onMsg(e) {
       const d = e.data as { t?: string; message?: string }
       if (d?.t === 'ready') { clearTimeout(timer); worker.removeEventListener('message', onMsg); resolve(worker) }
-      else if (d?.t === 'error') { clearTimeout(timer); worker.terminate(); reject(new Error(d.message ?? 'Worker offline lỗi')) }
+      else if (d?.t === 'error') { clearTimeout(timer); worker.terminate(); reject(new Error(d.message ?? t('Offline worker error'))) }
     })
-    worker.addEventListener('error', ev => { clearTimeout(timer); worker.terminate(); reject(new Error(ev.message || 'Worker offline lỗi')) })
+    worker.addEventListener('error', ev => { clearTimeout(timer); worker.terminate(); reject(new Error(ev.message || t('Offline worker error'))) })
     // Dev: sửa server/src/bots/bots.json → plugin trong vite.config.ts đẩy nội dung mới qua kênh HMR (không tải lại trang) → bot đổi cách chơi ngay
     if (import.meta.hot) {
       import.meta.hot.on('bots-json', (params: unknown) => {
