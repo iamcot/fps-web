@@ -57,7 +57,7 @@ export function stepPlayer(p: Player, baseCfg: MovementConfig, room: Room | null
       if ((p.weapon.slots[DOWNED_WEAPON_SLOT] ?? -1) < 0) eff.buttons &= ~(Btn.Fire | Btn.Reload)
     }
     // Tốc độ theo súng đang cầm TRƯỚC cmd này (đổi súng ở cuối tick); client dự đoán và replay cùng thứ tự
-    p.state = stepMovement(p.state, eff, p.world, cfg, DT, moveSpeedMul(p.weapon), adsMoveFor(p.weapon), adsWanted(p.weapon, eff.buttons, cmd.seq * 1000 / TICK_RATE))
+    p.state = stepMovement(p.state, eff, p.world, cfg, DT, moveSpeedMul(p.weapon, cmd.seq * 1000 / TICK_RATE), adsMoveFor(p.weapon), adsWanted(p.weapon, eff.buttons, cmd.seq * 1000 / TICK_RATE))
     p.lastProcessedSeq = cmd.seq
     p.lastCmd = cmd
     p.flashlight = p.alive && !p.zstats && (eff.buttons & Btn.Flashlight) !== 0

@@ -157,7 +157,7 @@ const rec = makeRecoilState()
 const shotDirs: [number, number, number][] = Array.from({ length: MAX_PELLETS }, () => [0, 0, 0] as [number, number, number])
 const eyeTmp:  [number, number, number] = [0, 0, 0]
 let simMs = 0
-setWeaponMove({ mul: () => moveSpeedMul(ws), ads: () => adsMoveFor(ws), want: cmd => adsWanted(ws, cmd.buttons, cmd.seq * 1000 / TICK_RATE) })   // offline; online truyền qua hook step của Prediction
+setWeaponMove({ mul: cmd => moveSpeedMul(ws, cmd.seq * 1000 / TICK_RATE), ads: () => adsMoveFor(ws), want: cmd => adsWanted(ws, cmd.buttons, cmd.seq * 1000 / TICK_RATE) })   // offline; online truyền qua hook step của Prediction
 
 // Đổi súng theo ô (H.4): cmd.weapon = ô; logic súng đổi ở tick kế tiếp (client và server như nhau), viewmodel đi theo ws.current
 let dead = false
@@ -655,7 +655,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       step: cmd => {
         if (cmd.buttons & Btn.Fire) cmd.fireRenderTime = interp.currentRenderTime   // 4.3: server tua hitbox về đây
         session.transport.send({ t: MsgType.Inputs, cmds: [cmd] })
-        return pred.step(cmd, moveSpeedMul(ws), adsMoveFor(ws), adsWanted(ws, cmd.buttons, cmd.seq * 1000 / TICK_RATE))   // tốc độ theo súng đang cầm trước cmd này, như server
+        return pred.step(cmd, moveSpeedMul(ws, cmd.seq * 1000 / TICK_RATE), adsMoveFor(ws), adsWanted(ws, cmd.buttons, cmd.seq * 1000 / TICK_RATE))   // tốc độ theo súng đang cầm trước cmd này, như server
       },
       visualOffset: () => pred.decayOffset(),
     })

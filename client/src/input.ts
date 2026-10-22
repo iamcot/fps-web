@@ -102,6 +102,7 @@ export function sampleButtons(): number {
   if (_keys['KeyG'])                                            b |= Btn.QuickNade
   if (_keys['KeyE'])                                            b |= Btn.Ability
   if (_keys['KeyQ'])                                            b |= Btn.Sniff
+  if (_keys['ShiftLeft'])                                       b |= Btn.Guard   // đỡ đòn khi cầm vũ khí cận chiến (plan 19)
   if (_flashlight && _flashlightAllowed)                        b |= Btn.Flashlight
   if (_mouseLeft)                                               b |= Btn.Fire
   if (_keys['KeyR'])                                            b |= Btn.Reload

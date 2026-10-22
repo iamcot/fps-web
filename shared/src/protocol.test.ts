@@ -41,7 +41,7 @@ describe('isValidCmd', () => {
     expect(isValidCmd({ ...ok, yaw: NaN })).toBe(false)
     expect(isValidCmd({ ...ok, yaw: Infinity })).toBe(false)
   })
-  it('bit nút lạ', () => expect(isValidCmd({ ...ok, buttons: 1 << 13 })).toBe(false))
+  it('bit nút lạ', () => expect(isValidCmd({ ...ok, buttons: 1 << 14 })).toBe(false))
   it('thiếu trường / sai kiểu', () => {
     expect(isValidCmd(null)).toBe(false)
     expect(isValidCmd({ ...ok, seq: 1.5 })).toBe(false)

@@ -12,6 +12,7 @@ export const Btn = {
   Ability:  1 << 10, // phím E: chiêu của zombie (nhảy cao). Người không dùng
   Flashlight: 1 << 11, // đèn pin (người, ban đêm): MỨC chứ không phải cạnh — client gửi trạng thái mong muốn trong mọi cmd (phím F bật/tắt)
   Sniff:    1 << 12, // phím Q: zombie đánh hơi (Lây Nhiễm, plan 16 I.3)
+  Guard:    1 << 13, // Shift trái: đỡ đòn khi cầm vũ khí cận chiến (plan 19)
 } as const
 
 export interface InputCmd {

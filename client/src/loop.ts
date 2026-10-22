@@ -17,7 +17,7 @@ export function wantedWeapon(): number { return _weapon }
 
 // Hệ số tốc độ theo súng đang cầm (offline); online do hook step của main truyền vào Prediction
 export interface WeaponMove {
-  mul(): number                      // moveSpeedMul của súng đang cầm
+  mul(cmd: InputCmd): number         // moveSpeedMul của súng đang cầm (kèm hệ số đánh / đỡ / choáng theo giờ của cmd)
   ads(): AdsMove | null              // tham số ngắm của súng đang cầm
   want(cmd: InputCmd): boolean       // adsWanted: giữ Aim, không nạp/đổi súng
 }
@@ -69,7 +69,7 @@ export function startLoop(
         _curr = _net.step(cmd)
       } else {
         _prev = _curr
-        _curr = stepMovement(_curr, cmd, world, cfg, DT, _weaponMove.mul(), _weaponMove.ads(), _weaponMove.want(cmd))
+        _curr = stepMovement(_curr, cmd, world, cfg, DT, _weaponMove.mul(cmd), _weaponMove.ads(), _weaponMove.want(cmd))
       }
       // Thời gian mô phỏng (ms) — client và server tính giống nhau, không dùng performance.now()
       onTick?.(_curr, cmd, (_tick++) * 1000 / TICK_RATE)

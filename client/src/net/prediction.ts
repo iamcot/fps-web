@@ -75,7 +75,7 @@ export class Prediction {
     if (wpn) copyWeaponState(ws, wpn)
     for (const p of this.pending) {
       s = wpn
-        ? stepMovement(s, p.cmd, this.world, this.cfg, DT, moveSpeedMul(ws), adsMoveFor(ws), adsWanted(ws, p.cmd.buttons, p.cmd.seq * 1000 / TICK_RATE))
+        ? stepMovement(s, p.cmd, this.world, this.cfg, DT, moveSpeedMul(ws, p.cmd.seq * 1000 / TICK_RATE), adsMoveFor(ws), adsWanted(ws, p.cmd.buttons, p.cmd.seq * 1000 / TICK_RATE))
         : stepMovement(s, p.cmd, this.world, this.cfg, DT, 1)
       if (wpn) stepWeaponCmd(ws, p.cmd)
       p.stateAfter = s

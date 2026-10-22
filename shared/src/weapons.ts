@@ -1,4 +1,5 @@
 import { GRENADE, makeThrowState, type ThrowState } from './grenade'
+import { MELEE } from './meleeConfig'
 
 export type WeaponCategory = 'claw' | 'knife' | 'pistol' | 'mid' | 'long' | 'grenade'
 /** Ô vũ khí (phím 1–5) của từng dòng. Ô 5 = lựu đạn (hàng tiêu hao, không tính vào 4 dòng súng) */
@@ -93,6 +94,27 @@ export interface WeaponState {
   shotBloomDeg: number    // bloom đã dùng cho phát vừa bắn (trước khi cộng bloom của chính nó): viên đầu không dính bloom của nó
   switchEndMs: number     // hết khoá đổi súng lúc này (thang seq): chưa tới thì không ngắm được
   magMult: number         // băng đạn to gấp ngần này (EconomyConfig.magMult của thể thức; cố định cả ván)
+  // Cận chiến (plan 19, melee.ts). Mọi mốc thời gian theo thang seq
+  meleeMove: number       // chỉ số chiêu đang chạy trong MeleeSet, -1 = không
+  meleeStartMs: number
+  meleeHits: number       // số nhát đã đánh của chiêu đang chạy
+  comboNode: number       // chiêu vừa kết thúc (để nối combo), -1 = không
+  chainEndMs: number      // hết giờ này thì bấm tiếp không còn nối combo
+  meleeBuf: number        // bộ đệm input: 0 không, 1 trái, 2 phải
+  meleeBufMs: number
+  aimHeld: boolean        // Btn.Aim tick trước (cạnh lên = chuột phải)
+  guardKey: boolean       // Btn.Guard tick trước
+  guardSinceMs: number    // đang đỡ từ lúc này, -1 = không đỡ
+  parryUntilMs: number    // > 0: còn cửa sổ parry tới lúc này
+  parryLockMs: number     // trước lúc này bấm đỡ không mở cửa sổ parry
+  stamina: number         // thể lực tại staminaMs (hồi theo thời gian, xem staminaAt)
+  staminaMs: number
+  staminaRegenAtMs: number
+  poise: number           // sức chịu choáng tại poiseMs (xem poiseAt)
+  poiseMs: number
+  poiseRegenAtMs: number
+  staggerUntilMs: number  // choáng tới lúc này
+  vulnerableUntilMs: number   // nhận sát thương nặng hơn tới lúc này (sau parry / vỡ thế thủ)
 }
 
 // Thời gian khoá bắn sau khi đổi súng (khớp animation hạ/đưa súng 2×0.15s ở viewmodel)
@@ -211,6 +233,15 @@ export const FALLBACK_SLOTS: readonly number[] = [6, 2, -1, 1, -1]
 /** Cỡ băng đạn thực của súng `def` với hệ số `mult` */
 export function magSizeOf(def: WeaponDef, mult = 1): number { return Math.round(def.magSize * mult) }
 
+/** Giá trị khởi tạo của các trường cận chiến trong WeaponState (thể lực đầy, không đỡ, không choáng) */
+export function meleeInitFields(): Pick<WeaponState, 'meleeMove' | 'meleeStartMs' | 'meleeHits' | 'comboNode' | 'chainEndMs' | 'meleeBuf' | 'meleeBufMs' | 'aimHeld' | 'guardKey' | 'guardSinceMs' | 'parryUntilMs' | 'parryLockMs' | 'stamina' | 'staminaMs' | 'staminaRegenAtMs' | 'poise' | 'poiseMs' | 'poiseRegenAtMs' | 'staggerUntilMs' | 'vulnerableUntilMs'> {
+  return {
+    meleeMove: -1, meleeStartMs: 0, meleeHits: 0, comboNode: -1, chainEndMs: 0, meleeBuf: 0, meleeBufMs: 0, aimHeld: false, guardKey: false,
+    guardSinceMs: -1, parryUntilMs: 0, parryLockMs: 0, stamina: MELEE.staminaMax, staminaMs: 0, staminaRegenAtMs: 0,
+    poise: MELEE.poiseMax, poiseMs: 0, poiseRegenAtMs: 0, staggerUntilMs: 0, vulnerableUntilMs: 0,
+  }
+}
+
 export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS, magMult = 1): WeaponState {
   const slot = slots[DEFAULT_SLOT]! >= 0 ? DEFAULT_SLOT : Math.max(0, slots.findIndex(id => id >= 0))
   return {
@@ -233,5 +264,6 @@ export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS, magMu
     shotBloomDeg: 0,
     switchEndMs: 0,
     magMult,
+    ...meleeInitFields(),
   }
 }
