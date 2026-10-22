@@ -41,12 +41,13 @@ export function applyHit(shooter: Player, room: Room, target: Player, damage: nu
       applyKnockback(target.state.vel, kbImp)
     }
     if (target.hp <= 0) { target.killerId = shooter.id; target.killWeapon = def.id; target.killHeadshot = headshot }
-    target.transport.send({ t: MsgType.Hurt, origin: [origin[0]!, origin[1]!, origin[2]!], damage: applied })
+    target.transport.send({ t: MsgType.Hurt, origin: [origin[0]!, origin[1]!, origin[2]!], damage: applied, ...(outcome ? { outcome } : {}) })
     if (shooter.zstats?.shoveSpeed && def.melee && !target.zstats) {   // brute: cào trúng đẩy người lùi (khỏi gờ tường!)
       const dx = target.state.pos[0] - s.pos[0], dz = target.state.pos[2] - s.pos[2], dl = Math.hypot(dx, dz) || 1
       target.state.vel[0] += dx / dl * shooter.zstats.shoveSpeed; target.state.vel[2] += dz / dl * shooter.zstats.shoveSpeed
     }
   }
+  else if (outcome) target.transport.send({ t: MsgType.Hurt, origin: [origin[0]!, origin[1]!, origin[2]!], damage: 0, outcome })   // đòn bị đỡ / parry hết sát thương: vẫn báo cho người đỡ
   const hc: HitConfirmMsg = { t: MsgType.HitConfirm, damage: applied, headshot, targetId: target.id }
   if (outcome) hc.outcome = outcome
   shooter.transport.send(hc)

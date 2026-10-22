@@ -255,6 +255,7 @@ export interface HurtMsg {
   t: typeof MsgType.Hurt
   origin: [number, number, number]   // mắt người bắn
   damage: number
+  outcome?: number   // cận chiến: MELEE_OUTCOME (1 đỡ được, 2 parry, 3 vỡ thế thủ); thiếu = trúng thường
 }
 
 // Gửi riêng người bắn: phát bắn trúng người (hitmarker chỉ hiện khi nhận gói này)

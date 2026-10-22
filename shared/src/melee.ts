@@ -195,3 +195,16 @@ export function resolveMeleeHit(out: MeleeHitResult, victim: WeaponState, attack
   }
   return out
 }
+
+/** Chiêu `idx` là nhát thứ mấy của chuỗi (gốc = 1). 0 nếu không với tới. Dùng cho HUD đếm combo */
+export function comboDepth(set: MeleeSet, idx: number): number {
+  if (idx < 0) return 0
+  let level: number[] = [set.roots[0]!, set.roots[1]!]
+  for (let d = 1; level.length > 0 && d <= set.moves.length; d++) {
+    if (level.includes(idx)) return d
+    const nxt: number[] = []
+    for (const i of level) for (const n of set.moves[i]!.next) if (n >= 0) nxt.push(n)
+    level = nxt
+  }
+  return 0
+}

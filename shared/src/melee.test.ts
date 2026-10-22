@@ -7,7 +7,7 @@ import type { InputCmd } from './movement'
 import { MELEE, KNIFE_SET, moveDurationMs } from './meleeConfig'
 import { TICK_RATE } from './constants'
 import {
-  staminaAt, poiseAt, resolveMeleeHit, makeMeleeHitResult, inGuardArc, meleeMoveMul, isStaggered, initMeleeState,
+  comboDepth, staminaAt, poiseAt, resolveMeleeHit, makeMeleeHitResult, inGuardArc, meleeMoveMul, isStaggered, initMeleeState,
 } from './melee'
 
 const TICK_MS = 1000 / TICK_RATE
@@ -367,6 +367,14 @@ describe('trạng thái', () => {
     ws.stamina = 3; ws.staggerUntilMs = 99999; ws.poise = 1
     initMeleeState(ws)
     expect(ws.stamina).toBe(MELEE.staminaMax); expect(ws.staggerUntilMs).toBe(0); expect(ws.poise).toBe(MELEE.poiseMax)
+  })
+
+  it('comboDepth: độ sâu của từng chiêu trong cây', () => {
+    expect([0, 7].map(i => comboDepth(KNIFE_SET, i))).toEqual([1, 1])
+    expect([1, 5, 8, 9].map(i => comboDepth(KNIFE_SET, i))).toEqual([2, 2, 2, 2])
+    expect([2, 3, 6].map(i => comboDepth(KNIFE_SET, i))).toEqual([3, 3, 3])
+    expect(comboDepth(KNIFE_SET, 4)).toBe(4)
+    expect(comboDepth(KNIFE_SET, -1)).toBe(0)
   })
 
   it('cây combo hợp lệ: chỉ số next trỏ tới chiêu có thật, không có vòng lặp vô hạn', () => {

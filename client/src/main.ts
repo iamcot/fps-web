@@ -5,6 +5,8 @@ import {
   CATEGORY_SLOT, DEFAULT_SLOT, TEAMS, ECONOMY, ECONOMY_ELIM, MODE_LABEL, SLOT_COUNT, GRENADE, GRENADE_ID, GRENADE_SLOT, TICK_RATE, defaultLoadout, inBuyZone, loadoutWeaponIds, moveSpeedMul, throwInitial, weaponByKey,
 } from '@fps/shared'
 import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
+import { makeMeleeHudModel, meleeHudModel } from './hudMelee'
+import { meleeSetOf, shootDir } from '@fps/shared'
 import { CLAW_HEAVY_ID, CLAW_ID, DEFENSE, flagSpeedMul, INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
@@ -51,7 +53,7 @@ import { initHUD } from './hud'
 import {
   initAudio, updateListener, settings as audioSettings, playShot, playDry, playDraw, startReload, cancelReload,
   playScream, playInfectSting, playZombieHurt, startNightAmbient, stopNightAmbient, updateZombieAudio,
-  playHit, playHurt, setHealthForAudio, playMonsterKill, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS, playBuyOk, playBuyFail,
+  playHit, playHurt, playBlock, playParry, playGuardBreak, setHealthForAudio, playMonsterKill, playShotOther, playFootstep, playLanding, StepTracker, FOOTSTEPS, playBuyOk, playBuyFail,
   playPin, playSpoon, playThrowSwish, playBounce, playExplode, playRoundStart, playRoundWin, playRoundLose, playTick,
   playMatchStart, playTenKillRemain, playZombieDefendStart,
 } from './audio'
@@ -157,6 +159,7 @@ const rec = makeRecoilState()
 const shotDirs: [number, number, number][] = Array.from({ length: MAX_PELLETS }, () => [0, 0, 0] as [number, number, number])
 const eyeTmp:  [number, number, number] = [0, 0, 0]
 let simMs = 0
+const meleeHudTmp = makeMeleeHudModel()
 setWeaponMove({ mul: cmd => moveSpeedMul(ws, cmd.seq * 1000 / TICK_RATE), ads: () => adsMoveFor(ws), want: cmd => adsWanted(ws, cmd.buttons, cmd.seq * 1000 / TICK_RATE) })   // offline; online truyền qua hook step của Prediction
 
 // Đổi súng theo ô (H.4): cmd.weapon = ô; logic súng đổi ở tick kế tiếp (client và server như nhau), viewmodel đi theo ws.current
@@ -434,6 +437,11 @@ sessionP.then(session => {
   startPing(session.transport, netStats)
   session.transport.onMessage(msg => {
     if (msg.t === MsgType.HitConfirm) {
+      if (msg.outcome === 1 || msg.outcome === 2) {   // cận chiến: đòn bị đỡ / bị parry — không máu, tiếng kim loại
+        if (msg.outcome === 1) hudRef?.showHitmarker(false)
+        msg.outcome === 1 ? playBlock() : playGuardBreak()
+        return
+      }
       hudRef?.showHitmarker(msg.headshot)   // chỉ hiện khi server xác nhận
       // Máu: server không gửi điểm trúng nên lấy điểm trên tia vừa bắn gần thân/đầu mục tiêu nhất
       const tgt = lastSampled.find(o => o.id === msg.targetId)
@@ -579,8 +587,14 @@ sessionP.then(session => {
       matchHud.onMoney(msg.delta, msg.reason)
       if (msg.reason === 'kill' || msg.reason === 'bounty') hudRef?.bottom.floatMoney(msg.delta, msg.reason === 'bounty')
     } else if (msg.t === MsgType.Hurt) {
+      if (msg.outcome === 1 || msg.outcome === 2) {   // mình đỡ được / parry: giật dao + tiếng kim loại, không hiện chỉ hướng bị đánh
+        vm.meleeReact(msg.outcome === 2 ? 'parry' : 'block')
+        msg.outcome === 2 ? playParry() : playBlock()
+        return
+      }
       const dx = msg.origin[0] - camera.position.x, dy = msg.origin[1] - camera.position.y, dz = msg.origin[2] - camera.position.z
       hurtIndicator.show(dx, dz, yaw)
+      if (msg.outcome === 3) playGuardBreak()
       playHurt(dx, dy, dz)
     }
   })
@@ -843,7 +857,18 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     const speed  = Math.hypot(state.vel[0], state.vel[2])
 
     const ev = stepWeaponCmd(ws, cmd)
-    if (ev === 'fired') {
+    const mset = def.melee ? meleeSetOf(def) : undefined   // dao có bộ chiêu: cung quét ở server, client chỉ vẽ động tác + dự đoán trạng thái
+    if (ev === 'meleeStart') vm.meleeStart(ws.meleeMove)
+    if (mset) {
+      vm.meleeSync(ws.guardSinceMs >= 0, nowMs < ws.staggerUntilMs, ws.meleeMove >= 0)
+      hud.setMelee(meleeHudModel(meleeHudTmp, ws, mset, nowMs))
+    } else hud.setMelee(null)
+    if (ev === 'fired' && mset) {
+      playShot(def.id, 0)   // tiếng vụt mỗi nhát
+      const d = shootDir(cmd.yaw, cmd.pitch)
+      lastFireDir[0] = d[0]; lastFireDir[1] = d[1]; lastFireDir[2] = d[2]
+      lastFireOrigin[0] = state.pos[0]; lastFireOrigin[1] = state.pos[1] + eyeY; lastFireOrigin[2] = state.pos[2]
+    } else if (ev === 'fired') {
       const pellets = computeShotDirs(shotDirs, rec, def, playerId, ws.shotSeq - 1, cmd.yaw, cmd.pitch, computeSpreadDeg(state, ws, def, selfCfg, nowMs, true))
       vm.onFire(def.melee)
       lastFireDir[0] = shotDirs[0]![0]; lastFireDir[1] = shotDirs[0]![1]; lastFireDir[2] = shotDirs[0]![2]   // cho điểm máu khi HitConfirm về

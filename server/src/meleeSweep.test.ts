@@ -53,6 +53,8 @@ function swing(room: ReturnType<typeof setup>['room'], a: Player, ticks: number,
 const hits = (logs: Map<number, AnyMsg[]>, id: number): HitConfirmMsg[] => logs.get(id)!.filter((m): m is HitConfirmMsg => m.t === MsgType.HitConfirm)
 
 describe('cung quét cận chiến (P3)', () => {
+  const hurts = (logs: Map<number, AnyMsg[]>, id: number) => logs.get(id)!.filter(m => m.t === MsgType.Hurt) as { damage: number; outcome?: number }[]
+
   it('chém ngang trúng người đứng trước trong tầm: đúng một HitConfirm, trừ máu, người kia nhận ShotFx với moveId', () => {
     const { room, a, b, logs } = setup()
     const hp0 = b.hp
@@ -109,6 +111,7 @@ describe('cung quét cận chiến (P3)', () => {
     expect(h[0]!.outcome).toBe(MELEE_OUTCOME.blocked)
     expect(h[0]!.damage).toBeLessThan(40 * MELEE.guardDamageMult * 2.6)
     expect(b.weapon.stamina).toBeLessThan(MELEE.staminaMax)
+    expect(hurts(logs, b.id)[0]).toMatchObject({ outcome: MELEE_OUTCOME.blocked })   // người đỡ cũng được báo
   })
 
   it('đối thủ parry đúng lúc: không mất máu, người đánh bị choáng', () => {
@@ -122,6 +125,7 @@ describe('cung quét cận chiến (P3)', () => {
     expect(h[0]!.outcome).toBe(MELEE_OUTCOME.parried)
     expect(h[0]!.damage).toBe(0)
     expect(b.hp).toBe(hp0)
+    expect(hurts(logs, b.id)).toEqual([expect.objectContaining({ damage: 0, outcome: MELEE_OUTCOME.parried })])
     expect(a.weapon.staggerUntilMs).toBeGreaterThan(0)
     expect(a.weapon.meleeMove).toBe(-1)
   })
