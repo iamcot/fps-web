@@ -1,5 +1,6 @@
 // HUD trận đấu (5.2/5.3): điểm đội + đồng hồ, đếm ngược, banner kết thúc, bảng điểm giữ Tab. DOM thuần, chỉ ghi khi text đổi.
 import { MatchPhase, TEAMS, winnerOf, type GameMode, type MatchEndMsg, type MatchStateMsg, type RoomConfig, type RoundEndMsg, type RoundEndReason, type ScoreboardRow, type TeamId } from '@fps/shared'
+import { tr, teamName  } from './i18n'
 
 export function formatClock(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000))
@@ -14,21 +15,21 @@ export function sortRows(rows: readonly ScoreboardRow[], team: TeamId): Scoreboa
 export function bannerText(phase: MatchPhase, scoreA: number, scoreB: number): string {
   if (phase !== MatchPhase.Ended) return ''
   const w = winnerOf(scoreA, scoreB)
-  return w ? `${TEAMS[w].name.toUpperCase()} WIN` : 'DRAW'
+  return w ? tr('{team} WIN', { team: teamName(w).toUpperCase() }) : tr('DRAW')
 }
 
 export const REASON_TEXT: Record<RoundEndReason, string> = {
-  elimination: 'Team eliminated',
-  time_alive: 'Time up · more players alive',
-  time_hp: 'Time up · more health left',
-  draw: 'Both teams wiped out',
-  infected_all: 'Zombies infected everyone',
-  time_survive: 'Time up · humans survived',
+  elimination: tr('Team eliminated'),
+  time_alive: tr('Time up · more players alive'),
+  time_hp: tr('Time up · more health left'),
+  draw: tr('Both teams wiped out'),
+  infected_all: tr('Zombies infected everyone'),
+  time_survive: tr('Time up · humans survived'),
 }
 
 /** Tiêu đề kết thúc ván (Sinh Tử) */
 export function roundBannerText(winner: TeamId | null, round: number): string {
-  return winner ? `${TEAMS[winner].name.toUpperCase()} WIN ROUND ${round}` : 'ROUND DRAW'
+  return winner ? tr('{team} WIN ROUND {r}', { team: teamName(winner).toUpperCase(), r: round }) : tr('ROUND DRAW')
 }
 
 /** Màu đồng hồ: FREEZE vàng; LIVE dưới 10 giây đỏ */
@@ -92,8 +93,8 @@ export function createMatchHud(sounds?: MatchSounds) {
     top.style.display = 'block'
     const elim = st.mode === 'elimination'
     const left = st.phaseEndsAt - serverNow
-    setText(scoreA, `${TEAMS.A.name} ${st.scoreA}`)
-    setText(scoreB, `${st.scoreB} ${TEAMS.B.name}`)
+    setText(scoreA, `${teamName('A')} ${st.scoreA}`)
+    setText(scoreB, `${st.scoreB} ${teamName('B')}`)
     clockEl.style.color = clockColor(st.phase, left)
     if (elim) {
       const k = `${st.aliveA}/${sizeA}|${st.aliveB}/${sizeB}`
@@ -103,25 +104,25 @@ export function createMatchHud(sounds?: MatchSounds) {
     let clock = '', bigT = '', subT = '', topSub = ''
     const maxR = st.maxRounds
     switch (st.phase) {
-      case MatchPhase.Waiting: clock = 'Waiting for more players…'; break
-      case MatchPhase.Countdown: clock = 'Get ready'; bigT = String(Math.max(0, Math.ceil(left / 1000))); subT = st.sideSwapped ? 'Sides swapped' : ''; break
+      case MatchPhase.Waiting: clock = tr('Waiting for more players…'); break
+      case MatchPhase.Countdown: clock = tr('Get ready'); bigT = String(Math.max(0, Math.ceil(left / 1000))); subT = st.sideSwapped ? tr('Sides swapped') : ''; break
       case MatchPhase.Playing: clock = unlimited ? '∞' : formatClock(left); break
-      case MatchPhase.Freeze: clock = formatClock(left); bigT = `ROUND ${st.round}`; subT = 'Buy weapons: B'; break
+      case MatchPhase.Freeze: clock = formatClock(left); bigT = tr('ROUND {r}', { r: st.round }); subT = tr('Buy weapons: B'); break
       case MatchPhase.RoundEnd:
         clock = '0:00'
         if (lastEnd) { bigT = roundBannerText(lastEnd.winner, lastEnd.round); subT = REASON_TEXT[lastEnd.reason] + (roundMoney > 0 ? `   +$${roundMoney}` : '') }
         break
-      case MatchPhase.Halftime: clock = 'Break'; bigT = 'HALF TIME · SWITCH SIDES'; subT = `${TEAMS.A.name} ${st.scoreA} — ${st.scoreB} ${TEAMS.B.name}`; break
+      case MatchPhase.Halftime: clock = tr('Break'); bigT = tr('HALF TIME · SWITCH SIDES'); subT = `${teamName('A')} ${st.scoreA} — ${st.scoreB} ${teamName('B')}`; break
       case MatchPhase.Ended:
-        clock = elim ? `New match in ${formatClock(left)}` : 'Match over'
+        clock = elim ? tr('New match in {t}', { t: formatClock(left) }) : tr('Match over')
         if (elim && matchEnd) {
-          bigT = matchEnd.winner ? `${TEAMS[matchEnd.winner].name.toUpperCase()} WIN THE MATCH` : 'DRAW'
+          bigT = matchEnd.winner ? tr('{team} WIN THE MATCH', { team: teamName(matchEnd.winner).toUpperCase() }) : tr('DRAW')
           subT = `${matchEnd.scoreA} — ${matchEnd.scoreB}${mvpName ? `   MVP: ${mvpName}` : ''}`
         } else bigT = bannerText(st.phase, st.scoreA, st.scoreB)
         break
     }
-    if (elim && st.phase !== MatchPhase.Waiting) topSub = `Round ${Math.min(st.round, maxR)} / ${maxR}`
-    else if (!elim && config?.settings.mode === 'tdm') topSub = unlimited ? 'No limit' : `Target: ${config.settings.killLimit} kills`
+    if (elim && st.phase !== MatchPhase.Waiting) topSub = tr('Round {r} / {m}', { r: Math.min(st.round, maxR), m: maxR })
+    else if (!elim && config?.settings.mode === 'tdm') topSub = unlimited ? tr('No limit') : tr('Target: {n} kills', { n: config.settings.killLimit })
     setText(clockEl, clock); setText(big, bigT); setText(sub, subT); setText(subTop, topSub)
 
     if (elim && st.phase === MatchPhase.Playing && left > 0 && left <= 10_000) {
@@ -181,13 +182,13 @@ export function createScoreboard() {
     const t = document.createElement('table')
     t.style.cssText = 'border-collapse:collapse;min-width:260px'
     const head = document.createElement('caption')
-    head.textContent = TEAMS[team].name
+    head.textContent = teamName(team)
     head.style.cssText = `font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:${TEAMS[team].uiColor === '#2f6fd6' ? '#6fa0ff' : TEAMS[team].uiColor}`
     t.appendChild(head)
     const hr = t.insertRow()
-    for (const h of ['Name', '$', 'K', 'D', 'Ping']) {
+    for (const h of [tr('Name'), '$', 'K', 'D', 'Ping']) {
       const c = hr.insertCell(); c.textContent = h
-      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Name' ? 'left' : 'right')
+      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === tr('Name') ? 'left' : 'right')
     }
     for (const r of sortRows(rows, team)) {
       const tr = t.insertRow()
@@ -203,13 +204,13 @@ export function createScoreboard() {
     const t = document.createElement('table')
     t.style.cssText = 'border-collapse:collapse;min-width:460px'
     const head = document.createElement('caption')
-    head.textContent = 'Infection'
+    head.textContent = tr('Infection')
     head.style.cssText = 'font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:#7ed957'
     t.appendChild(head)
     const hr = t.insertRow()
-    for (const h of ['Name', 'Points', 'Infected', 'Zombie kills', 'Role', 'Ping']) {
+    for (const h of [tr('Name'), tr('Points'), tr('Infected'), tr('Zombie kills'), tr('Role'), 'Ping']) {
       const c = hr.insertCell(); c.textContent = h
-      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Name' ? 'left' : 'right')
+      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === tr('Name') ? 'left' : 'right')
     }
     for (const r of rows.slice().sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0) || a.id - b.id)) {
       const tr = t.insertRow()
@@ -225,13 +226,13 @@ export function createScoreboard() {
     const t = document.createElement('table')
     t.style.cssText = 'border-collapse:collapse;min-width:420px'
     const head = document.createElement('caption')
-    head.textContent = 'Defense'
+    head.textContent = tr('Defense')
     head.style.cssText = 'font-weight:bold;font-size:18px;text-align:left;padding-bottom:4px;color:#6fa0ff'
     t.appendChild(head)
     const hr = t.insertRow()
-    for (const h of ['Name', '$', 'Zombie kills', 'Damage', 'Revives', 'Ping']) {
+    for (const h of [tr('Name'), '$', tr('Zombie kills'), tr('Damage'), tr('Revives'), 'Ping']) {
       const c = hr.insertCell(); c.textContent = h
-      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === 'Name' ? 'left' : 'right')
+      c.style.cssText = 'opacity:.6;padding:2px 8px;text-align:' + (h === tr('Name') ? 'left' : 'right')
     }
     for (const r of rows.slice().sort((a, b) => (b.zk ?? 0) - (a.zk ?? 0) || a.id - b.id)) {
       const tr = t.insertRow()

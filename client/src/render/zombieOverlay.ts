@@ -2,6 +2,7 @@
 // số damage nổi, dấu thập đỏ người gục, vòng đỏ báo trước chiêu boss. Sprite/texture dùng lại (cache theo mức máu), không cấp phát theo frame.
 import * as THREE from 'three'
 import { DEFENSE, ZOMBIE_TYPES, type TelegraphMsg } from '@fps/shared'
+import { t } from '../i18n'
 
 const BAR_SHOW_MS = 3000
 const ALWAYS_NAME = new Set(['brute', 'screamer', 'boss'])
@@ -29,7 +30,7 @@ function barTexture(type: string, step: number, withName: boolean): THREE.Canvas
     const W = 128, H = 28
     if (withName) {
       g.font = 'bold 16px monospace'; g.textAlign = 'center'; g.textBaseline = 'top'
-      const name = type === 'mother' ? 'Mother zombie' : ZOMBIE_TYPES[type]?.name ?? type
+      const name = type === 'mother' ? t('Mother zombie') : t(ZOMBIE_TYPES[type]?.name ?? type)
       g.lineWidth = 4; g.strokeStyle = '#000'; g.strokeText(name, W / 2, 0)
       g.fillStyle = NAME_COLOR[type] ?? '#fff'; g.fillText(name, W / 2, 0)
     }

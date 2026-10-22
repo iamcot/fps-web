@@ -1,6 +1,7 @@
 // Giỏ hàng + menu cửa hàng (H.7). Chỉ hiển thị và gửi lệnh Buy; tiền/loadout/vùng mua do server quyết định.
 import { CATEGORY_LABEL, CATEGORY_SLOT, ECONOMY, GRENADE, type EconomyConfig, WEAPONS, quoteBuy, type Loadout, type OwnedWeapon, type WeaponCategory } from '@fps/shared'
 import { WEAPON_LABEL, weaponIcon } from './weaponIcon'
+import { t, categoryLabel } from './i18n'
 
 export interface ShopDeps {
   money(): number
@@ -79,7 +80,7 @@ export function createShop(deps: ShopDeps) {
   document.body.appendChild(panel)
   const head = document.createElement('div')
   head.className = 'shop-head'
-  head.innerHTML = '<span>SHOP</span><span class="m"></span>'
+  head.innerHTML = `<span>${t('SHOP')}</span><span class="m"></span>`
   const moneyEl = head.querySelector('.m') as HTMLElement
   panel.appendChild(head)
 
@@ -95,7 +96,7 @@ export function createShop(deps: ShopDeps) {
     const gel = document.createElement('div'); gel.className = 'shop-grp'
     const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = `(${g.num})`
     const txt = document.createElement('span')
-    txt.textContent = CATEGORY_LABEL[g.cat]
+    txt.textContent = categoryLabel(g.cat)
     const cur = document.createElement('span'); cur.className = 'cur'
     txt.appendChild(cur)
     gel.append(badge, txt)
@@ -126,7 +127,7 @@ export function createShop(deps: ShopDeps) {
   foot.className = 'shop-line'
   const footTxt = document.createElement('div')
   footTxt.className = 'shop-foot'
-  footTxt.textContent = `You can carry one gun per slot. Buying into a taken slot sells your current gun (${Math.round((deps.eco?.() ?? ECONOMY).sellRatio * 100)}%).\nMax ${GRENADE.maxCarry} grenades, not refundable.`
+  footTxt.textContent = t('You can carry one gun per slot. Buying into a taken slot sells your current gun ({pct}%).\nMax {n} grenades, not refundable.', { pct: Math.round((deps.eco?.() ?? ECONOMY).sellRatio * 100), n: GRENADE.maxCarry })
   footTxt.style.whiteSpace = 'pre-line'
   panel.append(foot, footTxt)
 
@@ -170,7 +171,7 @@ export function createShop(deps: ShopDeps) {
       const owned = !q.ok && q.reason === 'already_owned'
       const full = !q.ok && q.reason === 'max_carry'
       const cnt = def.consumable ? (old?.count ?? 0) : 0
-      r.pr.textContent = owned ? 'In use' : full ? `Full (${cnt}/${GRENADE.maxCarry})` : def.consumable && cnt > 0 ? `${cnt}/${GRENADE.maxCarry} · $${def.price}` : `$${def.price}`
+      r.pr.textContent = owned ? t('In use') : full ? t('Full ({c}/{m})', { c: cnt, m: GRENADE.maxCarry }) : def.consumable && cnt > 0 ? `${cnt}/${GRENADE.maxCarry} · $${def.price}` : `$${def.price}`
       r.pr.classList.toggle('bad', !q.ok && q.reason === 'not_enough_money')
       r.el.classList.toggle('dim', !q.ok)
       r.el.classList.toggle('owned', owned)
@@ -179,8 +180,8 @@ export function createShop(deps: ShopDeps) {
         const oldName = WEAPON_LABEL[old.key] ?? old.key
         const refund = q.refund
         sub = refund > 0
-          ? `sell ${oldName} +$${refund} · ${q.net >= 0 ? 'pay' : 'get'} $${Math.abs(q.net)}`
-          : `${oldName} is a starter weapon, no refund`
+          ? t('sell {old} +${refund} · {verb} ${amt}', { old: oldName, refund, verb: t(q.net >= 0 ? 'pay' : 'get'), amt: Math.abs(q.net) })
+          : t('{old} is a starter weapon, no refund', { old: oldName })
       }
       r.sub.textContent = sub
       r.el.classList.toggle('has-sub', sub !== '')

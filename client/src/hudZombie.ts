@@ -1,6 +1,7 @@
 // HUD các thể thức zombie (plan 16 I.4/ZF.6, plan 17 T.7): thanh trên giữa, banner giữa màn hình, thanh máu/chiêu của zombie. DOM thuần, chỉ ghi khi text đổi.
 import { MatchPhase, type DefenseEndMsg, type DefenseStateMsg, type WaveClearMsg, type WaveStartMsg, type HeroChosenMsg, type InfectedMsg, type InfectionCountMsg, type MatchEndMsg, type MatchStateMsg, type RoundEndMsg } from '@fps/shared'
 import { formatClock } from './hudMatch'
+import { t } from './i18n'
 
 function el(css: string): HTMLDivElement {
   const e = document.createElement('div')
@@ -21,8 +22,8 @@ export interface ZombieSelf {
 }
 
 export const ROUND_END_TEXT = {
-  infected_all: 'Zombies infected everyone',
-  time_survive: 'Time up · humans survived',
+  infected_all: t('Zombies infected everyone'),
+  time_survive: t('Time up · humans survived'),
 } as const
 
 export function createZombieHud() {
@@ -68,7 +69,7 @@ export function createZombieHud() {
     b.append(cd, t, n)
     return { box: b, cd, num: n }
   }
-  const leap = mkSkill('E', 'Leap'), sniff = mkSkill('Q', 'Sniff')
+  const leap = mkSkill('E', t('Leap')), sniff = mkSkill('Q', t('Sniff'))
   sniff.box.style.display = 'none'
   skills.append(leap.box, sniff.box)
   self.append(hpText, hpOuter, skills)
@@ -96,7 +97,7 @@ export function createZombieHud() {
   // Biến thành zombie: chớp xanh + méo nhẹ (blur) rồi tan dần
   const flash = el('position:fixed;inset:0;pointer-events:none;z-index:18;background:rgba(80,255,90,.55);opacity:0;transition:opacity 1.6s ease-out, backdrop-filter 1.6s ease-out')
   const nose = el('position:fixed;top:92px;left:50%;transform:translateX(-50%);display:none;pointer-events:none;z-index:20;font:bold 22px monospace;color:#ff6a6a;text-shadow:0 0 6px #000')
-  nose.textContent = '👃 A zombie sniffed you!'
+  nose.textContent = t('👃 A zombie sniffed you!')
   let defense: DefenseStateMsg | null = null
   let lastClear: WaveClearMsg | null = null
 
@@ -132,33 +133,33 @@ export function createZombieHud() {
     if (st.mode === 'infection') {
       setText(humansEl, `🧍 ${counts.humans}`); setText(zombiesEl, `${counts.zombies} 🧟`)
       switch (st.phase) {
-        case MatchPhase.Waiting: clock = 'Waiting for players (need 3)…'; break
-        case MatchPhase.Prep: clock = formatClock(left); bigT = bigT || `Zombies arrive in ${formatClock(left)}`; subT = subT || 'Buy weapons anywhere · B'; break
+        case MatchPhase.Waiting: clock = t('Waiting for players (need 3)…'); break
+        case MatchPhase.Prep: clock = formatClock(left); bigT = bigT || t('Zombies arrive in {t}', { t: formatClock(left) }); subT = subT || t('Buy weapons anywhere · B'); break
         case MatchPhase.Playing: clock = formatClock(left); break
         case MatchPhase.RoundEnd:
           clock = '0:00'
-          if (lastEnd && !big_text) { bigT = lastEnd.winner === 'A' ? 'HUMANS WIN' : 'ZOMBIES WIN'; subT = ROUND_END_TEXT[lastEnd.reason as keyof typeof ROUND_END_TEXT] ?? '' }
+          if (lastEnd && !big_text) { bigT = lastEnd.winner === 'A' ? t('HUMANS WIN') : t('ZOMBIES WIN'); subT = ROUND_END_TEXT[lastEnd.reason as keyof typeof ROUND_END_TEXT] ?? '' }
           break
         case MatchPhase.Ended:
-          clock = `New match in ${formatClock(left)}`
-          if (matchEnd) { bigT = 'MATCH OVER'; subT = mvp ? `Most points: ${mvp}` : '' }
+          clock = t('New match in {t}', { t: formatClock(left) })
+          if (matchEnd) { bigT = t('MATCH OVER'); subT = mvp ? t('Most points: {name}', { name: mvp }) : '' }
           break
       }
-      if (st.phase !== MatchPhase.Waiting) topSub = `Round ${Math.min(st.round, st.maxRounds)}/${st.maxRounds}`
+      if (st.phase !== MatchPhase.Waiting) topSub = t('Round {r} / {m}', { r: Math.min(st.round, st.maxRounds), m: st.maxRounds })
     } else {
       setText(humansEl, ''); setText(zombiesEl, '')
       const d = defense
       if (d) {
         const leftSec = formatClock(d.phaseEndsAt - serverNow)
         switch (d.phase) {
-          case 'waiting': clock = 'Waiting for players…'; break
-          case 'prep': clock = `Get ready · ${leftSec}`; bigT = bigT || `Zombies in ${leftSec}`; subT = subT || 'Buy weapons in the buy zone · B'; break
-          case 'wave': clock = `WAVE ${d.wave} / ${d.waves}  ·  ${d.zombiesLeft} zombies left`; break
-          case 'intermission': clock = `Next wave in ${leftSec}`; break
-          case 'victory': clock = 'VICTORY!'; break
+          case 'waiting': clock = t('Waiting for players…'); break
+          case 'prep': clock = t('Get ready · {s}', { s: leftSec }); bigT = bigT || t('Zombies in {s}', { s: leftSec }); subT = subT || t('Buy weapons in the buy zone · B'); break
+          case 'wave': clock = t('WAVE {w} / {m}  ·  {n} zombies left', { w: d.wave, m: d.waves, n: d.zombiesLeft }); break
+          case 'intermission': clock = t('Next wave in {s}', { s: leftSec }); break
+          case 'victory': clock = t('VICTORY!'); break
           case 'defeat': clock = 'THUA'; break
         }
-        if (d.phase === 'intermission' && lastClear && !big_text) { bigT = `WAVE ${lastClear.wave} CLEARED · +$${lastClear.bonus}` }
+        if (d.phase === 'intermission' && lastClear && !big_text) { bigT = t('WAVE {w} CLEARED · +${b}', { w: lastClear.wave, b: lastClear.bonus }) }
       } else clock = extraTop
     }
     setText(clockEl, clock); setText(subEl, topSub)
@@ -179,26 +180,26 @@ export function createZombieHud() {
         void flash.offsetWidth
         flash.style.transition = 'opacity 1.6s ease-out, backdrop-filter 1.6s ease-out'; flash.style.opacity = '0'; flash.style.backdropFilter = 'none'
       }
-      if (m.kind === 'mother') { say('THE MOTHER ZOMBIE HAS APPEARED', m.playerId === myId ? 'You are the mother zombie! Infect everyone' : '', 3000, '#7ed957'); return }
-      if (m.playerId === myId) { say('YOU WERE INFECTED!', '', 2500, '#7ed957'); return }
-      line(`${nameOf(m.playerId)} WAS INFECTED`, '#9be07a')
+      if (m.kind === 'mother') { say(t('THE MOTHER ZOMBIE HAS APPEARED'), m.playerId === myId ? t('You are the mother zombie! Infect everyone') : '', 3000, '#7ed957'); return }
+      if (m.playerId === myId) { say(t('YOU WERE INFECTED!'), '', 2500, '#7ed957'); return }
+      line(t('{name} WAS INFECTED', { name: nameOf(m.playerId) }), '#9be07a')
     },
     onHero(m: HeroChosenMsg, nameOf: (id: number) => string, myId: number): void {
-      say(m.playerId === myId ? 'YOU ARE THE LAST ONE STANDING – HERO!' : `${nameOf(m.playerId)} IS THE LAST ONE STANDING – HERO!`, '', 3000, '#ffd23c')
+      say(m.playerId === myId ? t('YOU ARE THE LAST ONE STANDING – HERO!') : t('{name} IS THE LAST ONE STANDING – HERO!', { name: nameOf(m.playerId) }), '', 3000, '#ffd23c')
     },
     onRoundEnd(m: RoundEndMsg): void { lastEnd = m },
     setDefense(m: DefenseStateMsg): void { defense = m; if (m.phase === 'wave' || m.phase === 'prep') endBox.style.display = 'none' },
     onWaveStart(m: WaveStartMsg): void { lastClear = null; say(m.title, m.hint, 3000, '#ffd23c') },
-    onWaveClear(m: WaveClearMsg): void { lastClear = m; say(`WAVE ${m.wave} CLEARED · +$${m.bonus}`, '', 3000, '#7ed957') },
+    onWaveClear(m: WaveClearMsg): void { lastClear = m; say(t('WAVE {w} CLEARED · +${b}', { w: m.wave, b: m.bonus }), '', 3000, '#7ed957') },
     onDefenseEnd(m: DefenseEndMsg, nameOf: (id: number) => string): void {
       endBox.replaceChildren()
       const title = document.createElement('div')
-      title.textContent = m.result === 'victory' ? 'DEFENSE SUCCEEDED!' : `LOST AT WAVE ${m.wave}`
+      title.textContent = m.result === 'victory' ? t('DEFENSE SUCCEEDED!') : t('LOST AT WAVE {w}', { w: m.wave })
       title.style.cssText = `font-size:44px;font-weight:bold;margin-bottom:14px;color:${m.result === 'victory' ? '#7ed957' : '#ff6a6a'}`
       const tb = document.createElement('table')
       tb.style.cssText = 'border-collapse:collapse;min-width:420px;background:rgba(0,0,0,.5)'
       const hr = tb.insertRow()
-      for (const h of ['Name', 'Zombie kills', 'Damage', 'Revives']) { const c = hr.insertCell(); c.textContent = h; c.style.cssText = 'opacity:.6;padding:3px 10px;text-align:' + (h === 'Name' ? 'left' : 'right') }
+      for (const h of [t('Name'), t('Zombie kills'), t('Damage'), t('Revives')]) { const c = hr.insertCell(); c.textContent = h; c.style.cssText = 'opacity:.6;padding:3px 10px;text-align:' + (h === t('Name') ? 'left' : 'right') }
       for (const r of m.stats.slice().sort((a, b) => b.kills - a.kills)) {
         const tr = tb.insertRow()
         const cells: [string, string][] = [[nameOf(r.id), 'left'], [String(r.kills), 'right'], [String(r.damage), 'right'], [String(r.revives), 'right']]
@@ -208,7 +209,7 @@ export function createZombieHud() {
       endBox.style.display = 'flex'
     },
     /** frac = máu boss 0..1; null = không có boss */
-    setBoss(frac: number | null, name = 'ZOMBIE BOSS'): void {
+    setBoss(frac: number | null, name = t('ZOMBIE BOSS')): void {
       if (frac === null) { bossBar.style.display = 'none'; return }
       bossBar.style.display = 'block'
       setText(bossName, `${name}  ${Math.ceil(frac * 100)}%`)
@@ -218,14 +219,14 @@ export function createZombieHud() {
     setRevivePrompt(p: { name: string; progress: number } | null): void {
       if (!p) { prompt.style.display = 'none'; return }
       prompt.style.display = 'block'
-      setText(promptText, `Hold E to revive ${p.name}`)
+      setText(promptText, t('Hold E to revive {name}', { name: p.name }))
       promptFill.style.width = `${(Math.max(0, Math.min(1, p.progress)) * 100).toFixed(0)}%`
     },
     /** Mình đang gục: số giây còn lại; null = không gục */
     setDownedSelf(secLeft: number | null): void {
       if (secLeft === null) { downed.style.display = 'none'; return }
       downed.style.display = 'block'
-      setText(downed, `YOU ARE DOWN · waiting for a teammate (${Math.ceil(secLeft)}s)`)
+      setText(downed, t('YOU ARE DOWN · waiting for a teammate ({s}s)', { s: Math.ceil(secLeft) }))
     },
     /** Mũi tên mép màn hình chỉ hướng đồng đội đang bị zombie tấn công; angle rad (0 = lên trên, + = sang phải); null ẩn */
     setAttackArrow(angle: number | null): void {

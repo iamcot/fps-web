@@ -4,6 +4,7 @@ import { getCharacterSet } from '../render/characters'
 import { createLocalTransport, startOfflineWorker } from './localTransport'
 import { APP_VERSION } from '../version'
 import { showCredits } from './credits'
+import { tr, teamName, modeLabel, modeDesc, statusText, getLang, saveLang, LANGS, type Lang  } from '../i18n'
 
 export interface Session {
   transport: Transport
@@ -29,8 +30,8 @@ function loadSaved(): { name: string; team: string; characters: string } {
 }
 
 const REJECT_TEXT: Record<JoinRejectReason, string> = {
-  version: 'Game version mismatch, reload the page (Ctrl+F5)',
-  full: 'Room is full', exists: 'Room name already taken', missing: 'Room no longer exists', bad: 'Invalid name or room name',
+  version: tr('Game version mismatch, reload the page (Ctrl+F5)'),
+  full: tr('Room is full'), exists: tr('Room name already taken'), missing: tr('Room no longer exists'), bad: tr('Invalid name or room name'),
 }
 
 // Network event feed, top right: "X joined", "X left"
@@ -66,24 +67,24 @@ function joinRoom(transport: Transport, o: JoinOpts): Promise<Session> {
         welcomed = true
         for (const p of msg.players) names.set(p.id, p.name)
         names.set(msg.yourId, o.name)   // tên của chính mình (bảng thống kê cuối trận)
-        log(`Joined room "${o.room}" as #${msg.yourId}`)
+        log(tr('Joined room "{room}" as #{id}', { room: o.room, id: msg.yourId }))
         resolve({ transport, yourId: msg.yourId, names, teams, characterSet: msg.characterSet, config: msg.config, roomName: o.room, mapName: msg.mapName })
       } else if (msg.t === MsgType.JoinRejected && !welcomed) {
         dead = true
-        reject(new Error(REJECT_TEXT[msg.reason] ?? 'Could not join'))
+        reject(new Error(REJECT_TEXT[msg.reason] ?? tr('Could not join')))
       } else if (msg.t === MsgType.TeamAssigned) {
         teams.set(msg.id, msg.team)
       } else if (msg.t === MsgType.PlayerJoined) {
         names.set(msg.id, msg.name)
-        log(`${msg.name} (#${msg.id}) joined`)
+        log(tr('{name} (#{id}) joined', { name: msg.name, id: msg.id }))
       } else if (msg.t === MsgType.PlayerLeft) {
         teams.delete(msg.id)
-        log(`${names.get(msg.id) ?? '#' + msg.id} left`)
+        log(tr('{name} left', { name: names.get(msg.id) ?? '#' + msg.id }))
       }
     })
     transport.onClose(() => {
-      if (!welcomed) reject(new Error('Server closed the connection'))
-      else log('Lost connection to server')
+      if (!welcomed) reject(new Error(tr('Server closed the connection')))
+      else log(tr('Lost connection to server'))
     })
     transport.send({ t: MsgType.Join, name: o.name, room: o.room, team: o.team, characterSet: o.characterSet, create: o.create, mapId: o.mapId, options: o.options, version: APP_VERSION })
   })
@@ -110,7 +111,7 @@ function mk<K extends keyof HTMLElementTagNameMap>(tag: K, css = '', text = ''):
 
 function teamSelect(value: string): HTMLSelectElement {
   const sel = mk('select', INPUT)
-  sel.innerHTML = `<option value="auto">Team: auto</option><option value="A">Team: ${TEAMS.A.name}</option><option value="B">Team: ${TEAMS.B.name}</option>`
+  sel.innerHTML = `<option value="auto">${tr('Team: auto')}</option><option value="A">${tr('Team: {team}', { team: teamName('A') })}</option><option value="B">${tr('Team: {team}', { team: teamName('B') })}</option>`
   sel.value = value === 'A' || value === 'B' ? value : 'auto'
   return sel
 }
@@ -131,7 +132,7 @@ export function showLobby(): Promise<Session | null> {
     // Chọn thể thức cho phòng offline: Hỗn Chiến (mặc định), Lây Nhiễm, Thủ Thành
     const offlineModeSelect = (): HTMLSelectElement => {
       const sel = mk('select', INPUT)
-      for (const [v, t] of [['tdm', 'Team Deathmatch'], ['infection', 'Infection'], ['defense', 'Defense']] as const) sel.add(new Option(t, v))
+      for (const [v, t] of [['tdm', tr('Team Deathmatch')], ['infection', tr('Infection')], ['defense', tr('Defense')]] as const) sel.add(new Option(t, v))
       sel.value = offlineMode
       sel.addEventListener('change', () => { offlineMode = sel.value as GameMode })
       return sel
@@ -139,11 +140,11 @@ export function showLobby(): Promise<Session | null> {
     const offline = (status?: HTMLElement) => {
       if (starting) return
       starting = true
-      if (status) status.textContent = 'Starting offline game…'
+      if (status) status.textContent = tr('Starting offline game…')
       let worker: Worker | null = null
       startOfflineWorker().then(w => {
         worker = w
-        return joinRoom(createLocalTransport(w), { name: saved.name || 'Player', room: 'offline', team: 'A', create: true, ...(offlineMode === 'tdm' ? {} : { options: { mode: offlineMode, maxPlayers: 10 } }) })
+        return joinRoom(createLocalTransport(w), { name: saved.name || tr('Player'), room: 'offline', team: 'A', create: true, ...(offlineMode === 'tdm' ? {} : { options: { mode: offlineMode, maxPlayers: 10 } }) })
       }).then(s => done({ ...s, offline: true, worker: worker! }), err => {
         console.warn('[offline] không chạy được worker, dùng offline chỉ-client', err)
         worker?.terminate()
@@ -157,23 +158,23 @@ export function showLobby(): Promise<Session | null> {
       const form = mk('form', 'display:flex;flex-direction:column;gap:18px;width:min(640px,92vw)')
       const title = mk('div', 'font-size:34px;text-align:center;font-weight:bold;letter-spacing:1px', 'FPS Web')
       const nameBox = mk('div', 'display:flex;flex-direction:column;gap:6px')
-      const nameLabel = mk('label', 'font-size:13px;opacity:.75', 'Your name')
-      const nameIn = mk('input', INPUT_BIG); nameIn.name = 'name'; nameIn.placeholder = 'Enter your name'; nameIn.maxLength = 16; nameIn.autocomplete = 'off'
+      const nameLabel = mk('label', 'font-size:13px;opacity:.75', tr('Your name'))
+      const nameIn = mk('input', INPUT_BIG); nameIn.name = 'name'; nameIn.placeholder = tr('Enter your name'); nameIn.maxLength = 16; nameIn.autocomplete = 'off'
       nameIn.value = saved.name
       nameLabel.htmlFor = nameIn.id = 'player-name'
       nameBox.append(nameLabel, nameIn)
       const err = mk('div', 'color:#f66;min-height:1.2em;text-align:center')
 
-      const blockHead = (t: string, d: string): HTMLElement[] => [mk('div', 'font-size:12px;letter-spacing:2px;opacity:.7', t), mk('div', 'font-size:13px;opacity:.85;min-height:2.6em', d)]
+      const blockHead = (title: string, d: string): HTMLElement[] => [mk('div', 'font-size:12px;letter-spacing:2px;opacity:.7', title), mk('div', 'font-size:13px;opacity:.85;min-height:2.6em', d)]
       const net = mk('div', BLOCK)
-      const go = mk('button', BTN_BIG, 'Enter'); go.type = 'submit'
+      const go = mk('button', BTN_BIG, tr('Enter')); go.type = 'submit'
       go.style.marginTop = 'auto'
-      net.append(...blockHead('NETWORK', 'Connect to the server, then pick or create a room to play with other people.'), go)
+      net.append(...blockHead(tr('NETWORK'), tr('Connect to the server, then pick or create a room to play with other people.')), go)
       const local = mk('div', BLOCK)
-      const off = mk('button', BTN_BIG, 'Play offline'); off.type = 'button'; off.setAttribute('data-offline', '')
+      const off = mk('button', BTN_BIG, tr('Play offline')); off.type = 'button'; off.setAttribute('data-offline', '')
       const modeSel = offlineModeSelect(); modeSel.style.cssText = SELECT_BIG
       off.style.marginTop = 'auto'
-      local.append(...blockHead('LOCAL', 'Play on this device against bots. No server needed.'), modeSel, off)
+      local.append(...blockHead(tr('LOCAL'), tr('Play on this device against bots. No server needed.')), modeSel, off)
       const blocks = mk('div', 'display:flex;gap:16px;flex-wrap:wrap')
       blocks.append(net, local)
       off.addEventListener('click', () => { saved.name = nameIn.value.trim() || saved.name; offline(err) })
@@ -181,21 +182,32 @@ export function showLobby(): Promise<Session | null> {
       form.addEventListener('submit', e => {
         e.preventDefault()
         const name = nameIn.value.trim()
-        if (!name) { err.textContent = 'Enter your name first'; return }
+        if (!name) { err.textContent = tr('Enter your name first'); return }
         saved.name = name
-        err.textContent = 'Connecting…'
+        err.textContent = tr('Connecting…')
         connectWebSocket(WS_URL).then(raw => {
           const transport = maybeNetsim(raw)
           const direct = new URLSearchParams(location.search).get('room')
           if (direct) {   // ?room=xxx: join directly (dev / two-tab testing), skip the room list
             joinRoom(transport, { name, room: direct, team: saved.team as TeamId | 'auto' }).then(done, e2 => { err.textContent = String(e2.message) })
           } else listStep(transport)
-        }, () => { err.textContent = 'Could not connect to the server' })
+        }, () => { err.textContent = tr('Could not connect to the server') })
       })
       el.appendChild(form)
+      // Language dropdown, top right. Changing it saves the choice and reloads (module-level strings are fixed at load); the typed name is kept.
+      const langSel = mk('select', INPUT + ';position:fixed;top:14px;right:14px;cursor:pointer')
+      langSel.setAttribute('aria-label', 'Language')
+      for (const l of LANGS) langSel.add(new Option(l.label, l.id))
+      langSel.value = getLang()
+      langSel.addEventListener('change', () => {
+        try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...loadSaved(), name: nameIn.value.trim() || saved.name })) } catch { /* bỏ qua */ }
+        saveLang(langSel.value as Lang)
+        location.reload()
+      })
+      el.appendChild(langSel)
       // Góc dưới menu chính: phiên bản + Ghi công
       const foot = mk('div', 'position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:12px;opacity:.7')
-      const credit = mk('button', 'background:none;border:none;color:#9bf;cursor:pointer;font:inherit;text-decoration:underline', 'Credits')
+      const credit = mk('button', 'background:none;border:none;color:#9bf;cursor:pointer;font:inherit;text-decoration:underline', tr('Credits'))
       credit.type = 'button'; credit.addEventListener('click', showCredits)
       foot.append(`v${APP_VERSION} · `, credit)
       el.appendChild(foot)
@@ -215,13 +227,13 @@ export function showLobby(): Promise<Session | null> {
       // Back to the name page (a reload closes the connection; BACK_KEY is not set so the name step is shown)
       const changeName = mk('button', BTN + ';display:flex;align-items:center;gap:6px', '')
       changeName.type = 'button'
-      changeName.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg><span>Change name</span>'
+      changeName.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg><span>${tr('Change name')}</span>`
       changeName.addEventListener('click', () => { clearInterval(poll); location.reload() })
-      top.append(changeName, mk('div', 'font-size:22px;flex:1', `Rooms — ${saved.name}`))
-      const off = mk('button', BTN, 'Play offline'); off.type = 'button'; off.setAttribute('data-offline', ''); off.addEventListener('click', () => { clearInterval(poll); offline(err) })
+      top.append(changeName, mk('div', 'font-size:22px;flex:1', tr('Rooms — {name}', { name: saved.name })))
+      const off = mk('button', BTN, tr('Play offline')); off.type = 'button'; off.setAttribute('data-offline', ''); off.addEventListener('click', () => { clearInterval(poll); offline(err) })
       top.append(offlineModeSelect(), off)
       const grid = mk('div', 'display:grid;grid-template-columns:repeat(3,1fr);gap:14px')
-      const empty = mk('div', 'opacity:.7;padding:16px 0', 'No rooms yet. Create one below.')
+      const empty = mk('div', 'opacity:.7;padding:16px 0', tr('No rooms yet. Create one below.'))
       const err = mk('div', 'color:#f66;min-height:1.2em')
       const createBox = mk('div', 'display:flex;flex-direction:column;gap:10px;padding:14px;background:rgba(255,255,255,0.07);border-radius:8px')
       wrap.append(top, grid, err, createBox)
@@ -234,7 +246,7 @@ export function showLobby(): Promise<Session | null> {
       const fail = (e: unknown) => { busy = false; err.textContent = String((e as Error).message ?? e) }
       const enter = (opts: JoinOpts) => {
         if (busy) return
-        busy = true; err.textContent = 'Joining room…'
+        busy = true; err.textContent = tr('Joining room…')
         try { localStorage.setItem(STORE_KEY, JSON.stringify({ name: saved.name, team: opts.team, characters: DEFAULT_CHARACTER_SET })) } catch { /* bỏ qua */ }
         joinRoom(transport, opts).then(s => { clearInterval(poll); done(s) }, fail)
       }
@@ -250,13 +262,13 @@ export function showLobby(): Promise<Session | null> {
           const name = mk('div', 'position:absolute;left:12px;top:10px;font-size:18px;font-weight:bold;text-shadow:0 0 4px #000;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap', r.id)
           const cnt = mk('div', 'position:absolute;right:10px;top:10px;padding:2px 8px;background:rgba(0,0,0,.6);border-radius:12px;font-weight:bold', `👤 ${r.players}/${r.maxPlayers}`)
           const info = mk('div', 'position:absolute;left:12px;top:40px;font-size:12px;line-height:1.5;text-shadow:0 0 4px #000',
-            `${MODE_LABEL[r.mode]} · ${r.status}\n${mapName} · ${getCharacterSet(r.characterSet).label}\n${isZombieMode(r.mode) ? `${r.players}/${r.maxPlayers} players` : `${TEAMS.A.name} ${r.teamA} — ${r.teamB} ${TEAMS.B.name}`}`)
+            `${modeLabel(r.mode)} · ${statusText(r.status)}\n${mapName} · ${getCharacterSet(r.characterSet).label}\n${isZombieMode(r.mode) ? tr('{n} players', { n: `${r.players}/${r.maxPlayers}` }) : `${teamName('A')} ${r.teamA} — ${r.teamB} ${teamName('B')}`}`)
           info.style.whiteSpace = 'pre-line'
           const row = mk('div', 'position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:6px')
           const sel = teamSelect(teamChoice.get(r.id) ?? saved.team)
           sel.addEventListener('change', () => teamChoice.set(r.id, sel.value))
           const full = r.players >= r.maxPlayers
-          const join = mk('button', BTN, full ? 'Full' : 'Join'); join.disabled = full
+          const join = mk('button', BTN, full ? tr('Full') : tr('Join')); join.disabled = full
           if (full) join.style.opacity = '.5'
           join.addEventListener('click', () => enter({ name: saved.name, room: r.id, team: sel.value as TeamId | 'auto', create: false }))
           row.append(sel, join)
@@ -266,23 +278,23 @@ export function showLobby(): Promise<Session | null> {
       }
 
       // Tạo phòng
-      const openBtn = mk('button', BTN + ';align-self:flex-start', 'Create room')
+      const openBtn = mk('button', BTN + ';align-self:flex-start', tr('Create room'))
       const form = mk('div', 'display:none;flex-direction:column;gap:10px')
-      const nameIn = mk('input', INPUT); nameIn.maxLength = 32; nameIn.placeholder = 'Room name'
+      const nameIn = mk('input', INPUT); nameIn.maxLength = 32; nameIn.placeholder = tr('Room name')
       const mapSel = mk('select', INPUT)
       const charSel = mk('select', INPUT)
-      charSel.innerHTML = CHARACTER_SETS.map(id => `<option value="${id}">Characters: ${getCharacterSet(id).label}</option>`).join('')
+      charSel.innerHTML = CHARACTER_SETS.map(id => `<option value="${id}">${tr('Characters: {name}', { name: getCharacterSet(id).label })}</option>`).join('')
       charSel.value = DEFAULT_CHARACTER_SET   // luôn mặc định bộ Bão Cát Sa Mạc
       const teamSel = teamSelect(saved.team)
       const maxSel = mk('select', INPUT)
-      for (let n = MAX_PLAYERS_LIMITS[1]; n >= MAX_PLAYERS_LIMITS[0]; n -= 2) maxSel.add(new Option(`Max ${n} players`, String(n)))
+      for (let n = MAX_PLAYERS_LIMITS[1]; n >= MAX_PLAYERS_LIMITS[0]; n -= 2) maxSel.add(new Option(tr('Max {n} players', { n }), String(n)))
       // Thể thức: 2 thẻ lớn; cài đặt đổi theo thể thức
       let mode: GameMode = 'elimination'
       const modeRow = mk('div', 'display:grid;grid-template-columns:1fr 1fr;gap:10px')
       const modeCards = new Map<GameMode, HTMLElement>()
       for (const m of GAME_MODES) {
         const c = mk('div', 'padding:12px;border-radius:8px;cursor:pointer;border:2px solid #556;background:rgba(0,0,0,.35)')
-        c.append(mk('div', 'font-size:18px;font-weight:bold;margin-bottom:4px', MODE_LABEL[m]), mk('div', 'font-size:12px;opacity:.85', MODE_DESC[m]))
+        c.append(mk('div', 'font-size:18px;font-weight:bold;margin-bottom:4px', modeLabel(m)), mk('div', 'font-size:12px;opacity:.85', modeDesc(m)))
         c.addEventListener('click', () => { mode = m; syncMode() })
         modeCards.set(m, c); modeRow.appendChild(c)
       }
@@ -292,14 +304,14 @@ export function showLobby(): Promise<Session | null> {
         wrapF.append(mk('span', '', `${label} (${lo}–${hi})`), inp)
         return { wrapF, inp }
       }
-      const fRounds = numField('Rounds to win', SETTINGS_LIMITS.roundsToWin, DEFAULT_SETTINGS.elimination.roundsToWin)
-      const fRoundTime = numField('Seconds per round', SETTINGS_LIMITS.roundTimeSec, DEFAULT_SETTINGS.elimination.roundTimeSec)
-      const fKills = numField('Kill limit', SETTINGS_LIMITS.killLimit, DEFAULT_SETTINGS.tdm.killLimit)
-      const fMinutes = numField('Minutes per match', SETTINGS_LIMITS.timeLimitMin, DEFAULT_SETTINGS.tdm.timeLimitMin)
-      const fInfRounds = numField('Rounds', SETTINGS_LIMITS.infectionRounds, DEFAULT_SETTINGS.infection.rounds)
-      const fInfTime = numField('Seconds per round', SETTINGS_LIMITS.infectionRoundTimeSec, DEFAULT_SETTINGS.infection.roundTimeSec)
-      const fWaves = numField('Waves', SETTINGS_LIMITS.waves, DEFAULT_SETTINGS.defense.waves)
-      const fInter = numField('Seconds between waves', SETTINGS_LIMITS.intermissionSec, DEFAULT_SETTINGS.defense.intermissionSec)
+      const fRounds = numField(tr('Rounds to win'), SETTINGS_LIMITS.roundsToWin, DEFAULT_SETTINGS.elimination.roundsToWin)
+      const fRoundTime = numField(tr('Seconds per round'), SETTINGS_LIMITS.roundTimeSec, DEFAULT_SETTINGS.elimination.roundTimeSec)
+      const fKills = numField(tr('Kill limit'), SETTINGS_LIMITS.killLimit, DEFAULT_SETTINGS.tdm.killLimit)
+      const fMinutes = numField(tr('Minutes per match'), SETTINGS_LIMITS.timeLimitMin, DEFAULT_SETTINGS.tdm.timeLimitMin)
+      const fInfRounds = numField(tr('Rounds'), SETTINGS_LIMITS.infectionRounds, DEFAULT_SETTINGS.infection.rounds)
+      const fInfTime = numField(tr('Seconds per round'), SETTINGS_LIMITS.infectionRoundTimeSec, DEFAULT_SETTINGS.infection.roundTimeSec)
+      const fWaves = numField(tr('Waves'), SETTINGS_LIMITS.waves, DEFAULT_SETTINGS.defense.waves)
+      const fInter = numField(tr('Seconds between waves'), SETTINGS_LIMITS.intermissionSec, DEFAULT_SETTINGS.defense.intermissionSec)
       const selField = (label: string, opts: [string, string][], def: string) => {
         const wrapF = mk('label', 'display:flex;flex-direction:column;gap:4px;font-size:12px')
         const sel = mk('select', INPUT)
@@ -308,9 +320,9 @@ export function showLobby(): Promise<Session | null> {
         wrapF.append(mk('span', '', label), sel)
         return { wrapF, sel }
       }
-      const fLight = selField('Lighting', [['night', 'Night'], ['day', 'Day']], 'night')
-      const fDiff = selField('Difficulty', [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']], DEFAULT_SETTINGS.defense.difficulty)
-      const resetBtn = mk('button', BTN, 'Reset'); resetBtn.type = 'button'
+      const fLight = selField(tr('Lighting'), [['night', tr('Night')], ['day', tr('Day')]], 'night')
+      const fDiff = selField(tr('Difficulty'), [['easy', tr('Easy')], ['normal', tr('Normal')], ['hard', tr('Hard')]], DEFAULT_SETTINGS.defense.difficulty)
+      const resetBtn = mk('button', BTN, tr('Reset')); resetBtn.type = 'button'
       const setRow = mk('div', 'display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap')
       setRow.append(fRounds.wrapF, fRoundTime.wrapF, fKills.wrapF, fMinutes.wrapF, fInfRounds.wrapF, fInfTime.wrapF, fWaves.wrapF, fInter.wrapF, fDiff.wrapF, fLight.wrapF, resetBtn)
       function syncMode(): void {
@@ -332,8 +344,8 @@ export function showLobby(): Promise<Session | null> {
       const selRow = mk('div', 'display:flex;gap:8px;flex-wrap:wrap')
       selRow.append(mapSel, maxSel, charSel, teamSel)
       const btns = mk('div', 'display:flex;gap:8px')
-      const ok = mk('button', BTN, 'Create')
-      const cancel = mk('button', BTN, 'Cancel')
+      const ok = mk('button', BTN, tr('Create'))
+      const cancel = mk('button', BTN, tr('Cancel'))
       btns.append(ok, cancel)
       form.append(nameIn, modeRow, setRow, selRow, btns)
       createBox.append(openBtn, form)
@@ -345,7 +357,7 @@ export function showLobby(): Promise<Session | null> {
       cancel.addEventListener('click', () => { form.style.display = 'none'; openBtn.style.display = '' ; err.textContent = '' })
       ok.addEventListener('click', () => {
         const room = nameIn.value.trim()
-        if (!room) { err.textContent = 'Enter a room name'; return }
+        if (!room) { err.textContent = tr('Enter a room name'); return }
         const settings: RoomOptions['settings'] = mode === 'elimination'
           ? { roundsToWin: Number(fRounds.inp.value), roundTimeSec: Number(fRoundTime.inp.value) }
           : mode === 'tdm' ? { killLimit: Number(fKills.inp.value), timeLimitMin: Number(fMinutes.inp.value) }
@@ -364,10 +376,10 @@ export function showLobby(): Promise<Session | null> {
         if (next === sig) return   // không đổi thì không vẽ lại (đang mở dropdown phe sẽ bị đóng)
         sig = next
         rooms = msg.rooms; maps = msg.maps
-        if (mapSel.options.length !== maps.length) mapSel.innerHTML = maps.map(m => `<option value="${m.id}">Map: ${m.name}</option>`).join('')
+        if (mapSel.options.length !== maps.length) mapSel.innerHTML = maps.map(m => `<option value="${m.id}">${tr('Map: {name}', { name: m.name })}</option>`).join('')
         drawRooms()
       })
-      transport.onClose(() => { clearInterval(poll); err.textContent = 'Lost connection to server — reload the page' })
+      transport.onClose(() => { clearInterval(poll); err.textContent = tr('Lost connection to server — reload the page') })
       const ask = () => transport.send({ t: MsgType.ListRooms, version: APP_VERSION })
       const poll = setInterval(() => { if (!busy) ask() }, 2000)
       ask()

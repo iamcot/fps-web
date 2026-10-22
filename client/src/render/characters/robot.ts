@@ -1,10 +1,11 @@
 import { createKit } from './kit'
 import type { CharacterSet } from './types'
+import { t } from '../../i18n'
 
 // Robot: đội A thép xanh có ăng-ten, đội B gỉ cam có sừng + bình nhiên liệu. Bước chân nặng, ít đung đưa.
 export const robot: CharacterSet = {
   id: 'robot',
-  label: 'Robot (blocky)',
+  label: t('Robot (blocky)'),
   build(team) {
     const a = team === 'A'
     const body = a ? 0x5f86b8 : 0xc2652b

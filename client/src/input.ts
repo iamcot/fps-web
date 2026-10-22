@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { Btn } from '@fps/shared'
+import { t } from './i18n'
 
 const LS_SENS_KEY = 'fps_sens'
 let _sens = parseFloat(localStorage.getItem(LS_SENS_KEY) ?? '') || 0.0022
@@ -23,7 +24,7 @@ _overlay.style.cssText =
   'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;' +
   'background:rgba(0,0,0,0.55);color:#fff;font:28px monospace;cursor:pointer;z-index:10;' +
   'user-select:none'
-_overlay.textContent = 'Click to play'
+_overlay.textContent = t('Click to play')
 document.body.appendChild(_overlay)
 
 /** Offline cho phép bỏ lớp tối của màn "Click to play" để dễ nhìn khi chỉnh tay/súng */
