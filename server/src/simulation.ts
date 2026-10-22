@@ -1,10 +1,11 @@
 import {
   Btn, DT, MatchPhase, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE, VOID_Y,
-  WEAPONS, ZOMBIE, CLAW_HEAVY_ID, DEFENSE, DOWNED_BUTTON_MASK, DOWNED_WEAPON_SLOT, isValidCmd, movementFor, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
+  WEAPONS, ZOMBIE, CLAW_HEAVY_ID, meleeSetOf, DEFENSE, DOWNED_BUTTON_MASK, DOWNED_WEAPON_SLOT, isValidCmd, movementFor, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
 import type { Player, Room } from './room'
 import { resolveShot } from './shooting'
+import { stepMeleeSweep } from './meleeSweep'
 import { spawnThrown, stepGrenades } from './grenades'
 import { updateMatch } from './match'
 
@@ -64,7 +65,11 @@ export function stepPlayer(p: Player, baseCfg: MovementConfig, room: Room | null
     if (room && eff.buttons !== 0) room.mode.onCmd?.(room, p, eff.buttons)
     // Chạy cả khi chết (nút đã bị mask nên không bắn được): wantSlot/hoàn tất nạp khớp với dự đoán của client
     const ev = stepWeaponCmd(p.weapon, eff)
-    if (ev === 'fired' && p.alive) {
+    const curDef = WEAPONS[p.weapon.current]!
+    const hasMeleeSet = curDef.melee && !!meleeSetOf(curDef)
+    if (room && (hasMeleeSet || p.sweep) && (ev === 'meleeStart' || ev === 'fired' || p.sweep)) {
+      stepMeleeSweep(p, room, eff, ev, baseCfg)   // cận chiến có bộ chiêu: cung quét thay cho hitscan
+    } else if (ev === 'fired' && p.alive) {
       p.shotsFired++
       p.invulnUntil = 0   // bắn phát hợp lệ đầu tiên thì hết bất tử
       if (room) {

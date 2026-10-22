@@ -443,7 +443,7 @@ sessionP.then(session => {
         const hx = lastFireOrigin[0] + lastFireDir[0] * t, hy = lastFireOrigin[1] + lastFireDir[1] * t, hz = lastFireOrigin[2] + lastFireDir[2] * t
         const off = Math.hypot(hx - hitCenter[0], hy - hitCenter[1], hz - hitCenter[2])
         if (off < 0.5) { hitCenter[0] = hx; hitCenter[1] = hy; hitCenter[2] = hz }
-        blood.spawn(hitCenter, lastFireDir, msg.headshot)
+        if (!msg.outcome || msg.outcome === 3) blood.spawn(hitCenter, lastFireDir, msg.headshot)   // cận chiến: đòn bị đỡ / parry không có máu
       }
       playHit(msg.headshot ? 'head' : 'body')
       if (isZombieMode(session.config.settings.mode)) {   // số damage nổi + thanh máu zombie (máu lớn nên cần thấy mình gây bao nhiêu)
@@ -473,7 +473,7 @@ sessionP.then(session => {
       }
       playShotOther(msg.weapon, msg.origin)
     } else if (msg.t === MsgType.DebugShot) {
-      debugShots.add(msg.origin, msg.dir, msg.boxes)
+      debugShots.add(msg.origin, msg.dir, msg.boxes, msg.blade)
     } else if (msg.t === MsgType.Kill) {
       playersRenderer.markKill(msg.victimId, msg.headshot)
       const name = (id: number) => session.names.get(id) ?? `#${id}`
@@ -653,7 +653,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     setNetHooks({
       current: () => pred.predicted,
       step: cmd => {
-        if (cmd.buttons & Btn.Fire) cmd.fireRenderTime = interp.currentRenderTime   // 4.3: server tua hitbox về đây
+        if (cmd.buttons & (Btn.Fire | Btn.Aim)) cmd.fireRenderTime = interp.currentRenderTime   // 4.3: server tua hitbox về đây
         session.transport.send({ t: MsgType.Inputs, cmds: [cmd] })
         return pred.step(cmd, moveSpeedMul(ws, cmd.seq * 1000 / TICK_RATE), adsMoveFor(ws), adsWanted(ws, cmd.buttons, cmd.seq * 1000 / TICK_RATE))   // tốc độ theo súng đang cầm trước cmd này, như server
       },

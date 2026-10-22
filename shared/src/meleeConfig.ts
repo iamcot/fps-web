@@ -28,6 +28,10 @@ export const MELEE = {
   poiseRegenDelayMs: 2000,
   poiseStaggerMs: 700,
   // Hệ số tốc độ chạy
+  // Quét va chạm (P3)
+  bladeRadius: 0.06,         // bán kính "lưỡi" cộng vào hộp trúng
+  maxRewindMs: 250,          // tua đối thủ tối đa bấy nhiêu cho đòn cận chiến (súng: MAX_REWIND_MS)
+  headMult: 2.5,             // đòn trúng đầu
   attackMoveMul: 0.8,
   staggerMoveMul: 0.3,
 } as const
@@ -35,6 +39,23 @@ export const MELEE = {
 /** Ô trong mảng `next` của một chiêu: chuột trái, chuột phải */
 export const MELEE_L = 0
 export const MELEE_R = 1
+
+/** Mã kết quả đòn gửi qua mạng (HitConfirmMsg.outcome) */
+export const MELEE_OUTCOME = { hit: 0, blocked: 1, parried: 2, guardBreak: 3 } as const
+
+/**
+ * Cung quét của một nhát đánh, tham số hoá theo u ∈ [0,1] trong cửa sổ đánh (nội suy tuyến tính từng cặp [đầu, cuối]).
+ * Hệ toạ độ gắn với mắt và hướng nhìn: x = phải, y = lên, z = trước. Góc theo độ: yaw + = sang phải, pitch + = ngẩng lên.
+ * Đoạn quét = từ gốc (tay) tới mũi cách `reach` m theo hướng (yaw, pitch). Đây là vùng quét hiệu dụng cho gameplay, không phải lưỡi vẽ.
+ */
+export interface MeleeArc {
+  yaw: readonly [number, number]
+  pitch: readonly [number, number]
+  reach: readonly [number, number]
+  height: readonly [number, number]   // độ cao gốc so với mắt (m)
+  fwd: readonly [number, number]      // gốc lệch ra trước mắt (m)
+  side: readonly [number, number]     // gốc lệch sang phải (m)
+}
 
 export interface MeleeMove {
   key: string
@@ -46,6 +67,8 @@ export interface MeleeMove {
   damage: number            // mỗi nhát, vào thân
   poiseDmg: number          // sát thương choáng mỗi nhát
   staminaCost: number       // trừ lúc bắt đầu chiêu
+  strikeMs: number          // độ dài cửa sổ quét của mỗi nhát (≤ hitIntervalMs khi nhiều nhát)
+  arc: MeleeArc
   next: readonly [number, number]   // chỉ số chiêu kế khi bấm L / R trong cửa sổ nối; -1 = hết nhánh
 }
 
@@ -61,8 +84,15 @@ export function moveDurationMs(m: MeleeMove): number {
 
 const CHAIN = 300
 
-function mv(key: string, windupMs: number, recoverMs: number, damage: number, poiseDmg: number, staminaCost: number, next: readonly [number, number], hitCount = 1, hitIntervalMs = 0): MeleeMove {
-  return { key, windupMs, hitCount, hitIntervalMs, recoverMs, chainMs: CHAIN, damage, poiseDmg, staminaCost, next }
+type Pair = readonly [number, number]
+const same = (v: number): Pair => [v, v]
+interface ArcOpts { yaw?: Pair; pitch?: Pair; reach?: Pair; height?: Pair; fwd?: Pair; side?: Pair }
+function arc(o: ArcOpts): MeleeArc {
+  return { yaw: o.yaw ?? same(0), pitch: o.pitch ?? same(0), reach: o.reach ?? same(1.7), height: o.height ?? same(-0.2), fwd: o.fwd ?? same(0.2), side: o.side ?? same(0) }
+}
+
+function mv(key: string, windupMs: number, recoverMs: number, damage: number, poiseDmg: number, staminaCost: number, next: readonly [number, number], strikeMs: number, a: MeleeArc, hitCount = 1, hitIntervalMs = 0): MeleeMove {
+  return { key, windupMs, hitCount, hitIntervalMs, recoverMs, chainMs: CHAIN, damage, poiseDmg, staminaCost, strikeMs, arc: a, next }
 }
 
 /**
@@ -75,16 +105,16 @@ function mv(key: string, windupMs: number, recoverMs: number, damage: number, po
 export const KNIFE_SET: MeleeSet = {
   roots: [0, 7],
   moves: [
-    mv('knife_l1',    110, 270, 40, 20, 15, [1, 5]),
-    mv('knife_l2',     90, 230, 40, 20, 15, [2, 3]),
-    mv('knife_l3',    120, 330, 20,  8, 25, [-1, -1], 4, 70),
-    mv('knife_llr',   200, 380, 65, 35, 25, [4, -1]),
-    mv('knife_spin',  150, 500, 60, 45, 30, [-1, -1]),
-    mv('knife_lr',    180, 360, 65, 35, 25, [6, -1]),
-    mv('knife_rise',  120, 450, 50, 30, 25, [-1, -1]),
-    mv('knife_r1',    250, 450, 65, 35, 25, [9, 8]),
-    mv('knife_rr',    120, 400, 30, 15, 25, [-1, -1], 2, 110),
-    mv('knife_flip',   80, 340, 45, 25, 20, [-1, -1]),
+    mv('knife_l1',    110, 270, 40, 20, 15, [1, 5], 90,  arc({ yaw: [-55, 55] })),
+    mv('knife_l2',     90, 230, 40, 20, 15, [2, 3], 80,  arc({ yaw: [55, -55] })),
+    mv('knife_l3',    120, 330, 20,  8, 25, [-1, -1], 60, arc({ reach: [0.9, 2.0] }), 4, 70),
+    mv('knife_llr',   200, 380, 65, 35, 25, [4, -1], 120, arc({ pitch: [50, -50], height: same(-0.1) })),
+    mv('knife_spin',  150, 500, 60, 45, 30, [-1, -1], 280, arc({ yaw: [0, 360], reach: same(1.6) })),
+    mv('knife_lr',    180, 360, 65, 35, 25, [6, -1], 120, arc({ pitch: [40, -40], height: same(-0.1) })),
+    mv('knife_rise',  120, 450, 50, 30, 25, [-1, -1], 120, arc({ pitch: [-50, 60], height: same(-0.4) })),
+    mv('knife_r1',    250, 450, 65, 35, 25, [9, 8], 140, arc({ pitch: [45, -30], reach: [1.0, 1.9], height: same(-0.1) })),
+    mv('knife_rr',    120, 400, 30, 15, 25, [-1, -1], 100, arc({ pitch: [60, -60], height: same(-0.1) }), 2, 110),
+    mv('knife_flip',   80, 340, 45, 25, 20, [-1, -1], 80,  arc({ yaw: [50, -50] })),
   ],
 }
 

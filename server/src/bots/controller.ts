@@ -661,7 +661,7 @@ export class BotController {
     const params = this.params
     const farSingle = !this.hard && dist > 40 && def.auto && !def.melee
     if (def.auto && !farSingle) {
-      if (def.melee) return Btn.Fire
+      if (def.melee) return Math.floor(now / 60) % 2 === 0 ? Btn.Fire : 0   // dao có combo bấm theo cạnh lên: nhấp nhả liên tục
       if (now < this.pauseUntil) return 0
       if (this.burstLeft <= 0) { this.burstLeft = randInt(this.rng, params.burst); this.aim.reroll(params) }
       this.burstLeft -= shotsSince

@@ -1,7 +1,8 @@
-import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, magSizeOf, makeRecoilState, sanitizeRoomConfig, type Role, type ZombieStats, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
+import { resetMelee, DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, magSizeOf, makeRecoilState, sanitizeRoomConfig, type Role, type ZombieStats, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 import type { RoomGrenade } from './grenades'
+import type { MeleeSweep } from './meleeSweep'
 import { dropOnDeath } from './grenades'
 import { createMode, type MatchMode } from './modes'
 import type { BotController } from './bots/controller'
@@ -52,6 +53,9 @@ export interface Player {
   lastHurtAt: number             // serverTime lần cuối trúng đạn (zombie hồi máu sau regenDelayMs không bị bắn)
   transformUntil: number         // serverTime hết biến hình: trước đó bất tử, không di chuyển/bắn được
   pendingClaw: { at: number; cmd: InputCmd; defId: number } | null   // cào mạnh đang vung: trúng khi tới `at` (xác định lúc đó)
+  sweep: MeleeSweep | null       // cận chiến (plan 19): cửa sổ quét của nhát đang đánh
+  meleeRender: { off: number; atMs: number }   // fireRenderTime − giờ seq của cmd gần nhất có fireRenderTime (atMs < 0 = chưa có)
+  meleeRenderOff: number | null  // mốc tua của chiêu đang chạy (lấy lúc bắt đầu chiêu)
   damageMult: number             // anh hùng (Lây Nhiễm) ×1.5
   speedMult: number              // anh hùng ×1.1 tốc độ chạy
   hero: boolean
@@ -227,6 +231,9 @@ export class Room {
       lastHurtAt: 0,
       transformUntil: 0,
       pendingClaw: null,
+      sweep: null,
+      meleeRender: { off: 0, atMs: -1 },
+      meleeRenderOff: null,
       damageMult: 1,
       speedMult: 1,
       hero: false,
@@ -290,6 +297,7 @@ export class Room {
     ws.reloadEndMs = 0
     ws.nextFireMs = 0
     ws.triggerHeld = false
+    resetMelee(ws); ws.staggerUntilMs = 0; ws.vulnerableUntilMs = 0; p.sweep = null   // hồi sinh / mua đồ: huỷ chiêu, hết choáng
     p.recoil.pitch = 0; p.recoil.yaw = 0
   }
 

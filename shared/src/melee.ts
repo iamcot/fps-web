@@ -149,16 +149,16 @@ export function inGuardArc(victimYaw: number, dx: number, dz: number): boolean {
 /**
  * Một nhát của `attacker` (đang chạy chiêu `move`) trúng `victim` tại nowMs. Cập nhật thể lực / choáng / đòn nặng của hai bên.
  * `front` = đòn tới từ phía trước nạn nhân (xem inGuardArc). `victimMelee` = nạn nhân đang cầm vũ khí cận chiến (mới đỡ được).
- * Ghi kết quả vào `out`. Chưa gồm hệ số vùng (đầu ×2,5...) và việc trừ máu: phần của server (P3).
+ * `nowMs` theo thang seq của nạn nhân; `attackerNowMs` theo thang seq của người đánh (mỗi người đếm seq riêng). Ghi kết quả vào `out`. Chưa gồm hệ số vùng (đầu ×2,5...) và việc trừ máu: phần của server (P3).
  */
-export function resolveMeleeHit(out: MeleeHitResult, victim: WeaponState, attacker: WeaponState, move: MeleeMove, front: boolean, victimMelee: boolean, nowMs: number): MeleeHitResult {
+export function resolveMeleeHit(out: MeleeHitResult, victim: WeaponState, attacker: WeaponState, move: MeleeMove, front: boolean, victimMelee: boolean, nowMs: number, attackerNowMs = nowMs): MeleeHitResult {
   out.staggered = false
   const guarding = front && victimMelee && victim.guardSinceMs >= 0 && nowMs >= victim.staggerUntilMs
 
   if (guarding && victim.parryUntilMs > 0 && nowMs < victim.parryUntilMs + MELEE.parryGraceMs) {
     out.outcome = 'parried'; out.damage = 0
-    startStagger(attacker, nowMs, MELEE.parryStaggerMs)
-    attacker.vulnerableUntilMs = nowMs + MELEE.vulnerableMs
+    startStagger(attacker, attackerNowMs, MELEE.parryStaggerMs)
+    attacker.vulnerableUntilMs = attackerNowMs + MELEE.vulnerableMs
     return out
   }
 
@@ -168,7 +168,7 @@ export function resolveMeleeHit(out: MeleeHitResult, victim: WeaponState, attack
     spendStamina(victim, nowMs, cost)
     // Người đánh khựng: chiêu đang chạy kéo dài thêm blockRecoilMs (các nhát còn lại cũng trễ theo)
     if (attacker.meleeMove >= 0) attacker.meleeStartMs += MELEE.blockRecoilMs
-    else attacker.nextFireMs = Math.max(attacker.nextFireMs, nowMs + MELEE.blockRecoilMs)
+    else attacker.nextFireMs = Math.max(attacker.nextFireMs, attackerNowMs + MELEE.blockRecoilMs)
     out.damage = move.damage * MELEE.guardDamageMult
     if (before < cost) {   // hết thể lực giữa chừng: vỡ thế thủ
       out.outcome = 'guardBreak'; out.staggered = true

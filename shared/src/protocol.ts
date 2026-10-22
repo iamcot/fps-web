@@ -263,6 +263,7 @@ export interface HitConfirmMsg {
   damage: number
   headshot: boolean
   targetId: number
+  outcome?: number   // cận chiến: MELEE_OUTCOME (0 trúng, 1 bị đỡ, 2 bị parry, 3 vỡ thế thủ); thiếu = trúng
 }
 
 // Gửi cả phòng trừ người bắn: vẽ vệt đạn + tiếng súng có vị trí. `weapon` ngoài plan, cần để chọn tiếng súng.
@@ -274,6 +275,8 @@ export interface ShotFxMsg {
   dir: [number, number, number]
   dist: number
   extra?: { dir: [number, number, number]; dist: number }[]   // các tia còn lại của súng nhiều tia (shotgun), cùng gốc origin
+  moveId?: number    // cận chiến: chỉ số chiêu trong bộ chiêu của vũ khí, để người khác vẽ đúng động tác
+  startSeq?: number  // cận chiến: seq của cmd bắt đầu chiêu
 }
 
 // Chỉ gửi người bắn khi đã bật debug: tia + hitbox mọi người khác ở thời điểm đã tua
@@ -282,6 +285,7 @@ export interface DebugShotMsg {
   origin: [number, number, number]
   dir: [number, number, number]
   boxes: HitBox[]
+  blade?: number[]   // cận chiến: các đoạn quét vừa thử, phẳng 6 số mỗi đoạn (base xyz, tip xyz)
 }
 
 // Cả phòng: gửi khi đổi pha và mỗi 1s. phaseEndsAt theo serverTime (0 = không có hạn)

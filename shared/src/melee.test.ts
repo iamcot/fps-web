@@ -258,6 +258,15 @@ describe('đỡ, parry, vỡ thế thủ', () => {
     expect(a.ws.meleeStartMs).toBe(start + MELEE.blockRecoilMs)
   })
 
+  it('hai bên đếm seq riêng: hiệu ứng lên người đánh tính theo giờ của người đánh', () => {
+    const { a, v, res } = pair()
+    v.tick(Btn.Guard)
+    resolveMeleeHit(res, v.ws, a.ws, move, true, true, v.ms + 50, 9000)
+    expect(res.outcome).toBe('parried')
+    expect(a.ws.staggerUntilMs).toBe(9000 + MELEE.parryStaggerMs)
+    expect(a.ws.vulnerableUntilMs).toBe(9000 + MELEE.vulnerableMs)
+  })
+
   it('inGuardArc: yaw 0 nhìn -Z; ±60° trước mặt thì đỡ được', () => {
     expect(inGuardArc(0, 0, -3)).toBe(true)
     expect(inGuardArc(0, 0, 3)).toBe(false)
