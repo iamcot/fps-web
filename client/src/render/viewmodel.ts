@@ -6,7 +6,8 @@ import { BlockArm } from "./blockArm";
 import { FpArms } from "./fpArms";
 import type { SkinId } from "./characterRig";
 import { GrenadeAnim, pathSegment, type LogicPhase } from "./grenadeAnim";
-import { GRENADE_ID } from "@fps/shared";
+import { GRENADE_ID, WEAPONS } from "@fps/shared";
+import { KnifeAnim } from "./knifeAnim";
 import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf, type Vec3 } from "./poses";
 
 // ── Hằng số ────────────────────────────────────────────────────────────────────
@@ -221,6 +222,12 @@ export interface ViewmodelHandle {
   onFire(melee?: boolean): void;
   /** Tốc độ ngang (m/s) + đang chạm đất, để lắc súng */
   setMotion(speed: number, grounded: boolean): void;
+  /** Dao: vận tốc ngang theo trục phải (m/s, + = sang phải) và vận tốc Y. Gọi trước setMotion */
+  setMove(strafe: number, vy: number): void;
+  /** Dao: yaw/pitch camera hiện tại, để dao trễ theo chuột */
+  setLook(yaw: number, pitch: number): void;
+  /** Dao: múa dao (phím xem dao). Không có tác dụng với vũ khí khác */
+  inspect(): void;
   /** Tiến độ reload 0..1, hoặc -1 nếu không reload */
   setReload(progress: number): void;
   /** Mức ngắm 0..1 (adsT của movement: đã mượt theo inMs/outMs). Chỉ có tác dụng khi đang cầm súng ở trạng thái idle */
@@ -386,6 +393,8 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   let aimWant = 0;   // adsT từ movement
   let aimScoped = false;
   let aimT = 0;
+  const knife = new KnifeAnim();
+  const isKnife = (id: number): boolean => WEAPONS[id]?.category === "knife";
 
   // ── Lựu đạn (G.5) ──────────────────────────────────────────────────────────
   const nadeAnim = new GrenadeAnim(() => weaponPose(GRENADE_ID).first.grenade!);
@@ -443,6 +452,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
 
   function onFire(melee = false) {
     kick = melee ? 3 : 1;   // dao: vung mạnh hơn
+    knife.interrupt();
     if (melee) return;
     // Vị trí muzzle theo hệ toạ độ gunGroup
     const m = currentMesh.getObjectByName("muzzle");
@@ -462,6 +472,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   function setMotion(speed: number, grounded: boolean) {
     moveSpeed = speed;
     moveGrounded = grounded;
+    knife.setMotion(speed, grounded);
   }
 
   function setReload(progress: number) {
@@ -486,6 +497,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
         currentMesh = getMesh(currentWeapon);
         gunGroup.add(currentMesh);
         if (currentWeapon === GRENADE_ID) nadeEnter();
+        if (isKnife(currentWeapon)) knife.startDraw();
         phase = "up";
         animT = 0;
       }
@@ -537,6 +549,8 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     const adsZ = sight ? -(pose.adsEyeDist ?? ADS_DIST) - sight.z : bz;
     const bob = 1 - a * (1 - ADS_BOB);   // lắc khi đi giảm 85% lúc ngắm
     const kickMul = 1 - 0.5 * a;          // giật hình (lùi/ngóc súng) giảm 50% lúc ngắm
+    knife.update(dt, isKnife(currentWeapon) && !hidden, phase === "idle", Math.min(1, moveSpeed / BOB_REF_SPEED), bobPhase, bobAmp);
+    const kf = knife.fx;
     const nadeCfg = currentWeapon === GRENADE_ID ? pose.grenade : undefined;
     const nadeOut = nadeCfg ? nadeAnim.update(dt * 1000) : null;
     if (nadeOut && nadeCfg) {
@@ -550,15 +564,15 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     } else {
       gunGroup.visible = !(aimScoped && aimT > 0.6) && !hidden;
       gunGroup.position.set(
-        bx + (adsX - bx) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob,
-        by + (adsY - by) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r,
-        bz + (adsZ - bz) * a + KICK_BACK * kick * kickMul,
+        bx + (adsX - bx) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob + kf.px,
+        by + (adsY - by) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r + kf.py,
+        bz + (adsZ - bz) * a + KICK_BACK * kick * kickMul + kf.pz,
       );
       const hip = 1 - a;   // góc đặt súng của poses.json mất dần khi ngắm (thân súng thẳng)
       gunGroup.rotation.set(
-        pose.gunRotDeg[0] * DEG * hip + (pose.adsRotDeg?.[0] ?? 0) * DEG * a + KICK_PITCH * kick * kickMul - RELOAD_TILT * r + tiltPitch,
-        pose.gunRotDeg[1] * DEG * hip + (pose.adsRotDeg?.[1] ?? 0) * DEG * a,
-        pose.gunRotDeg[2] * DEG * hip + (pose.adsRotDeg?.[2] ?? 0) * DEG * a + tiltRoll,
+        pose.gunRotDeg[0] * DEG * hip + (pose.adsRotDeg?.[0] ?? 0) * DEG * a + KICK_PITCH * kick * kickMul - RELOAD_TILT * r + tiltPitch + kf.rx,
+        pose.gunRotDeg[1] * DEG * hip + (pose.adsRotDeg?.[1] ?? 0) * DEG * a + kf.ry,
+        pose.gunRotDeg[2] * DEG * hip + (pose.adsRotDeg?.[2] ?? 0) * DEG * a + tiltRoll + kf.rz,
       );
       gunGroup.scale.setScalar(pose.scale);
     }
@@ -655,6 +669,9 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     onFire,
     setMotion,
     setReload,
+    setMove: knife.setMove.bind(knife),
+    setLook: knife.setLook.bind(knife),
+    inspect: () => { if (phase === "idle" && isKnife(currentWeapon) && !knife.flourishing) knife.inspect(); },
     setAim,
     get aimAmount() {
       return aimT;

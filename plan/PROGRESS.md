@@ -244,3 +244,7 @@ Lệch so với plan (code đã có sẵn ADS riêng nên điều chỉnh):
 - [ ] K.5 HUONG-DAN.txt cho người nhận
 - [ ] K.6 CREDITS + kiểm tra license asset
 - [ ] K.7 Phiên bản, kiểm tra client/server khớp, CHANGELOG
+
+## 19 – Cận chiến (combo dao, va chạm vũ khí, vũ khí mới, nhặt/vứt, chế độ cận chiến)
+- [x] Plan đã duyệt 22/10/2026: `plan/19-melee-combat.md` (bản đọc và comment nằm ở Claude Docs "Plan: Combo dao và vũ khí cận chiến"). Gồm quyết định đã chốt, phần còn mở (phím đỡ trùng `Q`, cách hiểu "tay không"), 10 phase P1–P10.
+- [x] P1 Animation di chuyển cho dao (chỉ client): `client/src/render/knifeAnim.ts` (thuần, 15 test) cộng độ lệch lên gunGroup trong `viewmodel.ts`: thở, nghiêng cổ tay theo bước, chạy nước rút (hạ thấp + chúc mũi), dao trễ theo chuột, nghiêng khi đi ngang, nhấc khi nhảy / nhún khi tiếp đất, rút dao tung xoay một vòng, tự múa dao sau 7 s đứng yên, phím `T` múa dao (3 kiểu lần lượt). `main.ts` truyền yaw/pitch, vận tốc ngang theo trục phải và vận tốc Y. Không đụng `shared/`, server, hay logic bắn. Số liệu cảm tính, chỉnh ở hằng số đầu `knifeAnim.ts`. Đã chụp ảnh render thử (idle, chạy, múa 3 kiểu, rút dao): tay IK vẫn bám dao; lúc "tung xoay" đỉnh vòng cánh tay gập hơi lạ (~0,3 s).
