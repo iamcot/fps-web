@@ -27,6 +27,8 @@ export const GSND = {
 
 export const GRENADE_SOUND_FILES = ['pin', 'spoon', 'throw', 'bounce_01', 'bounce_02', 'explode_01', 'explode_02', 'explode_03'].map(n => `grenade/${n}`)
 
+const EXPLODE_FILES = ['grenade/explode_01', 'grenade/explode_02', 'grenade/explode_03']
+
 const dist = (o: Vec3): number => Math.hypot(o[0] - listenerPos[0], o[1] - listenerPos[1], o[2] - listenerPos[2])
 
 function panner(g: AudioGraph, o: Vec3): PannerNode {
@@ -103,21 +105,24 @@ export function playBounce(pos: Vec3, speed: number): void {
   tone(g.ctx, out, { type: 'sine', freq: p.toneHz * (1 + randSpread(0.1)), gainDb: db - 2, decayMs: p.toneDecayMs, when: t })
 }
 
-/** Tiếng nổ nhiều lớp. `alive`: người nghe còn sống (mới bị ù tai) */
+/** Tiếng nổ: có file explode_01..03 thì chỉ phát file (chọn ngẫu nhiên, mọi khoảng cách; xa thì lowpass/panner của sink làm nhỏ đi);
+ *  không nạp được file nào thì tổng hợp nhiều lớp như cũ. `alive`: người nghe còn sống (mới bị ù tai) */
 export function playExplode(pos: Vec3, alive = true): void {
   const g = getGraph()
   if (!g) return
   const e = GSND.explode, c = g.ctx, t = c.currentTime
   const d = dist(pos)
   const out = sink(g, pos)
+  const loaded = EXPLODE_FILES.filter(f => getBuffer(f))
+  const f = loaded[Math.floor(Math.random() * loaded.length)]
+  if (f && playFile(g, f, out, t, e.fileDb, 1 + randSpread(0.04))) {
+    if (alive && d < GSND.tinnitus.radiusM) tinnitus()
+    return
+  }
   const far = d > e.farM
   if (!far) {
-    // crack + body, hoặc file explode_01..03 thay cả hai lớp đó
-    const f = `grenade/explode_0${1 + Math.floor(Math.random() * 3)}`
-    if (!playFile(g, f, out, t, e.fileDb, 1 + randSpread(0.04))) {
-      noise(c, out, { filter: 'highpass', freq: e.crackHz, gainDb: e.crackDb, decayMs: e.crackDecayMs, when: t })
-      noise(c, out, { filter: 'lowpass', freq: e.bodyHz, gainDb: e.bodyDb, decayMs: e.bodyDecayMs, when: t })
-    }
+    noise(c, out, { filter: 'highpass', freq: e.crackHz, gainDb: e.crackDb, decayMs: e.crackDecayMs, when: t })
+    noise(c, out, { filter: 'lowpass', freq: e.bodyHz, gainDb: e.bodyDb, decayMs: e.bodyDecayMs, when: t })
   }
   tone(c, out, { type: 'sine', freq: e.thumpStartHz, freqEnd: e.thumpEndHz, gainDb: e.thumpDb, decayMs: e.thumpDecayMs, when: t })
   noise(c, out, { filter: 'lowpass', freq: e.boomHz, gainDb: e.boomDb, decayMs: e.boomDecayMs, when: t })
