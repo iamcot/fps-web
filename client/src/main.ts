@@ -16,7 +16,7 @@ import { createZombieOverlay } from './render/zombieOverlay'
 import { createSniffFx } from './render/sniffFx'
 import { startLoop, initGameState, defaultMovement, setNetHooks, currentState, setWantedWeapon, wantedWeapon, setWeaponMove, setDead, setMatchPhase, setTransforming, setDowned } from './loop'
 import { initDebugOverlay } from './debug'
-import { showLobby, BACK_KEY, type Session } from './net/lobby'
+import { showLobby, BACK_KEY, clearRoomFromUrl, type Session } from './net/lobby'
 import { startPing, type PingStats } from './net/ping'
 import { clock } from './net/clock'
 import { attachSnapshots, type SnapshotStore } from './net/snapshots'
@@ -338,6 +338,7 @@ createLeaveButton(() => {
   if (teamPrompt.isOpen) return
   teamPrompt.open(t('Back to the lobby? You will leave this match.'), () => {
     try { sessionStorage.setItem(BACK_KEY, '1') } catch { /* bỏ qua */ }
+    clearRoomFromUrl()   // otherwise ?room= sends the player straight back into this room
     location.reload()
   })
 })

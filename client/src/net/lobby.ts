@@ -29,6 +29,23 @@ function loadSaved(): { name: string; team: string; characters: string } {
   } catch { return { name: '', team: 'auto', characters: DEFAULT_CHARACTER_SET } }
 }
 
+/** Persist the player name so a refresh keeps it (merged into the saved lobby settings) */
+function saveName(name: string): void {
+  const n = name.trim()
+  if (!n) return
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...loadSaved(), name: n })) } catch { /* bỏ qua */ }
+}
+
+/** Drop ?room= from the address bar so leaving a room (or changing name) is not pulled back into it on reload */
+export function clearRoomFromUrl(): void {
+  try {
+    const u = new URL(location.href)
+    if (!u.searchParams.has('room')) return
+    u.searchParams.delete('room')
+    history.replaceState(null, '', u.pathname + u.search + u.hash)
+  } catch { /* bỏ qua */ }
+}
+
 const REJECT_TEXT: Record<JoinRejectReason, string> = {
   version: tr('Game version mismatch, reload the page (Ctrl+F5)'),
   full: tr('Room is full'), exists: tr('Room name already taken'), missing: tr('Room no longer exists'), bad: tr('Invalid name or room name'),
@@ -161,6 +178,7 @@ export function showLobby(): Promise<Session | null> {
       const nameLabel = mk('label', 'font-size:13px;opacity:.75', tr('Your name'))
       const nameIn = mk('input', INPUT_BIG); nameIn.name = 'name'; nameIn.placeholder = tr('Enter your name'); nameIn.maxLength = 16; nameIn.autocomplete = 'off'
       nameIn.value = saved.name
+      nameIn.addEventListener('input', () => saveName(nameIn.value))   // keep the name across refreshes even before pressing Enter
       nameLabel.htmlFor = nameIn.id = 'player-name'
       nameBox.append(nameLabel, nameIn)
       const err = mk('div', 'color:#f66;min-height:1.2em;text-align:center')
@@ -177,13 +195,14 @@ export function showLobby(): Promise<Session | null> {
       local.append(...blockHead(tr('LOCAL'), tr('Play on this device against bots. No server needed.')), modeSel, off)
       const blocks = mk('div', 'display:flex;gap:16px;flex-wrap:wrap')
       blocks.append(net, local)
-      off.addEventListener('click', () => { saved.name = nameIn.value.trim() || saved.name; offline(err) })
+      off.addEventListener('click', () => { saved.name = nameIn.value.trim() || saved.name; saveName(saved.name); offline(err) })
       form.append(title, nameBox, blocks, err)
       form.addEventListener('submit', e => {
         e.preventDefault()
         const name = nameIn.value.trim()
         if (!name) { err.textContent = tr('Enter your name first'); return }
         saved.name = name
+        saveName(name)
         err.textContent = tr('Connecting…')
         connectWebSocket(WS_URL).then(raw => {
           const transport = maybeNetsim(raw)
@@ -200,7 +219,7 @@ export function showLobby(): Promise<Session | null> {
       for (const l of LANGS) langSel.add(new Option(l.label, l.id))
       langSel.value = getLang()
       langSel.addEventListener('change', () => {
-        try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...loadSaved(), name: nameIn.value.trim() || saved.name })) } catch { /* bỏ qua */ }
+        saveName(nameIn.value || saved.name)
         saveLang(langSel.value as Lang)
         location.reload()
       })
@@ -228,7 +247,7 @@ export function showLobby(): Promise<Session | null> {
       const changeName = mk('button', BTN + ';display:flex;align-items:center;gap:6px', '')
       changeName.type = 'button'
       changeName.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg><span>${tr('Change name')}</span>`
-      changeName.addEventListener('click', () => { clearInterval(poll); location.reload() })
+      changeName.addEventListener('click', () => { clearInterval(poll); clearRoomFromUrl(); location.reload() })
       top.append(changeName, mk('div', 'font-size:22px;flex:1', tr('Rooms — {name}', { name: saved.name })))
       const off = mk('button', BTN, tr('Play offline')); off.type = 'button'; off.setAttribute('data-offline', ''); off.addEventListener('click', () => { clearInterval(poll); offline(err) })
       top.append(offlineModeSelect(), off)
