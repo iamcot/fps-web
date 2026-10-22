@@ -12,10 +12,9 @@ Bản chính để đọc và comment nằm ở Claude Docs ("Plan: Combo dao v�
 - Nhặt/vứt áp dụng mọi chế độ. `G` = vứt. Vũ khí rơi biến mất sau 1 phút, trừ vũ khí spawn trên map ở chế độ cận chiến.
 - Dùng lại map và điểm xuất phát thường. Không làm đấu trường riêng. Góc nhìn thứ ba không bị hạn chế ở chế độ nào.
 - Model vũ khí do người dùng tự kiếm (yêu cầu ở mục 7).
+- Phím đỡ là `Shift` trái (không dùng `Q` vì `Q` là đổi nhanh ô súng và đánh hơi zombie). Phím múa dao là `T` (`F` là đèn pin). Chốt 22/10.
 
 **Còn mở:**
-- Phím đỡ: người dùng đồng ý `Q`, nhưng `Q` hiện là đổi nhanh về ô trước (`main.ts`) và đánh hơi của zombie (`Btn.Sniff`). Đề xuất `Shift` trái hoặc chuột giữa. Cần chốt trước P2.
-- Phím xem dao ở P1 dùng `T` (không dùng `F` như bản đầu vì `F` là đèn pin).
 - "Tay không" hiểu là đang cầm ô 2–4: đi ngang vũ khí dưới đất thì nhặt vào ô 1 mà không đổi ô; `G` ở ô 2–4 vẫn là lựu đạn; ở ô 1 `G` vứt vũ khí nhặt. Cần người dùng xác nhận. Đang đứng trên vũ khí khác mà bấm `G` có đổi luôn không.
 - Chế độ cận chiến mặc định đấu theo đội.
 
@@ -201,4 +200,4 @@ Bốn mốc: M1 = P1–P4, M2 = P5, M3 = P6–P7, M4 = P8–P10. P8 cần ít nh
 - Góc nhìn thứ ba nhìn được rộng hơn qua góc dù camera bị chặn bởi tường. Có thể tắt ở chế độ thi đấu.
 - Spam và cân bằng thể lực, parry. Bot AI cận chiến khó cân. Người cầm búa/thương hơn hẳn người cầm dao ở chế độ nhặt vũ khí.
 - Zombie mode: claw dùng cùng đường `stepWeaponCmd`, phải test không hỏng cào thường và cào mạnh.
-- Phím `Q` trùng với đổi nhanh ô súng và đánh hơi zombie (xem "Còn mở").
+- Phím đỡ `Shift` trái: kiểm tra không trùng chạy/đi bộ nếu sau này thêm.
