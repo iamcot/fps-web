@@ -62,7 +62,7 @@ describe('stepMelee: combo', () => {
     expect(s.count('meleeStart')).toBe(1)
   })
 
-  it('L L L (bấm lúc chiêu trước vừa xong): chuỗi 0 → 1 → 2, chiêu cuối đánh 4 nhát', () => {
+  it('L L L (bấm lúc chiêu trước vừa xong): chuỗi 0 → 1 → 2, chiêu cuối đánh nhiều nhát', () => {
     const s = new Sim(knifeWs())
     const seen: number[] = []
     for (let i = 0; i < 3; i++) {
@@ -71,7 +71,7 @@ describe('stepMelee: combo', () => {
       while (s.ws.meleeMove >= 0) s.tick(0)   // chờ chiêu xong
     }
     expect(seen).toEqual([0, 1, 2])
-    expect(s.ws.shotSeq).toBe(1 + 1 + 4)
+    expect(s.ws.shotSeq).toBe(1 + 1 + KNIFE_SET.moves[2]!.hitCount)
   })
 
   it('L R → 5; R → 7; R R → 8 (2 nhát); R L → 9; L L R L → 4', () => {
@@ -127,7 +127,7 @@ describe('stepMelee: combo', () => {
   it('tín hiệu "fired" chỉ ở tick có nhát đánh; chiêu nhiều nhát phát nhiều lần', () => {
     const s = new Sim(knifeWs())
     for (const k of [L, L, L]) { s.tick(k); s.tick(0); while (s.ws.meleeMove >= 0) s.tick(0) }
-    expect(s.count('fired')).toBe(6)
+    expect(s.count('fired')).toBe(2 + KNIFE_SET.moves[2]!.hitCount)
     expect(s.count('meleeStart')).toBe(3)
   })
 })

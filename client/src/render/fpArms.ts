@@ -14,10 +14,6 @@ const FILES: Record<SkinId, Record<TeamId, string>> = {
 const DEG = Math.PI / 180
 
 type FingerGrip = Record<'thumb' | 'index' | 'middle' | 'ring' | 'pinky', readonly number[]>
-/** Cầm dao: nắm tay kín quanh cán (ngón trỏ cũng cuộn lại, khác báng súng có ngón trỏ duỗi chờ cò) */
-export const KNIFE_GRIP_R: FingerGrip = { thumb: [60, 30, 40], index: [70, 68, 50], middle: [82, 64, 40], ring: [100, 60, 55], pinky: [105, 70, 45] }
-/** Tay phụ (tay trái không cầm gì): ngón khép hờ, thả lỏng */
-export const SUPPORT_GRIP_L: FingerGrip = { thumb: [-12, -1, 20], index: [28, 30, 20], middle: [34, 34, 22], ring: [40, 38, 24], pinky: [44, 40, 26] }
 
 export interface FpSolveOpts {
   gripR?: FingerGrip

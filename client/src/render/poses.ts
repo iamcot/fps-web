@@ -38,7 +38,8 @@ export interface CharacterCfg {
     runRefSpeed: number; crouchRefSpeed: number; maxRate: number; jumpHoldS: number
   }
 }
-export interface GripCfg { R: Record<FingerName, Vec3>; L: Record<FingerName, Vec3>; axis: 'x' | 'y' | 'z' }
+/** R / L: nắm báng súng; knifeR: tay phải nắm kín cán dao; supportL: tay trái thả lỏng làm tay phụ khi cầm dao */
+export interface GripCfg { R: Record<FingerName, Vec3>; L: Record<FingerName, Vec3>; knifeR: Record<FingerName, Vec3>; supportL: Record<FingerName, Vec3>; axis: 'x' | 'y' | 'z' }
 export interface Poses {
   style: { skinColor: string; sleeveColor: { A: string; B: string }; third: ArmStyleCfg; first: ArmStyleCfg }
   third: { shoulderR: Vec3; shoulderL: Vec3; aimPivot: Vec3; poleR: Vec3; poleL: Vec3 }
@@ -74,6 +75,8 @@ const DEFAULTS = {
   grip: {
     R: { thumb: [10, 20, 15], index: [15, 20, 10], middle: [55, 70, 40], ring: [60, 75, 45], pinky: [65, 75, 45] },
     L: { thumb: [15, 25, 20], index: [45, 55, 35], middle: [55, 65, 40], ring: [60, 70, 45], pinky: [65, 70, 45] },
+    knifeR: { thumb: [-50, 30, 40], index: [70, 68, 50], middle: [82, 64, 40], ring: [100, 60, 55], pinky: [105, 70, 45] },
+    supportL: { thumb: [-12, -1, 20], index: [28, 30, 20], middle: [34, 34, 22], ring: [40, 38, 24], pinky: [44, 40, 26] },
     axis: 'x',
   },
   grenade: { trajectory: true, trajectoryMaxS: 2, dotEveryS: 0.06 },   // đường bay dự kiến khi giữ ready

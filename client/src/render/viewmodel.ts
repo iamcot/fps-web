@@ -3,7 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import type { TeamId } from "@fps/shared";
 import { BlockArm } from "./blockArm";
-import { FpArms, KNIFE_GRIP_R, SUPPORT_GRIP_L, type FpSolveOpts } from "./fpArms";
+import { FpArms, type FpSolveOpts } from "./fpArms";
 import type { SkinId } from "./characterRig";
 import { GrenadeAnim, pathSegment, type LogicPhase } from "./grenadeAnim";
 import { GRENADE_ID, WEAPONS } from "@fps/shared";
@@ -695,7 +695,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       fp.setVisible(showArms)
       fp.setLeftVisible(leftOn)
       fp.place()
-      _fpOpts.gripR = support ? KNIFE_GRIP_R : undefined; _fpOpts.gripL = support ? SUPPORT_GRIP_L : undefined
+      _fpOpts.gripR = support ? poses.grip.knifeR : undefined; _fpOpts.gripL = support ? poses.grip.supportL : undefined   // F9 › Grip chỉnh được
       _fpOpts.leftQuat = support ? _supQ : undefined
       fp.solve(targetR, leftOn ? targetL : null, gunGroup.quaternion, nadeRotR, nadeRotL, _fpOpts)
     }

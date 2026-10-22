@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { Btn, MELEE, MELEE_OUTCOME, MatchPhase, MsgType, TICK_RATE, defaultMovement, loadMap, type AnyMsg, type HitConfirmMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
+import { Btn, KNIFE_SET, MELEE, MELEE_OUTCOME, MatchPhase, MsgType, TICK_RATE, defaultMovement, loadMap, type AnyMsg, type HitConfirmMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { RoomManager, type Player } from './room'
 import { enqueueCmds, stepPlayer } from './simulation'
@@ -92,12 +92,12 @@ describe('cung quét cận chiến (P3)', () => {
     expect(b.hp).toBeGreaterThan(0)
   })
 
-  it('L L L: chém, chém ngược, đâm liên hoàn 4 nhát = đúng 6 lần trúng (mỗi nhát một lần)', () => {
+  it('L L L: chém, chém ngược, đâm liên hoàn = mỗi nhát trúng đúng một lần', () => {
     const { room, a, b, logs } = setup()
     b.hp = 100000
     for (let i = 0; i < 3; i++) swing(room, a, 24)   // bấm rồi chờ chiêu xong, còn trong cửa sổ nối
     swing(room, a, 40, 0)
-    expect(hits(logs, a.id).length).toBe(6)
+    expect(hits(logs, a.id).length).toBe(2 + KNIFE_SET.moves[2]!.hitCount)
   })
 
   it('đối thủ đang đỡ chắn phía trước: bị đỡ, chỉ lọt 15% damage, outcome = blocked', () => {

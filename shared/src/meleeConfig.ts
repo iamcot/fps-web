@@ -99,7 +99,7 @@ function mv(key: string, windupMs: number, recoverMs: number, damage: number, po
  * Dao (plan 19 mục 3). Cây combo:
  *   L→L→L  K1 Ba nhịp      L→R(→L)  K2/K4     R→R  K3 Xoáy kép
  *   R→L    K5 Lật tay      L→L→R→L  K6 Bão dao
- * Chỉ số chiêu: 0 L1 chém ngang, 1 L2 chém ngược, 2 L3 đâm liên hoàn 4 nhát, 3 LLR đâm xuống, 4 LLRL xoay 360,
+ * Chỉ số chiêu: 0 L1 chém ngang, 1 L2 chém ngược, 2 L3 đâm liên hoàn 2 nhát, 3 LLR đâm xuống, 4 LLRL xoay 360,
  *               5 LR đâm xuống, 6 LRL hất lên, 7 R1 đâm thẳng, 8 RR đâm thẳng 2 nhát, 9 RL lật tay chém nhanh
  */
 export const KNIFE_SET: MeleeSet = {
@@ -107,13 +107,13 @@ export const KNIFE_SET: MeleeSet = {
   moves: [
     mv('knife_l1',    110, 270, 40, 20, 15, [1, 5], 90,  arc({ yaw: [-55, 55] })),
     mv('knife_l2',     90, 230, 40, 20, 15, [2, 3], 80,  arc({ yaw: [55, -55] })),
-    mv('knife_l3',    120, 330, 20,  8, 25, [-1, -1], 60, arc({ reach: [0.9, 2.0] }), 4, 70),
+    mv('knife_l3',    150, 330, 35, 14, 25, [-1, -1], 90, arc({ reach: [0.9, 2.0] }), 2, 200),
     mv('knife_llr',   200, 380, 65, 35, 25, [4, -1], 120, arc({ pitch: [50, -50], height: same(-0.1) })),
     mv('knife_spin',  150, 500, 60, 45, 30, [-1, -1], 280, arc({ yaw: [0, 360], reach: same(1.6) })),
     mv('knife_lr',    180, 360, 65, 35, 25, [6, -1], 120, arc({ pitch: [40, -40], height: same(-0.1) })),
     mv('knife_rise',  120, 450, 50, 30, 25, [-1, -1], 120, arc({ pitch: [-50, 60], height: same(-0.4) })),
     mv('knife_r1',    250, 450, 65, 35, 25, [9, 8], 140, arc({ pitch: same(-3), reach: [0.9, 2.0], height: same(-0.15) })),
-    mv('knife_rr',    120, 400, 30, 15, 25, [-1, -1], 100, arc({ pitch: same(-3), reach: [0.9, 1.9], height: same(-0.15) }), 2, 110),
+    mv('knife_rr',    120, 400, 30, 15, 25, [-1, -1], 100, arc({ pitch: same(-3), reach: [0.9, 1.9], height: same(-0.15) }), 2, 170),
     mv('knife_flip',   80, 340, 45, 25, 20, [-1, -1], 80,  arc({ yaw: [50, -50] })),
   ],
 }

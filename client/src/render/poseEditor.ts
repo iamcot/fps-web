@@ -146,8 +146,9 @@ export function createPoseEditor(vm: ViewmodelHandle, weaponId: () => number, eq
       numRow(body, 'jumpHold s', () => an.jumpHoldS, v => { an.jumpHoldS = v }, 0, 1, 0.01)
     } else if (tab === 'Grip') {
       selectRow(body, 'axis', ['x', 'y', 'z'], () => poses.grip.axis, v => { poses.grip.axis = v as 'x' | 'y' | 'z' })
-      for (const hand of ['R', 'L'] as const) {
-        body.append(el('div', 'margin-top:4px;color:#8af', hand === 'R' ? 'Tay phải (độ gập đốt 1/2/3)' : 'Tay trái (độ gập đốt 1/2/3)'))
+      const GRIP_LABEL = { R: 'Tay phải cầm súng', L: 'Tay trái cầm súng', knifeR: 'Tay phải cầm dao', supportL: 'Tay trái phụ khi cầm dao' } as const
+      for (const hand of ['R', 'L', 'knifeR', 'supportL'] as const) {
+        body.append(el('div', 'margin-top:4px;color:#8af', `${GRIP_LABEL[hand]} (độ gập đốt 1/2/3)`))
         for (const f of FINGERS) {
           const v = poses.grip[hand][f]
           for (let i = 0; i < 3; i++) numRow(body, `${f}${i + 1}`, () => v[i]!, n => { v[i] = n }, -120, 120, 1)
