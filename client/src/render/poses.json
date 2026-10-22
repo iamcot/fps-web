@@ -605,8 +605,8 @@
         "hold": "oneHand",
         "gunRotDeg": [
           0.5,
-          26,
-          -24
+          12,
+          -4
         ],
         "scale": 1.01,
         "gunPos": [
