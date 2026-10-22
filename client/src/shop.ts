@@ -231,6 +231,8 @@ export function createShop(deps: ShopDeps) {
     tick(): void {
       const can = deps.canShop()
       cart.classList.toggle('on', can)
+      const hide = !!deps.eco?.().noShop   // Cận Chiến: không có cửa hàng
+      if ((cart.style.display === 'none') !== hide) cart.style.display = hide ? 'none' : ''
       if (!can && open) setOpen(false)
       if (open) refresh()
     },

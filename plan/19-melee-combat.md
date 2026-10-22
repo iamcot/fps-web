@@ -105,6 +105,7 @@ Danh sách clip nếu làm đường B: mỗi vũ khí `<key>_idle`, `_move`, `_
 | Đòn bị đỡ | Người đánh bị khựng thêm ~150 ms |
 
 ### 4.6 Chế độ chỉ cận chiến
+- **22/10/2026:** người dùng chọn làm phần bot + thể thức chỉ có dao (P7a) trước P5.
 - Một chế độ "Cận chiến" với tuỳ chọn phòng `nguồn vũ khí`: chọn lúc hồi sinh, hoặc nhặt trên map (4.9).
 - Không súng, không lựu đạn, không shop. Đấu theo đội. Góc nhìn thứ ba bật sẵn.
 - Bot cần AI cận chiến: áp sát, đánh combo ngẫu nhiên, đỡ khi đối thủ khởi động đòn, lùi khi hết thể lực.

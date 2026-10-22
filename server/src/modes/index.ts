@@ -56,6 +56,7 @@ export function createMode(config: RoomConfig): MatchMode {
     case 'elimination': return new EliminationMode(s)
     case 'infection': return new InfectionMode(s)
     case 'defense': return new DefenseMode(s)
+    case 'melee': return new TdmMode('melee')
     default: return new TdmMode()
   }
 }

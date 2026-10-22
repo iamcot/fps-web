@@ -1,6 +1,6 @@
 // Hỗn Chiến: hồi sinh liên tục, bắn tới giới hạn mạng hoặc hết giờ. Chuyển nguyên từ match.ts (task 06).
 // WAITING → COUNTDOWN (đủ người) → PLAYING (hết đếm) → ENDED (hết giờ / đủ killLimit) → COUNTDOWN (đổi bên)
-import { ECONOMY_TDM, MatchPhase, MsgType, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, addMoney, killReward, type MatchStateMsg } from '@fps/shared'
+import { ECONOMY_MELEE, ECONOMY_TDM, MatchPhase, MsgType, RESPAWN_DELAY_MS, SPAWN_INVULN_MS, addMoney, killReward, type MatchStateMsg } from '@fps/shared'
 import type { Player, Room } from '../room'
 import { broadcastScoreboard, setPhase } from '../match'
 import { runKillRules } from '../teamRules'
@@ -22,10 +22,11 @@ function resetForCountdown(room: Room): void {
   }
 }
 
+/** Hỗn Chiến; Cận Chiến (plan 19 P7) dùng chung luật, chỉ khác bộ đồ (chỉ dao) và không mua đồ */
 export class TdmMode implements MatchMode {
-  readonly mode = 'tdm' as const
+  constructor(readonly mode: 'tdm' | 'melee' = 'tdm') {}
 
-  economy() { return ECONOMY_TDM }
+  economy() { return this.mode === 'melee' ? ECONOMY_MELEE : ECONOMY_TDM }
 
   tick(room: Room, now: number): void {
     const r = room.rules
@@ -69,10 +70,11 @@ export class TdmMode implements MatchMode {
     if (!killer || killer.team === victim.team) return 0
     killer.kills++
     if (killer.team === 'A') room.scoreA++; else room.scoreB++
-    const reward = killReward(victim.killStreak, ECONOMY_TDM)
-    killer.money = addMoney(killer.money, reward, ECONOMY_TDM)
+    const eco = this.economy()
+    const reward = killReward(victim.killStreak, eco)
+    killer.money = addMoney(killer.money, reward, eco)
     killer.killStreak++
-    killer.transport.send({ t: MsgType.MoneyEvent, delta: reward, reason: victim.killStreak >= ECONOMY_TDM.bountyStreak ? 'bounty' : 'kill' })
+    if (reward > 0) killer.transport.send({ t: MsgType.MoneyEvent, delta: reward, reason: victim.killStreak >= eco.bountyStreak ? 'bounty' : 'kill' })
     return reward
   }
 
@@ -80,7 +82,7 @@ export class TdmMode implements MatchMode {
 
   respawnDelayMs(room: Room): number { return room.phase === MatchPhase.Waiting ? 0 : RESPAWN_DELAY_MS }
 
-  canBuy(room: Room): boolean { return room.phase !== MatchPhase.Ended }
+  canBuy(room: Room): boolean { return !this.economy().noShop && room.phase !== MatchPhase.Ended }
 
   canSwitchTeam(): boolean { return true }
 
@@ -95,7 +97,7 @@ export class TdmMode implements MatchMode {
     return {
       t: MsgType.MatchState, phase: room.phase, phaseEndsAt: room.phaseEndsAt,
       scoreA: room.scoreA, scoreB: room.scoreB, sideSwapped: room.sideSwapped,
-      mode: 'tdm', round: 0, maxRounds: 0, aliveA: 0, aliveB: 0, buyEndsAt: null,
+      mode: this.mode, round: 0, maxRounds: 0, aliveA: 0, aliveB: 0, buyEndsAt: null,
     }
   }
 }

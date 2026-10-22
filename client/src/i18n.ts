@@ -36,11 +36,12 @@ const VI: Record<string, string> = {
   'Server closed the connection': 'Server đóng kết nối', 'Lost connection to server': 'Mất kết nối server', 'Lost connection to server — reload the page': 'Mất kết nối server — tải lại trang',
   'Offline worker failed to start': 'Worker offline không khởi động được', 'Offline worker error': 'Worker offline lỗi',
   // Modes, teams, weapons, zombies
-  'Elimination': 'Sinh Tử', 'Team Deathmatch': 'Hỗn Chiến', 'Infection': 'Lây Nhiễm', 'Defense': 'Thủ Thành',
+  'Elimination': 'Sinh Tử', 'Team Deathmatch': 'Hỗn Chiến', 'Infection': 'Lây Nhiễm', 'Defense': 'Thủ Thành', 'Melee': 'Cận Chiến',
   'One life per round. First to win 10 rounds.': 'Mỗi ván một mạng. Thắng 10 ván trước.',
   'Continuous respawns. First to 50 kills, or when time runs out.': 'Hồi sinh liên tục. Bắn tới 50 mạng hoặc hết giờ.',
   'The mother zombie infects the room. Survive until time runs out to win.': 'Zombie mẹ lây nhiễm cả phòng. Trụ tới hết giờ để thắng.',
   'Hold the base against 10 zombie waves. The last wave has a boss.': 'Cả đội giữ thành chống 10 đợt zombie, đợt cuối có boss.',
+  'Knives only. Team fight with combos, blocks and parries. Continuous respawns.': 'Chỉ dùng dao. Đánh theo đội bằng combo, đỡ và parry. Hồi sinh liên tục.',
   'Cops': 'Cớm', 'Robbers': 'Cướp',
   'Claw': 'Vuốt', 'Knife': 'Dao', 'Pistol': 'Súng ngắn', 'Mid-range': 'Súng vừa', 'Long gun': 'Súng dài', 'Grenade': 'Lựu đạn', 'Revolver': 'Rulô',
   'Walker': 'Zombie thường', 'Runner': 'Zombie chạy', 'Crawler': 'Zombie bò', 'Leaper': 'Zombie nhảy', 'Brute': 'Zombie trâu', 'Screamer': 'Zombie gào', 'Zombie Boss': 'Đại Ca Zombie', 'Mother zombie': 'Zombie mẹ',

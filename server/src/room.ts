@@ -82,7 +82,7 @@ export function defaultRoomConfig(name: string, map: string, rules: MatchRules):
 /** Luật trận của một phòng: luật server + thông số từ cài đặt phòng */
 export function roomRules(base: MatchRules, config: RoomConfig): MatchRules {
   const r = { ...base, maxPerTeam: config.maxPlayers / 2 }
-  if (config.settings.mode === 'tdm') { r.killLimit = config.settings.killLimit; r.durationMs = config.settings.timeLimitMin * 60000 }
+  if (config.settings.mode === 'tdm' || config.settings.mode === 'melee') { r.killLimit = config.settings.killLimit; r.durationMs = config.settings.timeLimitMin * 60000 }
   return r
 }
 

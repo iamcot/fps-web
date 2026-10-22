@@ -14,7 +14,8 @@ import { EdgeKind, Zone, type Waypoint } from './nav'
 import { Perception, bodyPoint, eyeOf, type Known } from './perception'
 import { getBotParams, rand, randInt, type BotParams } from './params'
 import { ZombieBrain } from '../zombies/brain'
-import { isZombieMode } from '@fps/shared'
+import { isMeleeMode, isZombieMode } from '@fps/shared'
+import { MeleeBotBrain } from './meleeBot'
 
 export type BotState = 'Patrol' | 'Engage' | 'Search' | 'Reload' | 'Hunt' | 'TakeCover' | 'Peek' | 'Flank' | 'Push'
 
@@ -146,6 +147,7 @@ export class BotController {
     this.lastPos[0] = p.state.pos[0]; this.lastPos[1] = p.state.pos[1]; this.lastPos[2] = p.state.pos[2]
 
     if (p.role === 'zombie') { this.driveZombie(room, p, cmd, nowMs); return }   // Lây Nhiễm: bot làm zombie đi săn người (plan 16 I.5)
+    if (isMeleeMode(room.config.settings.mode)) { this.driveMelee(room, p, cmd, nowMs); return }   // Cận Chiến (plan 19 P7)
     if (nowMs >= this.nextThinkAt) { this.nextThinkAt = nowMs + THINK_MS; this.think(nowMs) }
     this.tickBuy(nowMs)
 
@@ -198,8 +200,22 @@ export class BotController {
     p.inputQueue.push(cmd)
   }
 
+  // ── Cận Chiến (plan 19 P7): áp sát, combo, đỡ / parry — xem meleeBot.ts
+  private melee: MeleeBotBrain | null = null
+
+  private driveMelee(room: Room, p: Player, cmd: InputCmd, now: number): void {
+    if (!this.melee) this.melee = new MeleeBotBrain(() => this.params.melee, this.rng)
+    this.wantSlot = MeleeBotBrain.meleeSlot(p)
+    cmd.weapon = this.wantSlot
+    this.melee.drive(room, p, cmd, now, this.aim.yaw)
+    cmd.buttons &= phaseButtonMask(room.phase, true)
+    this.aim.set(cmd.yaw, cmd.pitch)
+    p.inputQueue.push(cmd)
+  }
+
   private onRespawn(now: number): void {
     const me = this.me
+    this.melee?.reset()
     this.perc.reset()
     this.targetId = -1; this.aim.end()
     this.aim.set(me.state.yaw, 0)
@@ -218,6 +234,7 @@ export class BotController {
 
   // ── Mua đồ (B.2/B.8) ────────────────────────────────────────────────────────────────────
   private planBuys(): void {
+    if (this.room.eco.noShop) { this.buyQueue = []; return }
     const b = this.params.buy
     const q: string[] = []
     const pick = (l: string[]) => l[Math.floor(this.rng() * l.length)]!

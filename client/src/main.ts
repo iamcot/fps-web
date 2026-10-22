@@ -260,6 +260,7 @@ const shop = createShop({
   canShop: () => {
     const s = sessionRef, pos = prediction?.predicted.pos
     if (!s || !pos || dead || matchPhaseNow === MatchPhase.Ended || matchPhaseNow === MatchPhase.Halftime) return false
+    if (economyFor(s.config.settings.mode).noShop) return false   // Cận Chiến: không mua bán
     if (buyEndsAt !== null && clock.serverNow() >= buyEndsAt) return false
     if (s.config.settings.mode === 'infection') return matchPhaseNow === MatchPhase.Prep && ((snapStore?.flags ?? 0) & NetFlag.Zombie) === 0   // Lây Nhiễm: mua ở bất cứ đâu trong pha chuẩn bị
     const team = s.teams.get(s.yourId)
@@ -689,7 +690,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
 
   hud.setHealth(100)
   hud.bottom.setMoneyVisible(false)   // offline không có tiền; online hiện khi vào phòng (bên dưới)
-  sessionP.then(session => { hud.bottom.setMoneyVisible(!!session) })
+  sessionP.then(session => { hud.bottom.setMoneyVisible(!!session && !economyFor(session.config.settings.mode).noShop) })   // Cận Chiến: không có tiền
 
   startLoop(world, cfg, state => {
     const now  = performance.now()

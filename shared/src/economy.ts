@@ -18,6 +18,8 @@ export interface EconomyConfig {
   maxBuysPerSecond: number
   infiniteReserve?: boolean   // thể thức zombie: đạn dự trữ vô hạn (chỉ phải nạp băng) – HUD hiện `25 / ∞`
   magMult?: number            // thể thức zombie: băng đạn to gấp ngần này (mặc định 1)
+  loadoutKeys?: readonly string[]   // bộ đồ cấp sẵn thay DEFAULT_LOADOUT của đội (Cận Chiến: chỉ dao)
+  noShop?: boolean            // không mua bán gì (Cận Chiến)
 }
 
 /** Hỗn Chiến (task 09) */
@@ -68,6 +70,7 @@ export function economyFor(mode: GameMode): EconomyConfig {
     case 'elimination': return ECONOMY_ELIM
     case 'infection': return ECONOMY_INFECTION
     case 'defense': return ECONOMY_DEFENSE
+    case 'melee': return ECONOMY_MELEE
     default: return ECONOMY_TDM
   }
 }
@@ -80,6 +83,14 @@ export const ECONOMY_DEFENSE: EconomyConfig = {
   infiniteReserve: true,
   magMult: ZOMBIE_MAG_MULT,
   killReward: 0, bountyStreak: 1e9, bountyReward: 0,   // không có truy nã; tiền hạ zombie tính riêng theo loại
+}
+
+/** Cận Chiến (plan 19 P7): chỉ có dao, không tiền, không mua */
+export const ECONOMY_MELEE: EconomyConfig = {
+  ...ECONOMY,
+  startMoney: 0, maxMoney: 0, killReward: 0, bountyStreak: 1e9, bountyReward: 0,
+  loadoutKeys: ['knife'],
+  noShop: true,
 }
 
 export const DEFAULT_LOADOUT: Record<TeamId, string[]> = {
@@ -97,7 +108,7 @@ export type BuyQuote =
 
 export function defaultLoadout(team: TeamId, eco: EconomyConfig = ECONOMY): Loadout {
   const slots: (OwnedWeapon | null)[] = new Array(SLOT_COUNT).fill(null)
-  for (const key of DEFAULT_LOADOUT[team]) {
+  for (const key of eco.loadoutKeys ?? DEFAULT_LOADOUT[team]) {
     const def = weaponByKey(key)
     if (def) slots[CATEGORY_SLOT[def.category]] = { key, paid: eco.defaultResaleValue }
   }
