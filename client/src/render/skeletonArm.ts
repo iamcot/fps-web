@@ -152,9 +152,9 @@ export class SkeletonArm {
   }
 
   /** Gập ngón theo grip (độ, 3 đốt mỗi ngón) nhân với weight, cộng lên tư thế hiện tại của xương. */
-  applyGrip(weight: number): void {
+  applyGrip(weight: number, override?: Record<(typeof FINGER_NAMES)[number], readonly number[]>): void {
     if (weight <= 0) return
-    const g = poses.grip, set = this.side === 'R' ? g.R : g.L
+    const g = poses.grip, set = override ?? (this.side === 'R' ? g.R : g.L)
     _axis.set(g.axis === 'x' ? 1 : 0, g.axis === 'y' ? 1 : 0, g.axis === 'z' ? 1 : 0)
     for (const name of FINGER_NAMES) {
       const bones = this.fingers[name], deg = set[name]

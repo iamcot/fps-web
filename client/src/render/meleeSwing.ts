@@ -1,40 +1,45 @@
 // Động tác viewmodel của dao theo chiêu (plan 19, P4): keyframe cho từng chiêu của KNIFE_SET, đỡ, choáng, phản ứng khi đỡ trúng.
-// Thuần hình ảnh (không import Three.js/DOM, không cấp phát trong update): cho ra độ lệch `fx` cộng lên gunGroup như KnifeAnim.
-// Thời gian lấy từ chính dữ liệu chiêu (windup, strikeMs, hitIntervalMs...) nên khớp cửa sổ quét của server.
+// Quơ dao = quơ cả cánh tay quanh khớp vai (viewmodel xoay gunGroup quanh vai, tay IK đi theo), không bẻ cổ tay: dao luôn cứng theo cánh tay.
+// Thuần hình ảnh (không import Three.js/DOM, không cấp phát trong update). Thời gian lấy từ dữ liệu chiêu (windup, strikeMs, hitIntervalMs...)
+// nên khớp cửa sổ quét của server.
 import { KNIFE_SET, moveDurationMs, type MeleeMove } from '@fps/shared'
 
-const TAU = Math.PI * 2
-
-/** [px, py, pz, rx, ry, rz]: mét / radian, cộng lên tư thế nghỉ của gunGroup. +px phải, +py lên, +pz về phía camera, +rx ngóc mũi, +ry quay mũi sang trái, +rz lăn lưỡi */
+/**
+ * [yaw, pitch, ext, wx, wy, wz]
+ * yaw / pitch (rad): xoay cả cánh tay quanh vai trong không gian camera. +yaw = quơ sang trái, +pitch = nâng lên.
+ * ext (m): duỗi tay ra / co về dọc hướng vai → tay. Tay dài tối đa ~0,9 m, tư thế nghỉ đã ~0,77 m nên ext tối đa ~ +0,12.
+ * wx, wy, wz (rad): góc cổ tay GIỮ CỐ ĐỊNH suốt chiêu (cầm ngược mũi chúc xuống...), cộng lên góc cầm nghỉ.
+ */
 export type Pose = readonly [number, number, number, number, number, number]
 const REST: Pose = [0, 0, 0, 0, 0, 0]
 
 export interface SwingStyle { wind: Pose; hit: Pose; perHit?: Pose }
 
+const DOWN = -0.8   // cổ tay cầm ngược: mũi dao chúc xuống (vừa phải: bẻ quá thì cổ tay gãy gập)
 /** Tư thế cao điểm của từng chiêu: `wind` = lúc gồng (tới đúng giờ nhát đánh), `hit` = cuối cung quét */
 export const SWING_STYLES: Record<string, SwingStyle> = {
-  knife_l1:   { wind: [-0.12, 0, 0.02, 0, 1.4, 0], hit: [0.14, -0.03, -0.1, 0, -1.7, 0] },            // chém ngang trái → phải
-  knife_l2:   { wind: [0.14, -0.03, 0, 0, -1.6, 0], hit: [-0.12, 0, -0.1, 0, 1.4, 0] },                 // chém ngược phải → trái
-  knife_l3:   { wind: [0, -0.02, 0.08, 0, 0, 0], hit: [0, 0, -0.28, 0, 0, 0] },                                        // đâm liên hoàn: giật tay rồi phóng
-  knife_llr:  { wind: [0, 0.22, 0.06, 0.9, 0, 0.1], hit: [0, -0.08, -0.22, -0.9, 0, 0] },                              // giơ cao rồi giáng xuống
-  knife_spin: { wind: [-0.16, 0, 0.05, 0, 1.5, -0.6], hit: [0.16, 0, -0.1, 0, -1.8, 0.6 + TAU] },                 // bão dao: quét hết tầm nhìn, lăn một vòng
-  knife_lr:   { wind: [0.05, 0.2, 0.05, 0.8, 0, -0.2], hit: [-0.03, -0.08, -0.22, -0.8, 0, 0.1] },
-  knife_rise: { wind: [0.06, -0.2, 0, -0.9, 0, 0.2], hit: [-0.02, 0.18, -0.2, 1.0, 0, -0.1] },                         // khoét từ thấp lên cao
-  knife_r1:   { wind: [0.02, 0.2, 0.08, 0.9, 0, Math.PI], hit: [0, 0, -0.22, -0.55, 0, Math.PI] },                   // lật cầm ngược, đâm xuống
-  knife_rr:   { wind: [0.03, 0.2, 0.06, 0.9, 0, 0.5], hit: [0, -0.02, -0.2, -0.6, 0, 0.5 + TAU], perHit: [0, 0, 0, 0, 0, TAU] },   // xoáy: mỗi nhát lăn thêm một vòng
-  knife_flip: { wind: [0.14, -0.05, 0, 0.2, -1.4, 0.3], hit: [-0.12, 0.02, -0.1, 0.1, 1.3, -0.3] },
+  knife_l1:   { wind: [0.45, 0.05, 0, 0, 0, 0], hit: [-0.4, 0, 0.12, 0, 0, 0] },                                  // chém ngang trái → phải
+  knife_l2:   { wind: [-0.4, -0.05, 0, 0, 0, 0], hit: [0.45, 0.05, 0.12, 0, 0, 0] },                              // chém ngược phải → trái
+  knife_l3:   { wind: [0, 0.02, -0.2, 0, 0, 0], hit: [0, 0, 0.12, 0, 0, 0] },                                       // đâm liên hoàn: co tay rồi duỗi thẳng
+  knife_llr:  { wind: [0.05, 0.28, -0.05, DOWN, 0, 0], hit: [0, -0.1, 0.12, DOWN, 0, 0] },                           // giơ cao rồi giáng xuống
+  knife_spin: { wind: [0.6, 0.1, -0.05, 0, 0, 0], hit: [-0.45, 0.05, 0.12, 0, 0, 0] },                              // bão dao: quét hết tầm nhìn
+  knife_lr:   { wind: [-0.05, 0.28, -0.05, DOWN, 0, 0], hit: [0.05, -0.1, 0.12, DOWN, 0, 0] },
+  knife_rise: { wind: [0.05, -0.35, -0.05, 0.4, 0, 0], hit: [0, 0.3, 0.12, 0.4, 0, 0] },                           // khoét từ thấp lên cao
+  knife_r1:   { wind: [0, 0.28, -0.1, DOWN, 0, 0], hit: [0, -0.15, 0.12, DOWN, 0, 0] },                              // cầm ngược, đâm xuống
+  knife_rr:   { wind: [0, 0.28, -0.05, DOWN, 0, 0], hit: [0, -0.1, 0.12, DOWN, 0, 0] },                              // xoáy kép: hai nhát giáng liền
+  knife_flip: { wind: [0.45, 0, 0, 0, 0, 0], hit: [-0.4, 0.05, 0.12, 0, 0, 0] },                                    // lật tay chém nhanh
 }
 
-export const GUARD_POSE: Pose = [0.04, 0.09, -0.12, 0.05, 1.3, 0.1]       // lưỡi ngang trước mặt
-export const STAGGER_POSE: Pose = [0, -0.06, 0.04, 0.35, 0, 0.2]            // dao tụt xuống, mũi ngóc lên
-const BLOCK_KICK: Pose = [0, 0.02, 0.08, 0.12, 0, 0]                        // giật lại khi đỡ trúng
-const PARRY_KICK: Pose = [0, 0.04, -0.1, -0.25, 0.3, 0.15]                  // gạt ra khi parry thành công
+export const GUARD_POSE: Pose = [0.2, 0.1, -0.04, 0, 1.3, 0.1]             // cánh tay đưa chếch trái, lưỡi ngang trước mặt
+export const STAGGER_POSE: Pose = [0, -0.25, -0.1, 0.35, 0, 0.2]             // tay hạ xuống, dao ngóc lên
+const BLOCK_KICK: Pose = [0, 0.05, -0.06, 0, 0, 0]                           // giật lại khi đỡ trúng
+const PARRY_KICK: Pose = [0.25, 0.08, 0.05, 0, 0.2, 0]                       // gạt ra khi parry thành công
 
 const CANCEL_TAU = 0.07   // s: về tư thế nghỉ khi chiêu bị huỷ
 const STATE_TAU = 0.06    // s: vào/ra tư thế đỡ, choáng
 const KICK_TAU = 0.09
 
-export interface SwingFx { px: number; py: number; pz: number; rx: number; ry: number; rz: number }
+export interface SwingFx { yaw: number; pitch: number; ext: number; wx: number; wy: number; wz: number }
 
 interface Key { t: number; p: Pose; strike: boolean }
 
@@ -53,14 +58,12 @@ export function buildKeys(m: MeleeMove, style: SwingStyle): Key[] {
     keys.push({ t, p: w, strike: false })
     keys.push({ t: t + m.strikeMs, p: h, strike: true })
   }
-  // Về nghỉ ở cuối chiêu. Góc lăn về bội 2π gần nhất (cú lật cầm ngược / xoáy hoàn tất vòng thay vì tua ngược)
-  const lastRz = style.hit[5]! + d[5]! * (m.hitCount - 1)
-  keys.push({ t: moveDurationMs(m), p: [0, 0, 0, 0, 0, Math.round(lastRz / TAU) * TAU], strike: false })
+  keys.push({ t: moveDurationMs(m), p: REST, strike: false })   // về nghỉ khi hết chiêu
   return keys
 }
 
 export class MeleeSwing {
-  readonly fx: SwingFx = { px: 0, py: 0, pz: 0, rx: 0, ry: 0, rz: 0 }
+  readonly fx: SwingFx = { yaw: 0, pitch: 0, ext: 0, wx: 0, wy: 0, wz: 0 }
 
   private readonly keys: Key[][] = KNIFE_SET.moves.map(m => buildKeys(m, SWING_STYLES[m.key] ?? { wind: REST, hit: REST }))
   private readonly durations: number[] = KNIFE_SET.moves.map(m => moveDurationMs(m))
@@ -77,6 +80,8 @@ export class MeleeSwing {
   private readonly cur: number[] = [0, 0, 0, 0, 0, 0]
 
   get active(): boolean { return this.move >= 0 }
+  /** Mức đỡ 0..1 (mượt), để tay phụ nhích theo */
+  get guardAmount(): number { return this.guardW }
   get moveIdx(): number { return this.move }
   /** Tiến độ chiêu 0..1 */
   get progress(): number { return this.move < 0 ? 0 : clamp01(this.t / this.durations[this.move]!) }
@@ -157,7 +162,7 @@ export class MeleeSwing {
     const kK = Math.exp(-dt / KICK_TAU)
     for (let i = 0; i < 6; i++) { this.kick[i]! *= kK; c[i]! += this.kick[i]! }
 
-    f.px = c[0]!; f.py = c[1]!; f.pz = c[2]!; f.rx = c[3]!; f.ry = c[4]!; f.rz = c[5]!
+    f.yaw = c[0]!; f.pitch = c[1]!; f.ext = c[2]!; f.wx = c[3]!; f.wy = c[4]!; f.wz = c[5]!
   }
 
   private readonly tmp: number[] = [0, 0, 0, 0, 0, 0]

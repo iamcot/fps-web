@@ -3,14 +3,10 @@ import { KNIFE_SET, moveDurationMs } from '@fps/shared'
 import { MeleeSwing, SWING_STYLES, GUARD_POSE, buildKeys } from './meleeSwing'
 
 const DT = 1 / 60
-const TAU = Math.PI * 2
 function run(s: MeleeSwing, ms: number): void { for (let i = 0; i < Math.round(ms / (DT * 1000)); i++) s.update(DT) }
-const vec = (s: MeleeSwing): number[] => [s.fx.px, s.fx.py, s.fx.pz, s.fx.rx, s.fx.ry, s.fx.rz]
-/** Độ lệch so với tư thế nghỉ, bỏ qua bội 2π của góc lăn */
-const offRest = (s: MeleeSwing): number => {
-  const v = vec(s); v[5] = v[5]! - Math.round(v[5]! / TAU) * TAU
-  return Math.max(...v.map(Math.abs))
-}
+const vec = (s: MeleeSwing): number[] => [s.fx.yaw, s.fx.pitch, s.fx.ext, s.fx.wx, s.fx.wy, s.fx.wz]
+/** Độ lệch so với tư thế nghỉ */
+const offRest = (s: MeleeSwing): number => Math.max(...vec(s).map(Math.abs))
 
 describe('MeleeSwing', () => {
   it('mọi chiêu của KNIFE_SET đều có tư thế riêng', () => {
@@ -46,9 +42,9 @@ describe('MeleeSwing', () => {
     const s = new MeleeSwing()
     s.start(0)
     run(s, m.windupMs - 10)                               // sát giờ nhát đánh (khung 16,7 ms nên chừa một khung)
-    expect(s.fx.ry).toBeGreaterThan(st.wind[4] * 0.8)    // đã gồng sang trái
+    expect(s.fx.yaw).toBeGreaterThan(st.wind[0] * 0.8)   // đã gồng sang trái
     run(s, m.strikeMs + 10)
-    expect(s.fx.ry).toBeLessThan(st.hit[4] * 0.8)        // đã quét sang phải
+    expect(s.fx.yaw).toBeLessThan(0)                      // đã quét sang phải
   })
 
   it('huỷ giữa chừng: mờ về nghỉ rất nhanh, không nhảy', () => {
@@ -74,18 +70,18 @@ describe('MeleeSwing', () => {
   it('đỡ: vào tư thế đỡ khi rảnh tay, ra khỏi thì về nghỉ; đang ra chiêu thì không đỡ', () => {
     const s = new MeleeSwing()
     s.sync(true, false, false); run(s, 400)
-    expect(s.fx.ry).toBeCloseTo(GUARD_POSE[4], 1)
+    expect(s.fx.wy).toBeCloseTo(GUARD_POSE[4], 1)
     s.sync(false, false, false); run(s, 400)
     expect(offRest(s)).toBeLessThan(0.01)
     const t = new MeleeSwing()
     t.sync(true, false, true); t.start(0); run(t, 10)
-    expect(Math.abs(t.fx.ry)).toBeLessThan(0.5)   // chưa kịp kéo về tư thế đỡ giữa lúc đánh
+    expect(Math.abs(t.fx.wy)).toBeLessThan(0.5)   // chưa kịp kéo về tư thế đỡ giữa lúc đánh
   })
 
   it('choáng: dao tụt xuống; hết choáng thì hồi', () => {
     const s = new MeleeSwing()
     s.sync(false, true, false); run(s, 400)
-    expect(s.fx.py).toBeLessThan(-0.04)
+    expect(s.fx.pitch).toBeLessThan(-0.1)
     s.sync(false, false, false); run(s, 400)
     expect(offRest(s)).toBeLessThan(0.01)
   })

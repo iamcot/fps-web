@@ -3,7 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import type { TeamId } from "@fps/shared";
 import { BlockArm } from "./blockArm";
-import { FpArms } from "./fpArms";
+import { FpArms, KNIFE_GRIP_R, SUPPORT_GRIP_L, type FpSolveOpts } from "./fpArms";
 import type { SkinId } from "./characterRig";
 import { GrenadeAnim, pathSegment, type LogicPhase } from "./grenadeAnim";
 import { GRENADE_ID, WEAPONS } from "@fps/shared";
@@ -13,6 +13,9 @@ import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf,
 
 // ── Hằng số ────────────────────────────────────────────────────────────────────
 const GUN_DEFAULT_POS = new THREE.Vector3(0.28, -0.3, -0.45);
+// Tay phụ khi cầm dao (không gian camera): trước ngực chếch trái, thấp hơn dao; góc bàn tay: lòng bàn tay hướng vào trong
+const SUPPORT_REST: readonly [number, number, number] = [-0.14, -0.3, -0.5];
+const SUPPORT_ROT_DEG: readonly [number, number, number] = [10, -40, 15];
 const GUN_HIDDEN_Y = -0.55;
 const ANIM_HALF = 0.15; // 0.15 s mỗi chiều
 
@@ -402,6 +405,10 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   let aimT = 0;
   const knife = new KnifeAnim();
   const swing = new MeleeSwing();
+  const _fpOpts: FpSolveOpts = {};
+  const _supQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(SUPPORT_ROT_DEG[0] * DEG, SUPPORT_ROT_DEG[1] * DEG, SUPPORT_ROT_DEG[2] * DEG, "XYZ"));
+  let guardPull = 0;
+  const _arm = new THREE.Vector3(), _armQ = new THREE.Quaternion(), _wristQ = new THREE.Quaternion(), _armE = new THREE.Euler(), _hand = new THREE.Vector3(), _wh = new THREE.Vector3();
   const isKnife = (id: number): boolean => WEAPONS[id]?.category === "knife";
 
   // ── Lựu đạn (G.5) ──────────────────────────────────────────────────────────
@@ -560,7 +567,8 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     const kickMul = 1 - 0.5 * a;          // giật hình (lùi/ngóc súng) giảm 50% lúc ngắm
     knife.update(dt, isKnife(currentWeapon) && !hidden, phase === "idle", Math.min(1, moveSpeed / BOB_REF_SPEED), bobPhase, bobAmp);
     swing.update(isKnife(currentWeapon) && !hidden ? dt : 0);
-    const kf = knife.fx, sf = swing.fx;
+    guardPull = swing.guardAmount;
+    const kf = knife.fx;
     const nadeCfg = currentWeapon === GRENADE_ID ? pose.grenade : undefined;
     const nadeOut = nadeCfg ? nadeAnim.update(dt * 1000) : null;
     if (nadeOut && nadeCfg) {
@@ -574,17 +582,40 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     } else {
       gunGroup.visible = !(aimScoped && aimT > 0.6) && !hidden;
       gunGroup.position.set(
-        bx + (adsX - bx) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob + kf.px + sf.px,
-        by + (adsY - by) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r + kf.py + sf.py,
-        bz + (adsZ - bz) * a + KICK_BACK * kick * kickMul + kf.pz + sf.pz,
+        bx + (adsX - bx) * a + Math.sin(bobPhase) * BOB_AMP_X * bobAmp * bob + kf.px,
+        by + (adsY - by) * a + switchOffY + Math.sin(bobPhase * 2) * BOB_AMP_Y * bobAmp * bob - RELOAD_DROP * r + kf.py,
+        bz + (adsZ - bz) * a + KICK_BACK * kick * kickMul + kf.pz,
       );
       const hip = 1 - a;   // góc đặt súng của poses.json mất dần khi ngắm (thân súng thẳng)
       gunGroup.rotation.set(
-        pose.gunRotDeg[0] * DEG * hip + (pose.adsRotDeg?.[0] ?? 0) * DEG * a + KICK_PITCH * kick * kickMul - RELOAD_TILT * r + tiltPitch + kf.rx + sf.rx,
-        pose.gunRotDeg[1] * DEG * hip + (pose.adsRotDeg?.[1] ?? 0) * DEG * a + kf.ry + sf.ry,
-        pose.gunRotDeg[2] * DEG * hip + (pose.adsRotDeg?.[2] ?? 0) * DEG * a + tiltRoll + kf.rz + sf.rz,
+        pose.gunRotDeg[0] * DEG * hip + (pose.adsRotDeg?.[0] ?? 0) * DEG * a + KICK_PITCH * kick * kickMul - RELOAD_TILT * r + tiltPitch + kf.rx,
+        pose.gunRotDeg[1] * DEG * hip + (pose.adsRotDeg?.[1] ?? 0) * DEG * a + kf.ry,
+        pose.gunRotDeg[2] * DEG * hip + (pose.adsRotDeg?.[2] ?? 0) * DEG * a + tiltRoll + kf.rz,
       );
       gunGroup.scale.setScalar(pose.scale);
+    }
+
+    // Quơ dao (P4): xoay cả cánh tay quanh vai trong không gian camera. Dao + bàn tay xoay cứng theo, tay IK với theo bàn tay → cả cánh tay quơ
+    if (!nadeOut && isKnife(currentWeapon)) {
+      const sf = swing.fx;
+      if (sf.yaw !== 0 || sf.pitch !== 0 || sf.ext !== 0 || sf.wx !== 0 || sf.wy !== 0 || sf.wz !== 0) {
+        const sh = poses.first.shoulderR;
+        _arm.set(gunGroup.position.x - sh[0], gunGroup.position.y - sh[1], gunGroup.position.z - sh[2]);
+        _armQ.setFromEuler(_armE.set(sf.pitch, sf.yaw, 0, "YXZ"));
+        _arm.applyQuaternion(_armQ);
+        const len = _arm.length();
+        if (len > 1e-6) _arm.multiplyScalar((len + sf.ext) / len);
+        gunGroup.position.set(sh[0] + _arm.x, sh[1] + _arm.y, sh[2] + _arm.z);
+        gunGroup.quaternion.premultiply(_armQ);
+        if (sf.wx !== 0 || sf.wy !== 0 || sf.wz !== 0) {   // cổ tay xoay quanh bàn tay (không quanh gốc model) để bàn tay đứng yên trên cánh tay
+          _wristQ.setFromEuler(_armE.set(sf.wx, sf.wy, sf.wz, "XYZ"));
+          getAnchor(currentWeapon, "hand_r", _hand);
+          _wh.copy(_hand).applyQuaternion(_wristQ);
+          _hand.sub(_wh).multiplyScalar(pose.scale).applyQuaternion(gunGroup.quaternion);
+          gunGroup.position.add(_hand);
+          gunGroup.quaternion.multiply(_wristQ);
+        }
+      }
     }
 
     // Tay: giải IK SAU khi mọi hiệu ứng đã áp lên súng (thứ tự này tránh tay trễ súng một frame)
@@ -601,7 +632,9 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
     getAnchor(currentWeapon, "hand_r", targetR).applyMatrix4(M);
     armR.solve(shoulderR, targetR, poleR);
     dbg.validR = true;
-    const leftOn = showArms && pose.hold !== "oneHand";
+    // Dao: tay trái hiện ra làm tay phụ (không cầm dao), nằm trước ngực chếch trái, hơi lệch theo cú quơ của tay phải
+    const support = showArms && !nadeOut && isKnife(currentWeapon);
+    const leftOn = showArms && (pose.hold !== "oneHand" || support);
     armL.setVisible(leftOn && !useFp);
     dbg.validL = leftOn;
     let nadeRotR: Vec3 | undefined, nadeRotL: Vec3 | undefined;
@@ -623,6 +656,10 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       targetL.copy(nadeLeft);
       armL.solve(shoulderL, targetL, poleL);
       nadeRotR = nadeCfg.handRotDegR; nadeRotL = nadeCfg.handRotDegL;
+    } else if (support) {
+      const sf = swing.fx;
+      targetL.set(SUPPORT_REST[0] - sf.yaw * 0.08 - guardPull * 0.06, SUPPORT_REST[1] + sf.pitch * 0.08 + guardPull * 0.05, SUPPORT_REST[2] - sf.ext * 0.4 - guardPull * 0.04);
+      armL.solve(shoulderL, targetL, poleL);
     } else if (leftOn) {
       const keys = rl.keys;
       if (rp >= 0 && keys.length >= 2) {
@@ -645,7 +682,9 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       fp.setVisible(showArms)
       fp.setLeftVisible(leftOn)
       fp.place()
-      fp.solve(targetR, leftOn ? targetL : null, gunGroup.quaternion, nadeRotR, nadeRotL)
+      _fpOpts.gripR = support ? KNIFE_GRIP_R : undefined; _fpOpts.gripL = support ? SUPPORT_GRIP_L : undefined
+      _fpOpts.leftQuat = support ? _supQ : undefined
+      fp.solve(targetR, leftOn ? targetL : null, gunGroup.quaternion, nadeRotR, nadeRotL, _fpOpts)
     }
     updateMag(rp);
     armR.setReachedColor(dbg.showReach);
