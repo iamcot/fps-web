@@ -22,7 +22,7 @@ let _flashlightAllowed = false // phòng ban đêm + mình là người
 const _overlay = document.createElement('div')
 _overlay.style.cssText =
   'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;' +
-  'background:rgba(0,0,0,0.55);color:#fff;font:28px monospace;cursor:pointer;z-index:10;' +
+  'background:rgba(0,0,0,0);color:#fff;font:28px monospace;cursor:pointer;z-index:10;' +
   'user-select:none'
 _overlay.textContent = t('Click to play')
 document.body.appendChild(_overlay)
