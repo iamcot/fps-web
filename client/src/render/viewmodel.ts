@@ -14,9 +14,10 @@ import { poses, weaponPose, getAnchor, scanModelAnchors, onPosesChange, colorOf,
 // ── Hằng số ────────────────────────────────────────────────────────────────────
 const GUN_DEFAULT_POS = new THREE.Vector3(0.28, -0.3, -0.45);
 // Tay phụ khi cầm dao (không gian camera): trước ngực chếch trái, thấp hơn dao; góc bàn tay: lòng bàn tay hướng vào trong
-/** Xoay dao so với bàn tay phải (độ, XYZ cục bộ của dao) */
-const KNIFE_IN_HAND_DEG: Vec3 = [60, 0, 0];
-const KNIFE_HAND_COUNTER: Vec3 = [-KNIFE_IN_HAND_DEG[0], 0, 0];   // bàn tay hoàn lại phần xoay trên (chỉ đúng khi xoay một trục)
+/** Dao xoay so với bàn tay phải quanh trục x cục bộ (độ): cầm xuôi lưỡi chỉa lên phía ngón cái, cầm ngược lật 180° lưỡi chúc xuống phía ngón út */
+const KNIFE_GRIP_FWD_DEG = 60;
+const KNIFE_GRIP_REV_DEG = -120;
+const _knifeCounter: Vec3 = [0, 0, 0];   // bàn tay hoàn lại phần xoay trên nên hướng bàn tay không đổi
 const SUPPORT_REST: readonly [number, number, number] = [-0.14, -0.3, -0.5];
 const SUPPORT_ROT_DEG: readonly [number, number, number] = [10, -40, 15];
 const GUN_HIDDEN_Y = -0.55;
@@ -622,7 +623,9 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
 
     // Dao nằm trong nắm tay: xoay dao quanh điểm nắm (cán trong nắm, lưỡi chỉa lên từ phía ngón cái), bàn tay giữ nguyên hướng
     if (!nadeOut && isKnife(currentWeapon)) {
-      _wristQ.setFromEuler(_armE.set(KNIFE_IN_HAND_DEG[0] * DEG, KNIFE_IN_HAND_DEG[1] * DEG, KNIFE_IN_HAND_DEG[2] * DEG, "XYZ"));
+      const g = KNIFE_GRIP_FWD_DEG + (KNIFE_GRIP_REV_DEG - KNIFE_GRIP_FWD_DEG) * swing.fx.grip;
+      _knifeCounter[0] = -g;
+      _wristQ.setFromEuler(_armE.set(g * DEG, 0, 0, "XYZ"));
       getAnchor(currentWeapon, "hand_r", _hand);
       _wh.copy(_hand).applyQuaternion(_wristQ);
       _hand.sub(_wh).multiplyScalar(pose.scale).applyQuaternion(gunGroup.quaternion);
@@ -672,7 +675,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       const sf = swing.fx;
       targetL.set(SUPPORT_REST[0] - sf.yaw * 0.08 - guardPull * 0.06, SUPPORT_REST[1] + sf.pitch * 0.08 + guardPull * 0.05, SUPPORT_REST[2] - sf.ext * 0.4 - guardPull * 0.04);
       armL.solve(shoulderL, targetL, poleL);
-      nadeRotR = KNIFE_HAND_COUNTER;
+      nadeRotR = _knifeCounter;
     } else if (leftOn) {
       const keys = rl.keys;
       if (rp >= 0 && keys.length >= 2) {
