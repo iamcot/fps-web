@@ -12,7 +12,7 @@ export { playBuyOk, playBuyFail, playRoundStart, playRoundWin, playRoundLose, pl
 export { playShot, playShotOther, playSwing, playDry, playDraw, startReload, cancelReload } from './gunAudio'
 export { playFootstep, playLanding, playFootstepOther, FOOTSTEPS } from './footsteps'
 export { StepTracker } from './audioMath'
-export { playHit, playHurt, setHealthForAudio, playMonsterKill } from './hitAudio'
+export { playHit, playHurt, setHealthForAudio, playMonsterKill, playBlock, playParry, playGuardBreak } from './hitAudio'
 export { playPin, playSpoon, playThrowSwish, playBounce, playExplode, tinnitus } from './grenadeAudio'
 export { playGrowl, playScream, playClawHit, playZombieStep, playZombieHurt, playZombieDeath, playInfectSting, startNightAmbient, stopNightAmbient, setNearbyZombieHeartbeat, updateZombieAudio } from './zombieAudio'
 export type { HitKind } from './hitAudio'

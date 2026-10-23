@@ -6,6 +6,7 @@ import { DEFAULT_ANIM, type CharacterRig } from './characters/types'
 import { poses } from './poses'
 import { SkeletonArm, FINGER_NAMES, type FingerBones } from './skeletonArm'
 import { CLIP_NAMES, SLOTS, clipRate, locoTargets, makeSlotWeights, slotClip, type Slot } from './locomotion'
+import type { MeleeClip } from './meleeClips'
 import { applyTeamTint, makeOutlineMesh, OUTLINE_ALLY, OUTLINE_ENEMY, teamTintDef, type TeamTintHandle } from './teamTint'
 import { Z_CLIPS, Z_DEATH, ZOMBIE_ATTACK, ZOMBIE_JUMP_HOLD, ZOMBIE_RUN_BLEND, ZOMBIE_RUN_START, fitRate, zombieClipRate, zombieSlotClip, type ZombieAttackKind } from './zombieAnim'
 
@@ -28,6 +29,7 @@ const THROW_FADE_IN_S = 0.08, THROW_FADE_OUT_S = 0.15
 const PULL_S = 0.3                   // tay trái chạm vòng chốt từng ấy giây rồi buông
 const PULL_RAMP_S = 0.1
 const LOWER_BODY = /^mixamorig(Hips|(Left|Right)(UpLeg|Leg|Foot|ToeBase|Toe_End))\./
+const MELEE_CLIP_TAU = 0.05   // s, mờ vào / ra của clip cận chiến
 const IK_FADE_S = 0.15       // tắt/bật IK khi chết/hồi sinh
 const CORPSE_HOLD_S = 3      // xác nằm yên từng ấy giây rồi mờ dần
 const CORPSE_FADE_S = 0.7
@@ -173,6 +175,9 @@ export class SkelCharacter {
   private zombie = false
   private zov: { act: THREE.AnimationAction; t: number; dur: number } | null = null
   private zovActions = new Map<string, THREE.AnimationAction>()
+  // Clip cận chiến (thân trên): thời gian do bên gọi đặt từng frame (co giãn theo chiêu), nên timeScale = 0
+  private melee: { act: THREE.AnimationAction; fade: number; target: number } | null = null
+  private meleeActions = new Map<string, THREE.AnimationAction>()
 
   /** `zombieFile`: dựng từ model zombie riêng (zombies/*.glb) thay vì model người của đội */
   constructor(skin: SkinId, team: TeamId, zombieFile?: string) {
@@ -234,6 +239,35 @@ export class SkelCharacter {
     this.refreshGunAnchor()
     debugList.push(this)
     if (zombieFile) this.setZombie(true)
+  }
+
+  // ── Clip cận chiến ───────────────────────────────────────────────────────────
+  /** Bật clip `c` (thân trên) ghi đè lên animation chạy. `on=false`: mờ dần ra. */
+  setMeleeClip(c: MeleeClip | null): void {
+    if (this.melee && (!c || this.melee.act.getClip() !== this.meleeActions.get(c.name)?.getClip())) this.melee.target = 0
+    if (!c) return
+    let act = this.meleeActions.get(c.name)
+    if (!act) {
+      act = this.mixer.clipAction(upperBodyClip(c.clip)); act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; act.timeScale = 0
+      this.meleeActions.set(c.name, act)
+    }
+    if (this.melee?.act === act) { this.melee.target = 1; return }
+    if (this.melee) this.melee.act.stop()
+    act.reset(); act.timeScale = 0; act.setEffectiveWeight(0); act.play()
+    this.melee = { act, fade: 0, target: 1 }
+  }
+  /** Thời gian trong clip (giây), áp ở frame animate kế tiếp. Gọi mỗi frame khi đang có clip. */
+  meleeClipT = 0
+  /** Độ phủ 0..1 của clip cận chiến (mờ vào / ra); > 0.5 thì bên gọi tắt IK tay */
+  get meleeClipW(): number { return this.melee?.fade ?? 0 }
+  private stepMeleeClip(dt: number): void {
+    const m = this.melee
+    if (!m) return
+    m.fade += (m.target - m.fade) * (1 - Math.exp(-dt / MELEE_CLIP_TAU))
+    if (m.target === 0 && m.fade < 0.02) { m.act.stop(); this.melee = null; return }
+    m.act.time = this.meleeClipT
+    const e = Math.min(0.98, m.fade)
+    m.act.setEffectiveWeight(e / (1 - e))
   }
 
   // ── Zombie ───────────────────────────────────────────────────────────────────
@@ -372,6 +406,7 @@ export class SkelCharacter {
     }
     if (this.pullT > 0) this.pullT = Math.max(0, this.pullT - f.dt)
     this.model.position.y = this.zombie ? 0 : -(poses.character.crouchDrop * (this.weight.get('rifle_crouch_idle') ?? 0) + poses.character.crouchWalkDrop * (this.weight.get('rifle_crouch_walk') ?? 0))
+    this.stepMeleeClip(f.dt)
     this.mixer.update(f.dt)
     this.root.updateMatrixWorld(true)
 
@@ -499,6 +534,16 @@ export class SkelCharacter {
     const solid = op >= 1
     for (const m of this.mats) { m.opacity = op; if (m.transparent === solid) { m.transparent = !solid; m.needsUpdate = true } }
     this.opaque = solid
+  }
+
+  /** Cận chiến (plan 19 P5): xoắn thân trên quanh trục đứng (`twist`, + = sang trái) và ngả sau (`lean`, + = ngả ra sau), chia đều các xương spine.
+   *  Gọi sau animate(), trước placeAim()/IK tay. */
+  bendSpine(twist: number, lean: number): void {
+    if (twist === 0 && lean === 0) return
+    const n = this.spine.length
+    if (twist !== 0) { _axis.set(0, 1, 0).transformDirection(this.root.matrixWorld); for (const b of this.spine) rotateAboutWorld(b, _axis, twist / n) }
+    if (lean !== 0) { _axis.set(1, 0, 0).transformDirection(this.root.matrixWorld); for (const b of this.spine) rotateAboutWorld(b, _axis, lean / n) }
+    this.root.updateMatrixWorld(true)
   }
 
   // ── Súng ─────────────────────────────────────────────────────────────────────

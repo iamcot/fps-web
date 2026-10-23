@@ -47,6 +47,26 @@
       ],
       "mid": [],
       "grenades": 0
+    },
+    "melee": {
+      "reactionMs": [
+        260,
+        420
+      ],
+      "guardChance": 0.45,
+      "parryChance": 0.12,
+      "aimErrorDeg": 4,
+      "turnDegPerSec": 360,
+      "comboPauseMs": [
+        500,
+        1100
+      ],
+      "strafeMs": [
+        500,
+        1200
+      ],
+      "retreatStamina": 20,
+      "resumeStamina": 55
     }
   },
   "hard": {
@@ -100,6 +120,26 @@
         "shotgun"
       ],
       "grenades": 1
+    },
+    "melee": {
+      "reactionMs": [
+        150,
+        260
+      ],
+      "guardChance": 0.65,
+      "parryChance": 0.35,
+      "aimErrorDeg": 2,
+      "turnDegPerSec": 540,
+      "comboPauseMs": [
+        300,
+        750
+      ],
+      "strafeMs": [
+        350,
+        900
+      ],
+      "retreatStamina": 25,
+      "resumeStamina": 60
     }
   }
 }

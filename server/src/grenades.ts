@@ -16,7 +16,7 @@ const OCCLUSION_EPS = 0.05    // tia chạm tường cách đích dưới mức 
 const CENTER_LIFT = 0.1       // nâng tâm nổ khi bắn tia che chắn (không bắn xuyên sàn ngay dưới quả)
 const CHEST = 1.1, FEET = 0.15   // độ cao điểm ngực/chân so với chân người (đứng); ngồi nhân tỉ lệ
 
-function anyWorld(room: Room, prefer?: Player): CollisionWorld | null {
+export function anyWorld(room: Room, prefer?: Player): CollisionWorld | null {
   if (prefer?.world) return prefer.world
   for (const p of room.players.values()) if (p.world) return p.world
   return null

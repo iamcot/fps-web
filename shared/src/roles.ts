@@ -15,6 +15,6 @@ export function flagSpeedMul(flags: number, runSpeed = defaultMovement.runSpeed)
 }
 
 /** Nút bị cấm khi gục: không nhảy, không ngồi, không ném lựu đạn, không dùng chiêu */
-export const DOWNED_BUTTON_MASK = ~(Btn.Jump | Btn.Crouch | Btn.QuickNade | Btn.Ability)
+export const DOWNED_BUTTON_MASK = ~(Btn.Jump | Btn.Crouch | Btn.QuickNade | Btn.Ability | Btn.Interact)
 /** Ô súng ngắn: người gục chỉ bắn được súng ngắn */
 export const DOWNED_WEAPON_SLOT = 1

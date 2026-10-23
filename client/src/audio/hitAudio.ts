@@ -133,6 +133,26 @@ export function playHit(kind: HitKind): boolean {
 
 // ── Bị trúng (nạn nhân) ───────────────────────────────────────────────────────
 /** dir = hướng từ người chơi tới người bắn (không cần chuẩn hoá). Đặt nguồn cách 1m theo hướng đó. */
+// ── Cận chiến: đỡ / parry / vỡ thế thủ (plan 19, P4). Tổng hợp kim loại: vài hài âm không nguyên + tiếng gõ ngắn ──
+function clang(g: AudioGraph, baseHz: number, db: number, decayMs: number, crackDb: number): void {
+  const t = g.ctx.currentTime
+  for (const [ratio, d] of [[1, 0], [2.76, -5], [5.4, -9]] as const) {
+    tone(g.ctx, g.master, { type: 'sine', freq: baseHz * ratio, gainDb: db + d, attackMs: 1, decayMs: decayMs / (1 + ratio * 0.15), when: t })
+  }
+  noise(g.ctx, g.master, { filter: 'bandpass', freq: baseHz * 3, q: 1.5, gainDb: crackDb, decayMs: 35, when: t })
+}
+/** Đòn bị đỡ (cả người đỡ lẫn người đánh nghe): keng ngắn, trầm */
+export function playBlock(): void { const g = getGraph(); if (g) clang(g, 1500, -10, 160, -8) }
+/** Parry thành công: keng cao, vang dài hơn */
+export function playParry(): void { const g = getGraph(); if (g) { clang(g, 2300, -6, 420, -4); tone(g.ctx, g.master, { type: 'sine', freq: 3900, gainDb: -14, attackMs: 1, decayMs: 600, when: g.ctx.currentTime + 0.01 }) } }
+/** Vỡ thế thủ: keng rồi thịch nặng */
+export function playGuardBreak(): void {
+  const g = getGraph()
+  if (!g) return
+  clang(g, 1100, -8, 260, -6)
+  tone(g.ctx, g.master, { type: 'sine', freq: 150, freqEnd: 55, gainDb: -6, attackMs: 3, decayMs: 220, when: g.ctx.currentTime + 0.02 })
+}
+
 export function playHurt(dirX: number, dirY: number, dirZ: number): void {
   const g = getGraph()
   if (!g) return

@@ -1,6 +1,6 @@
 import {
   MAX_PELLETS, MAX_REWIND_MS, MsgType, WEAPONS, TICK_RATE, ZOMBIE, CLAW_HEAVY_ID, computeShotDirs, computeSpreadDeg, damageFalloff, hitboxesFor, rayAabb, movementFor, knockbackImpulse, applyKnockback,
-  type HitBox, type ShotFxMsg, type InputCmd, type MovementConfig, type PlayerState, type WeaponDef,
+  type HitBox, type HitConfirmMsg, type ShotFxMsg, type InputCmd, type MovementConfig, type PlayerState, type WeaponDef,
 } from '@fps/shared'
 import type { Player, Room } from './room'
 import type { PastPlayer } from './lagComp'
@@ -18,6 +18,39 @@ const kbImp: [number, number, number] = [0, 0, 0]
 export function rewindTime(fireRenderTime: number | undefined, serverNow: number): number {
   if (fireRenderTime === undefined) return serverNow
   return Math.min(serverNow, Math.max(serverNow - MAX_REWIND_MS, fireRenderTime))
+}
+
+/**
+ * Áp một lần trúng lên `target` (sát thương đã nhân hệ số vùng / falloff, chưa nhân takenMult): trừ máu, đẩy lùi, gửi Hurt + HitConfirm.
+ * `origin` = mắt người bắn (cho Hurt). `outcome` = kết quả cận chiến (MELEE_OUTCOME), bỏ qua với súng.
+ */
+export function applyHit(shooter: Player, room: Room, target: Player, damage: number, headshot: boolean, def: WeaponDef, origin: readonly number[], outcome?: number): void {
+  const s = shooter.state
+  // Bất tử tính theo giờ hiện tại của server (không tua). Chỉ trừ máu người còn sống và chưa bị chốt chết.
+  const invuln = room.serverNow < target.invulnUntil
+  // Zombie không đánh người đang gục (để đồng đội kịp chạy tới cứu; gục chỉ chết do hết giờ chảy máu)
+  const applied = invuln || !target.alive || target.hp <= 0 || (target.downed && shooter.npc) ? 0 : Math.round(damage * target.takenMult)
+  if (applied > 0) {
+    target.hp -= applied
+    target.lastHurtAt = room.serverNow
+    room.mode.onDamage?.(room, shooter, target, applied)
+    if (target.zstats && !def.melee) {   // zombie trúng đạn bị đẩy lùi (shotgun đẩy rất mạnh), kèm hiện tượng văng khỏi gờ khi đang trên không
+      const dx = target.state.pos[0] - s.pos[0], dz = target.state.pos[2] - s.pos[2]
+      const dl = Math.hypot(dx, dz) || 1
+      knockbackImpulse(kbImp, def.key, applied, target.zstats.knockbackResist, dx / dl, dz / dl, !target.state.grounded)
+      applyKnockback(target.state.vel, kbImp)
+    }
+    if (target.hp <= 0) { target.killerId = shooter.id; target.killWeapon = def.id; target.killHeadshot = headshot }
+    target.transport.send({ t: MsgType.Hurt, origin: [origin[0]!, origin[1]!, origin[2]!], damage: applied, ...(outcome ? { outcome } : {}) })
+    if (shooter.zstats?.shoveSpeed && def.melee && !target.zstats) {   // brute: cào trúng đẩy người lùi (khỏi gờ tường!)
+      const dx = target.state.pos[0] - s.pos[0], dz = target.state.pos[2] - s.pos[2], dl = Math.hypot(dx, dz) || 1
+      target.state.vel[0] += dx / dl * shooter.zstats.shoveSpeed; target.state.vel[2] += dz / dl * shooter.zstats.shoveSpeed
+    }
+  }
+  else if (outcome) target.transport.send({ t: MsgType.Hurt, origin: [origin[0]!, origin[1]!, origin[2]!], damage: 0, outcome })   // đòn bị đỡ / parry hết sát thương: vẫn báo cho người đỡ
+  const hc: HitConfirmMsg = { t: MsgType.HitConfirm, damage: applied, headshot, targetId: target.id }
+  if (outcome) hc.outcome = outcome
+  shooter.transport.send(hc)
 }
 
 // Chấm một phát bắn của `shooter` (vừa chạy cmd, state đã là sau cmd). Đối thủ được tua về cmd.fireRenderTime (lag compensation); tường và người bắn thì không.
@@ -86,33 +119,7 @@ export function resolveShot(shooter: Player, room: Room, cmd: InputCmd, baseCfg:
     })
   }
 
-  for (const [hitId, tot] of hitTotals) {
-    const target = room.players.get(hitId)!
-    const damage = tot.damage
-    const headshot = tot.headshot
-    // Bất tử tính theo giờ hiện tại của server (không tua). Chỉ trừ máu người còn sống và chưa bị chốt chết.
-    const invuln = room.serverNow < target.invulnUntil
-    // Zombie không đánh người đang gục (để đồng đội kịp chạy tới cứu; gục chỉ chết do hết giờ chảy máu)
-    const applied = invuln || !target.alive || target.hp <= 0 || (target.downed && shooter.npc) ? 0 : Math.round(damage * target.takenMult)
-    if (applied > 0) {
-      target.hp -= applied
-      target.lastHurtAt = room.serverNow
-      room.mode.onDamage?.(room, shooter, target, applied)
-      if (target.zstats && !def.melee) {   // zombie trúng đạn bị đẩy lùi (shotgun đẩy rất mạnh), kèm hiện tượng văng khỏi gờ khi đang trên không
-        const dx = target.state.pos[0] - s.pos[0], dz = target.state.pos[2] - s.pos[2]
-        const dl = Math.hypot(dx, dz) || 1
-        knockbackImpulse(kbImp, def.key, applied, target.zstats.knockbackResist, dx / dl, dz / dl, !target.state.grounded)
-        applyKnockback(target.state.vel, kbImp)
-      }
-      if (target.hp <= 0) { target.killerId = shooter.id; target.killWeapon = def.id; target.killHeadshot = headshot }
-      target.transport.send({ t: MsgType.Hurt, origin: [eye[0], eye[1], eye[2]], damage: applied })
-      if (shooter.zstats?.shoveSpeed && def.melee && !target.zstats) {   // brute: cào trúng đẩy người lùi (khỏi gờ tường!)
-        const dx = target.state.pos[0] - s.pos[0], dz = target.state.pos[2] - s.pos[2], dl = Math.hypot(dx, dz) || 1
-        target.state.vel[0] += dx / dl * shooter.zstats.shoveSpeed; target.state.vel[2] += dz / dl * shooter.zstats.shoveSpeed
-      }
-    }
-    shooter.transport.send({ t: MsgType.HitConfirm, damage: applied, headshot, targetId: hitId })
-  }
+  for (const [hitId, tot] of hitTotals) applyHit(shooter, room, room.players.get(hitId)!, tot.damage, tot.headshot, def, eye)
 
   const fx: ShotFxMsg = {
     t: MsgType.ShotFx, shooterId: shooter.id, weapon: def.id,

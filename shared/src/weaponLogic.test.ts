@@ -186,8 +186,8 @@ describe('vũ khí mới (H.1)', () => {
   const SHOTGUN = weaponByKey('shotgun')!, SMG = weaponByKey('smg')!, KNIFE = weaponByKey('knife')!, SNIPER = weaponByKey('sniper')!
 
   it('mỗi súng có dòng/ô hợp lệ, dao không mua được, giá khớp bảng', () => {
-    const price: Record<string, number> = { knife: 0, colt: 300, rulo: 700, shotgun: 1100, smg: 1250, ak47: 2700, m16: 3100, sniper: 4750, m67: 300, claw: 0, claw_heavy: 0 }
-    expect(WEAPONS.length).toBe(11)   // 8 súng + lựu đạn M67 + 2 vuốt zombie
+    const price: Record<string, number> = { knife: 0, colt: 300, rulo: 700, shotgun: 1100, smg: 1250, ak47: 2700, m16: 3100, sniper: 4750, m67: 300, claw: 0, claw_heavy: 0, hammer: 1500, machete: 600, spear: 900, staff: 300 }   // vũ khí cận chiến: plan 19 mục 6
+    expect(WEAPONS.length).toBe(15)   // 8 súng + lựu đạn M67 + 2 vuốt zombie + 4 vũ khí cận chiến
     for (const w of WEAPONS) {
       expect(price[w.key], w.key).toBe(w.price)
       expect(CATEGORY_SLOT[w.category]).toBeGreaterThanOrEqual(0)

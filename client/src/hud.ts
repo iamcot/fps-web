@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { createBottomHud, type BottomHud } from './hudBottom'
+import { createMeleeHud, type MeleeHudModel } from './hudMelee'
 
 // ── Hitmarker ─────────────────────────────────────────────────────────────────
 function buildHitmarker() {
@@ -153,6 +154,7 @@ export interface HUDHandle {
   setCrosshairFov(deg: number): void
   setHealth(v: number): void
   setAmmo(name: string, cur: number, mag: number, reloading: boolean, melee?: boolean, consumable?: boolean, infinite?: boolean): void
+  setMelee(m: MeleeHudModel | null): void   // thể lực / đỡ / combo của vũ khí cận chiến; null = ẩn
   readonly bottom: BottomHud   // tiền, 4 ô vũ khí, nổi +$
 }
 
@@ -161,6 +163,7 @@ export function initHUD(scene: THREE.Scene): HUDHandle {
   const bh = buildBulletHoles(scene)
   const ch = buildCrosshair()
   const st = createBottomHud()
+  const melee = createMeleeHud()
 
   return {
     showHitmarker: (hs) => hm.show(hs),
@@ -174,6 +177,7 @@ export function initHUD(scene: THREE.Scene): HUDHandle {
     setCrosshairFov: (d) => ch.setFov(d),
     setHealth:     (v)   => st.setHealth(v),
     setAmmo:       (n, c, m, r, melee, cons, inf) => st.setAmmo(n, c, m, r, melee, cons, inf),
+    setMelee:      (m)   => melee.update(m),
     bottom:        st,
   }
 }

@@ -7,6 +7,7 @@ import { shootDir } from './hitbox'
 import { Btn } from './movement'
 import type { AdsMove, InputCmd } from './movement'
 import { TICK_RATE } from './constants'
+import { meleeMoveMul, meleeSetOf, resetMelee, stepMelee } from './melee'
 
 const DEG = Math.PI / 180
 
@@ -20,7 +21,7 @@ export function makeRecoilState(): RecoilState {
   return { pitch: 0, yaw: 0 }
 }
 
-export type WeaponEvent = 'none' | 'fired' | 'dry' | 'reloadStart' | 'reloadEnd' | 'switched' | 'pull' | 'cancel' | 'threw'
+export type WeaponEvent = 'none' | 'fired' | 'dry' | 'reloadStart' | 'reloadEnd' | 'switched' | 'pull' | 'cancel' | 'threw' | 'meleeStart'
 
 /** Bắt đầu nạp đạn nếu cần. Trả true nếu thực sự bắt đầu. */
 export function startReload(ws: WeaponState, def: WeaponDef, nowMs: number): boolean {
@@ -39,6 +40,7 @@ export function switchWeapon(ws: WeaponState, id: number, nowMs: number): boolea
   if (id !== GRENADE_ID) ws.nextFireMs = Math.max(ws.nextFireMs, nowMs + SWITCH_MS)   // lựu đạn không khoá: rút chốt (0,35s) chạy song song với tay đưa lên
   ws.nade.phase = 'idle'   // đổi súng khi đang rút chốt: huỷ (chưa ném thì còn nguyên lựu đạn)
   ws.switchBackAtMs = 0
+  resetMelee(ws)   // đổi vũ khí: huỷ chiêu đang chạy, hạ đỡ
   return true
 }
 
@@ -52,9 +54,10 @@ export function selectSlot(ws: WeaponState, slot: number, nowMs: number): boolea
   return switchWeapon(ws, id, nowMs)
 }
 
-/** Hệ số tốc độ chạy theo súng đang cầm (phần ngắm đi riêng qua adsMoveFor + adsT). */
-export function moveSpeedMul(ws: WeaponState): number {
-  return WEAPONS[ws.current]?.moveSpeedMul ?? 1
+/** Hệ số tốc độ chạy theo súng đang cầm (phần ngắm đi riêng qua adsMoveFor + adsT). Truyền nowMs (thang seq) để tính cả đánh / đỡ / choáng của cận chiến. */
+export function moveSpeedMul(ws: WeaponState, nowMs = -1): number {
+  const base = WEAPONS[ws.current]?.moveSpeedMul ?? 1
+  return nowMs < 0 ? base : base * meleeMoveMul(ws, nowMs)   // nowMs: thêm hệ số đang đánh / đỡ / choáng
 }
 
 /** Tham số ngắm của súng đang cầm cho stepMovement (null = súng không ngắm được). Trả đối tượng dùng chung theo súng, không cấp phát. */
@@ -222,6 +225,12 @@ export function stepWeaponCmd(ws: WeaponState, cmd: InputCmd): WeaponEvent {
   const quickDown = !!(cmd.buttons & Btn.QuickNade)
   const ev = stepGrenade(ws, cmd, nowMs, quickDown)
   if (ev !== null) return ev === 'none' && autoSwitched ? 'switched' : ev   // đang cầm lựu đạn (hoặc vừa bấm G): không chạy logic súng
+  const cur = WEAPONS[ws.current]!
+  const mset = cur.melee ? meleeSetOf(cur) : undefined
+  if (mset) {   // vũ khí cận chiến có bộ chiêu (plan 19): combo / đỡ thay cho logic bắn
+    const mev = stepMelee(ws, mset, cmd.buttons, nowMs)
+    return autoSwitched ? 'switched' : mev
+  }
   let trigger = !!(cmd.buttons & Btn.Fire)
   if (WEAPONS[ws.current]!.category === 'claw') {
     // Zombie: chuột trái = cào thường, chuột phải (Aim) = cào mạnh; hai kiểu dùng chung nhịp bắn (nextFireMs)
@@ -304,6 +313,13 @@ export function copyWeaponState(dst: WeaponState, src: WeaponState): void {
   dst.shotBloomDeg = src.shotBloomDeg
   dst.switchEndMs = src.switchEndMs
   dst.magMult = src.magMult
+  dst.meleeMove = src.meleeMove; dst.meleeStartMs = src.meleeStartMs; dst.meleeHits = src.meleeHits
+  dst.comboNode = src.comboNode; dst.chainEndMs = src.chainEndMs; dst.meleeBuf = src.meleeBuf; dst.meleeBufMs = src.meleeBufMs
+  dst.aimHeld = src.aimHeld; dst.guardKey = src.guardKey
+  dst.guardSinceMs = src.guardSinceMs; dst.parryUntilMs = src.parryUntilMs; dst.parryLockMs = src.parryLockMs
+  dst.stamina = src.stamina; dst.staminaMs = src.staminaMs; dst.staminaRegenAtMs = src.staminaRegenAtMs
+  dst.poise = src.poise; dst.poiseMs = src.poiseMs; dst.poiseRegenAtMs = src.poiseRegenAtMs
+  dst.staggerUntilMs = src.staggerUntilMs; dst.vulnerableUntilMs = src.vulnerableUntilMs
 }
 
 export function weaponStatesEqual(a: WeaponState, b: WeaponState): boolean {
@@ -312,6 +328,12 @@ export function weaponStatesEqual(a: WeaponState, b: WeaponState): boolean {
       a.throwSeq !== b.throwSeq || a.prevSlot !== b.prevSlot || a.switchBackAtMs !== b.switchBackAtMs || a.quickHeld !== b.quickHeld) return false
   if (a.current !== b.current || a.slot !== b.slot || a.wantSlot !== b.wantSlot || a.reloadEndMs !== b.reloadEndMs || a.nextFireMs !== b.nextFireMs ||
       a.shotSeq !== b.shotSeq || a.triggerHeld !== b.triggerHeld || a.shotBloomDeg !== b.shotBloomDeg || a.switchEndMs !== b.switchEndMs) return false
+  if (a.meleeMove !== b.meleeMove || a.meleeStartMs !== b.meleeStartMs || a.meleeHits !== b.meleeHits || a.comboNode !== b.comboNode || a.chainEndMs !== b.chainEndMs ||
+      a.meleeBuf !== b.meleeBuf || a.meleeBufMs !== b.meleeBufMs || a.aimHeld !== b.aimHeld || a.guardKey !== b.guardKey ||
+      a.guardSinceMs !== b.guardSinceMs || a.parryUntilMs !== b.parryUntilMs || a.parryLockMs !== b.parryLockMs ||
+      a.stamina !== b.stamina || a.staminaMs !== b.staminaMs || a.staminaRegenAtMs !== b.staminaRegenAtMs ||
+      a.poise !== b.poise || a.poiseMs !== b.poiseMs || a.poiseRegenAtMs !== b.poiseRegenAtMs ||
+      a.staggerUntilMs !== b.staggerUntilMs || a.vulnerableUntilMs !== b.vulnerableUntilMs) return false
   for (let i = 0; i < a.bloomDeg.length; i++) if (a.bloomDeg[i] !== b.bloomDeg[i] || a.lastShotMs[i] !== b.lastShotMs[i]) return false
   for (let i = 0; i < a.ammo.length; i++) if (a.ammo[i] !== b.ammo[i]) return false
   return true

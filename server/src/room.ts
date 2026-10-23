@@ -1,8 +1,10 @@
-import { DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, magSizeOf, makeRecoilState, sanitizeRoomConfig, type Role, type ZombieStats, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
+import { resetMelee, DEFAULT_CHARACTER_SET, DEFAULT_SLOT, DEFAULT_SETTINGS, GRENADE_ID, grenadeCount, MATCH, MatchPhase, MsgType, PLAYER_MAX_HP, WEAPONS, defaultLoadout, loadoutWeaponIds, otherTeam, SPAWN_INVULN_MS, makeWeaponState, magSizeOf, makeRecoilState, sanitizeRoomConfig, type Role, type ZombieStats, type EconomyConfig, type RoomConfig, type RoomOptions, type Loadout, type RecoilState, type WeaponState, type InputCmd, type LoadedMap, type PlayerState, type Transport, type MatchRules, type TeamId, type CharacterSetId, type RoomInfo, type MapInfo } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { LagHistory } from './lagComp'
 import type { RoomGrenade } from './grenades'
+import type { MeleeSweep } from './meleeSweep'
 import { dropOnDeath } from './grenades'
+import { worldWeaponSpawnMsg, type WorldWeapon } from './worldWeapons'
 import { createMode, type MatchMode } from './modes'
 import type { BotController } from './bots/controller'
 import type { NavGrid } from './bots/nav'
@@ -31,6 +33,7 @@ export interface Player {
   killerId: number               // ai bắn hạ (-1 = chưa); kèm vũ khí/headshot để gửi Kill
   killWeapon: number
   killHeadshot: boolean
+  interactHeld: boolean          // Btn.Interact (G) đang giữ ở cmd trước: chỉ nhặt / vứt ở cạnh lên
   deadCmd: InputCmd              // scratch: cmd đã bỏ nút khi đang chết
   debugShots: boolean            // F7: gửi DebugShot cho người này
   rewindClamped: number          // số phát bị kẹp vì fireRenderTime cũ hơn MAX_REWIND_MS
@@ -52,6 +55,9 @@ export interface Player {
   lastHurtAt: number             // serverTime lần cuối trúng đạn (zombie hồi máu sau regenDelayMs không bị bắn)
   transformUntil: number         // serverTime hết biến hình: trước đó bất tử, không di chuyển/bắn được
   pendingClaw: { at: number; cmd: InputCmd; defId: number } | null   // cào mạnh đang vung: trúng khi tới `at` (xác định lúc đó)
+  sweep: MeleeSweep | null       // cận chiến (plan 19): cửa sổ quét của nhát đang đánh
+  meleeRender: { off: number; atMs: number }   // fireRenderTime − giờ seq của cmd gần nhất có fireRenderTime (atMs < 0 = chưa có)
+  meleeRenderOff: number | null  // mốc tua của chiêu đang chạy (lấy lúc bắt đầu chiêu)
   damageMult: number             // anh hùng (Lây Nhiễm) ×1.5
   speedMult: number              // anh hùng ×1.1 tốc độ chạy
   hero: boolean
@@ -78,7 +84,7 @@ export function defaultRoomConfig(name: string, map: string, rules: MatchRules):
 /** Luật trận của một phòng: luật server + thông số từ cài đặt phòng */
 export function roomRules(base: MatchRules, config: RoomConfig): MatchRules {
   const r = { ...base, maxPerTeam: config.maxPlayers / 2 }
-  if (config.settings.mode === 'tdm') { r.killLimit = config.settings.killLimit; r.durationMs = config.settings.timeLimitMin * 60000 }
+  if (config.settings.mode === 'tdm' || config.settings.mode === 'melee') { r.killLimit = config.settings.killLimit; r.durationMs = config.settings.timeLimitMin * 60000 }
   return r
 }
 
@@ -91,6 +97,8 @@ export class Room {
   tick = 0        // số tick của phòng (TickLoop truyền vào stepRoom; thiếu thì tự tăng) — mốc thời gian của lựu đạn
   grenades: RoomGrenade[] = []
   nextGrenadeId = 1
+  worldWeapons: WorldWeapon[] = []   // vũ khí nằm dưới đất (plan 19 P8)
+  nextWorldWeaponId = 1
   private nextId = 1
 
   // Phòng offline (plan 15): chỉ một người thật + bot. Cho phép lệnh OfflineCmd, tắt cân bằng đội tự động.
@@ -206,6 +214,7 @@ export class Room {
       killerId: -1,
       killWeapon: 0,
       killHeadshot: false,
+      interactHeld: false,
       deadCmd: { seq: 0, buttons: 0, yaw: 0, pitch: 0, weapon: 0 },
       debugShots: false,
       rewindClamped: 0,
@@ -227,6 +236,9 @@ export class Room {
       lastHurtAt: 0,
       transformUntil: 0,
       pendingClaw: null,
+      sweep: null,
+      meleeRender: { off: 0, atMs: -1 },
+      meleeRenderOff: null,
       damageMult: 1,
       speedMult: 1,
       hero: false,
@@ -258,6 +270,7 @@ export class Room {
     // Đội của mọi người cho người mới; đội của người mới cho cả phòng
     for (const o of this.players.values()) if (o !== player) transport.send({ t: MsgType.TeamAssigned, id: o.id, team: o.team })
     for (const o of this.players.values()) o.transport.send({ t: MsgType.TeamAssigned, id: player.id, team })
+    for (const w of this.worldWeapons) transport.send(worldWeaponSpawnMsg(w))   // vật đã nằm sẵn dưới đất
     this.mode.onPlayerJoin(this, player)
     if (this.offline) player.money = this.eco.maxMoney   // offline: tiền vô hạn hoặc nạp lại $16000 mỗi lần hồi sinh
     transport.send({ t: MsgType.MoneyEvent, delta: player.money, reason: 'reset' })
@@ -290,6 +303,7 @@ export class Room {
     ws.reloadEndMs = 0
     ws.nextFireMs = 0
     ws.triggerHeld = false
+    resetMelee(ws); ws.staggerUntilMs = 0; ws.vulnerableUntilMs = 0; p.sweep = null   // hồi sinh / mua đồ: huỷ chiêu, hết choáng
     p.recoil.pitch = 0; p.recoil.yaw = 0
   }
 

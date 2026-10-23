@@ -1,6 +1,6 @@
 // Sân thử bot không giao diện (test + bot-bench): Room thật + Rapier thật + map thật, tự bước tick bằng tay.
 import { readFileSync } from 'fs'
-import { TICK_RATE, defaultMovement, loadMap, type AnyMsg, type LoadedMap, type MapFile, type Transport } from '@fps/shared'
+import { TICK_RATE, defaultMovement, loadMap, type AnyMsg, type LoadedMap, type MapFile, type RoomOptions, type Transport } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { RoomManager, type Player, type Room } from '../room'
 import { stepRoom } from '../simulation'
@@ -27,11 +27,11 @@ export interface Arena {
   dispose(): void
 }
 
-export async function createArena(opts: { nav?: boolean } = {}): Promise<Arena> {
+export async function createArena(opts: { nav?: boolean; options?: RoomOptions } = {}): Promise<Arena> {
   const map = loadDeathmatch()
   let clock = 0
   const rooms = new RoomManager(map, () => clock, offlineRules(), 'deathmatch')
-  const room = rooms.createRoom(OFFLINE_ROOM, undefined, 'deathmatch')
+  const room = rooms.createRoom(OFFLINE_ROOM, undefined, 'deathmatch', opts.options)
   room.offline = true
   room.infiniteMoney = true
   const cfg = defaultMovement

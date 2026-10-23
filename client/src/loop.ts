@@ -3,7 +3,7 @@ import { stepMovement, lerpState, defaultMovement } from '@fps/shared'
 import type { PlayerState, MovementConfig, InputCmd, AdsMove } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { Btn } from '@fps/shared'
-import { sampleButtons, yaw, pitch, isLocked } from './input'
+import { sampleButtons, freeLookStep, yaw, pitch, isLocked } from './input'
 
 let _seq      = 0
 let _tick     = 0
@@ -17,7 +17,7 @@ export function wantedWeapon(): number { return _weapon }
 
 // Hệ số tốc độ theo súng đang cầm (offline); online do hook step của main truyền vào Prediction
 export interface WeaponMove {
-  mul(): number                      // moveSpeedMul của súng đang cầm
+  mul(cmd: InputCmd): number         // moveSpeedMul của súng đang cầm (kèm hệ số đánh / đỡ / choáng theo giờ của cmd)
   ads(): AdsMove | null              // tham số ngắm của súng đang cầm
   want(cmd: InputCmd): boolean       // adsWanted: giữ Aim, không nạp/đổi súng
 }
@@ -34,7 +34,7 @@ export function setDowned(v: boolean): void { _downed = v }
 export function setMatchPhase(v: MatchPhase): void { _phase = v }
 
 function _buildCmd(): InputCmd {
-  let buttons = _transforming ? 0 : sampleButtons() & phaseButtonMask(_phase, !_dead) & (_downed ? DOWNED_BUTTON_MASK : ~0)   // chết / đếm ngược / hết trận / biến hình: server cũng bỏ nút này
+  let buttons = _transforming ? 0 : freeLookStep(DT, sampleButtons()) & phaseButtonMask(_phase, !_dead) & (_downed ? DOWNED_BUTTON_MASK : ~0)   // chết / đếm ngược / hết trận / biến hình: server cũng bỏ nút này
   if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload | Btn.Aim)   // chưa khoá chuột thì không bắn/nạp/ngắm
   return { seq: _seq++, buttons, yaw, pitch, weapon: _downed ? DOWNED_WEAPON_SLOT : _weapon }
 }
@@ -69,7 +69,7 @@ export function startLoop(
         _curr = _net.step(cmd)
       } else {
         _prev = _curr
-        _curr = stepMovement(_curr, cmd, world, cfg, DT, _weaponMove.mul(), _weaponMove.ads(), _weaponMove.want(cmd))
+        _curr = stepMovement(_curr, cmd, world, cfg, DT, _weaponMove.mul(cmd), _weaponMove.ads(), _weaponMove.want(cmd))
       }
       // Thời gian mô phỏng (ms) — client và server tính giống nhau, không dùng performance.now()
       onTick?.(_curr, cmd, (_tick++) * 1000 / TICK_RATE)

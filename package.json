@@ -14,6 +14,7 @@
     "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w client",
     "test": "vitest run",
     "bot-bench": "npm run bot-bench -w server",
+    "bake-melee": "node tools/melee/convert-clips.mjs && node --import tsx tools/melee/bake-paths.mjs",
     "bundle-server": "node scripts/bundle-server.mjs",
     "package": "node scripts/package.mjs"
   },

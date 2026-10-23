@@ -122,7 +122,7 @@ export function createMatchHud(sounds?: MatchSounds) {
         break
     }
     if (elim && st.phase !== MatchPhase.Waiting) topSub = tr('Round {r} / {m}', { r: Math.min(st.round, maxR), m: maxR })
-    else if (!elim && config?.settings.mode === 'tdm') topSub = unlimited ? tr('No limit') : tr('Target: {n} kills', { n: config.settings.killLimit })
+    else if (!elim && (config?.settings.mode === 'tdm' || config?.settings.mode === 'melee')) topSub = unlimited ? tr('No limit') : tr('Target: {n} kills', { n: config.settings.killLimit })
     setText(clockEl, clock); setText(big, bigT); setText(sub, subT); setText(subTop, topSub)
 
     if (elim && st.phase === MatchPhase.Playing && left > 0 && left <= 10_000) {
@@ -134,8 +134,9 @@ export function createMatchHud(sounds?: MatchSounds) {
   return {
     setMatch(m: MatchStateMsg): void {
       if (st && m.mode === 'elimination' && st.phase !== MatchPhase.Playing && m.phase === MatchPhase.Playing) sounds?.start()
-      if (st && m.mode === 'tdm' && st.phase !== MatchPhase.Playing && m.phase === MatchPhase.Playing) sounds?.tdmStart?.()
-      if (st && m.mode === 'tdm' && m.phase === MatchPhase.Playing && config?.settings.mode === 'tdm' && !unlimited) {
+      const tdmLike = m.mode === 'tdm' || m.mode === 'melee'   // Cận Chiến dùng luật Hỗn Chiến
+      if (st && tdmLike && st.phase !== MatchPhase.Playing && m.phase === MatchPhase.Playing) sounds?.tdmStart?.()
+      if (st && tdmLike && m.phase === MatchPhase.Playing && (config?.settings.mode === 'tdm' || config?.settings.mode === 'melee') && !unlimited) {
         const limit = config.settings.killLimit
         if (limit != null && limit > 10) {
           const rem = limit - Math.max(m.scoreA, m.scoreB)

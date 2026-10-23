@@ -57,6 +57,9 @@ export const MsgType = {
   WaveClear: 142,      // plan 17: hết đợt + tiền thưởng
   DefenseEnd: 143,     // plan 17: thắng/thua + thống kê
   Telegraph: 144,      // plan 17: báo trước chiêu của boss (vòng đỏ dưới đất, hướng lao)
+  WorldWeaponSpawn: 145,   // plan 19 P8: vũ khí nằm dưới đất (cả phòng; người mới vào nhận đủ danh sách)
+  WorldWeaponRemove: 146,  // vũ khí dưới đất biến mất (có người nhặt / hết hạn / ván mới)
+  PickupResult: 147,       // gửi riêng người vừa nhặt / vứt: ô cần cầm tiếp theo
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -182,6 +185,8 @@ export const NetFlag = {
   Hero:      1 << 7,   // anh hùng (Lây Nhiễm): máu 200, damage ×1.5, chạy ×1.1
   Zombie:    1 << 5,   // vai zombie (plan 16): dùng cấu hình di chuyển/vuốt zombie, vẽ model zombie
   Transform: 1 << 6,   // đang biến hình (bất tử, không di chuyển được)
+  Guard:     1 << 10,  // cận chiến: đang giữ đỡ (người khác vẽ thế thủ)
+  Stagger:   1 << 11,  // cận chiến: đang choáng (bị parry / vỡ thủ / trúng đòn nặng)
 } as const
 
 export interface NetPlayer {
@@ -255,6 +260,7 @@ export interface HurtMsg {
   t: typeof MsgType.Hurt
   origin: [number, number, number]   // mắt người bắn
   damage: number
+  outcome?: number   // cận chiến: MELEE_OUTCOME (1 đỡ được, 2 parry, 3 vỡ thế thủ); thiếu = trúng thường
 }
 
 // Gửi riêng người bắn: phát bắn trúng người (hitmarker chỉ hiện khi nhận gói này)
@@ -263,6 +269,7 @@ export interface HitConfirmMsg {
   damage: number
   headshot: boolean
   targetId: number
+  outcome?: number   // cận chiến: MELEE_OUTCOME (0 trúng, 1 bị đỡ, 2 bị parry, 3 vỡ thế thủ); thiếu = trúng
 }
 
 // Gửi cả phòng trừ người bắn: vẽ vệt đạn + tiếng súng có vị trí. `weapon` ngoài plan, cần để chọn tiếng súng.
@@ -274,6 +281,8 @@ export interface ShotFxMsg {
   dir: [number, number, number]
   dist: number
   extra?: { dir: [number, number, number]; dist: number }[]   // các tia còn lại của súng nhiều tia (shotgun), cùng gốc origin
+  moveId?: number    // cận chiến: chỉ số chiêu trong bộ chiêu của vũ khí, để người khác vẽ đúng động tác
+  startSeq?: number  // cận chiến: seq của cmd bắt đầu chiêu
 }
 
 // Chỉ gửi người bắn khi đã bật debug: tia + hitbox mọi người khác ở thời điểm đã tua
@@ -282,6 +291,7 @@ export interface DebugShotMsg {
   origin: [number, number, number]
   dir: [number, number, number]
   boxes: HitBox[]
+  blade?: number[]   // cận chiến: các đoạn quét vừa thử, phẳng 6 số mỗi đoạn (base xyz, tip xyz)
 }
 
 // Cả phòng: gửi khi đổi pha và mỗi 1s. phaseEndsAt theo serverTime (0 = không có hạn)
@@ -353,6 +363,26 @@ export interface GrenadeSpawnMsg {
   throwSeq: number
 }
 
+// Vũ khí nằm dưới đất (plan 19 P8). `persist` = vũ khí của map, không biến mất theo giờ.
+export interface WorldWeaponSpawnMsg {
+  t: typeof MsgType.WorldWeaponSpawn
+  id: number
+  weapon: number     // id trong WEAPONS
+  pos: [number, number, number]
+  yaw: number
+  persist?: boolean
+}
+export interface WorldWeaponRemoveMsg {
+  t: typeof MsgType.WorldWeaponRemove
+  id: number
+}
+// Server vừa nhặt / vứt cho người này: client đặt ô muốn cầm (kèm đổi vũ khí trong cmd kế)
+export interface PickupResultMsg {
+  t: typeof MsgType.PickupResult
+  action: 'pick' | 'drop'
+  slot: number
+}
+
 // Nổ (nguồn chân lý: nổ đúng chỗ này, xoá quả local). hits = sát thương đã áp cho từng người
 export interface GrenadeExplodeMsg {
   t: typeof MsgType.GrenadeExplode
@@ -393,7 +423,7 @@ export interface PongMsg {
 
 export type AnyMsg =
   | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg | ListRoomsMsg | OfflineCmdMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg | InfectedMsg | HeroChosenMsg | InfectionCountMsg | SniffedMsg | DefenseStateMsg | WaveStartMsg | WaveClearMsg | DefenseEndMsg | TelegraphMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | WorldWeaponSpawnMsg | WorldWeaponRemoveMsg | PickupResultMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg | InfectedMsg | HeroChosenMsg | InfectionCountMsg | SniffedMsg | DefenseStateMsg | WaveStartMsg | WaveClearMsg | DefenseEndMsg | TelegraphMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)

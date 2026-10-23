@@ -33,12 +33,15 @@ export interface CharacterCfg {
   handRotOffsetDegR: Vec3; handRotOffsetDegL: Vec3
   palmCenterFrac: number          // tâm lòng bàn tay = tỉ lệ này của đoạn cổ tay → khớp ngón giữa
   oneHandGunPos: Vec3; oneHandGunRotDeg: Vec3   // súng 1 tay trong hệ "bàn tay chuẩn" (ngón chĩa −Z, ngón cái +Y)
+  /** Thế thủ cận chiến (góc nhìn thứ ba): tâm bàn tay so với vai cùng bên + hướng bàn tay chuẩn, trong hệ thân (x phải, y lên, −z trước, đã xoay theo pitch) */
+  melee: { restR: Vec3; restRotDegR: Vec3; restL: Vec3; restRotDegL: Vec3 }
   anim: {
     blendTime: number; idleSpeed: number; walkRefSpeed: number; runStartSpeed: number; runBlendLen: number
     runRefSpeed: number; crouchRefSpeed: number; maxRate: number; jumpHoldS: number
   }
 }
-export interface GripCfg { R: Record<FingerName, Vec3>; L: Record<FingerName, Vec3>; axis: 'x' | 'y' | 'z' }
+/** R / L: nắm báng súng; knifeR: tay phải nắm kín cán dao; supportL: tay trái thả lỏng làm tay phụ khi cầm dao */
+export interface GripCfg { R: Record<FingerName, Vec3>; L: Record<FingerName, Vec3>; knifeR: Record<FingerName, Vec3>; supportL: Record<FingerName, Vec3>; axis: 'x' | 'y' | 'z' }
 export interface Poses {
   style: { skinColor: string; sleeveColor: { A: string; B: string }; third: ArmStyleCfg; first: ArmStyleCfg }
   third: { shoulderR: Vec3; shoulderL: Vec3; aimPivot: Vec3; poleR: Vec3; poleL: Vec3 }
@@ -54,7 +57,8 @@ export interface Poses {
 }
 
 // Thứ tự = id súng trong shared (WEAPONS)
-export const WEAPON_KEYS = ['ak47', 'm16', 'colt', 'rulo', 'sniper', 'shotgun', 'knife', 'smg', 'm67'] as const
+/** Khoá trong poses.json theo id vũ khí (chỉ số = id); null = không có model (vuốt zombie) */
+export const WEAPON_KEYS = ['ak47', 'm16', 'colt', 'rulo', 'sniper', 'shotgun', 'knife', 'smg', 'm67', null, null, 'hammer', 'machete', 'spear', 'staff'] as const
 
 const DEFAULTS = {
   style: {
@@ -69,11 +73,14 @@ const DEFAULTS = {
     spinePitchLimitDeg: 60, headPitchShare: 0.3, aimPivotOffset: [0, 0.08, 0], poleR: [0.35, -0.6, 0.3], poleL: [-0.35, -0.6, 0.1],
     handRotOffsetDegR: [0, 0, 0], handRotOffsetDegL: [0, 0, 0], palmCenterFrac: 0.6,
     oneHandGunPos: [0, 0, 0], oneHandGunRotDeg: [0, 0, 0],
+    melee: { restR: [-0.04, -0.24, -0.4], restRotDegR: [0, 0, 0], restL: [0.16, -0.26, -0.32], restRotDegL: [0, 0, 0] },
     anim: { blendTime: 0.15, idleSpeed: 0.3, walkRefSpeed: 1.6, runStartSpeed: 5, runBlendLen: 2, runRefSpeed: 5, crouchRefSpeed: 1, maxRate: 2, jumpHoldS: 0.35 },
   },
   grip: {
     R: { thumb: [10, 20, 15], index: [15, 20, 10], middle: [55, 70, 40], ring: [60, 75, 45], pinky: [65, 75, 45] },
     L: { thumb: [15, 25, 20], index: [45, 55, 35], middle: [55, 65, 40], ring: [60, 70, 45], pinky: [65, 70, 45] },
+    knifeR: { thumb: [-50, 30, 40], index: [70, 68, 50], middle: [82, 64, 40], ring: [100, 60, 55], pinky: [105, 70, 45] },
+    supportL: { thumb: [-12, -1, 20], index: [28, 30, 20], middle: [34, 34, 22], ring: [40, 38, 24], pinky: [44, 40, 26] },
     axis: 'x',
   },
   grenade: { trajectory: true, trajectoryMaxS: 2, dotEveryS: 0.06 },   // đường bay dự kiến khi giữ ready
@@ -119,6 +126,7 @@ export function loadPoses(json: unknown): Poses {
   const w = (j.weapons && typeof j.weapons === 'object' ? j.weapons : {}) as Record<string, unknown>
   const weapons: Record<string, WeaponPose> = {}
   for (const key of WEAPON_KEYS) {
+    if (!key) continue
     const src = w[key]
     if (src === undefined) warnOnce(`thiếu weapons.${key}, cầm một tay`)
     // Súng 1 tay không dùng gunPos/gunRotDeg của góc 3: khỏi cảnh báo thiếu

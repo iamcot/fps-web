@@ -88,6 +88,12 @@ export class SkeletonArm {
     this.upper.updateWorldMatrix(false, true)
   }
 
+  /** Tầm với của tay (vai → tâm bàn tay) khi duỗi thẳng, thế giới */
+  reachWorld(): number {
+    this.upper.updateWorldMatrix(true, false)
+    return ((this.lenA0 + this.lenB0) + this.palm0 * poses.character.palmCenterFrac) * this.upper.getWorldScale(_fing).x
+  }
+
   /**
    * Viewmodel: nếu tâm bàn tay `target` (thế giới) xa vai hơn tầm với (lenA+lenB)·ext + lòng bàn tay thì trượt vai về phía đích cho vừa,
    * thay vì để tay dừng giữa chừng. Phải gọi sau resetPose() và trước solve(); resetPose() trả vai về chỗ cũ.
@@ -152,9 +158,9 @@ export class SkeletonArm {
   }
 
   /** Gập ngón theo grip (độ, 3 đốt mỗi ngón) nhân với weight, cộng lên tư thế hiện tại của xương. */
-  applyGrip(weight: number): void {
+  applyGrip(weight: number, override?: Record<(typeof FINGER_NAMES)[number], readonly number[]>): void {
     if (weight <= 0) return
-    const g = poses.grip, set = this.side === 'R' ? g.R : g.L
+    const g = poses.grip, set = override ?? (this.side === 'R' ? g.R : g.L)
     _axis.set(g.axis === 'x' ? 1 : 0, g.axis === 'y' ? 1 : 0, g.axis === 'z' ? 1 : 0)
     for (const name of FINGER_NAMES) {
       const bones = this.fingers[name], deg = set[name]

@@ -1,21 +1,25 @@
 // Cài đặt phòng: thể thức + thông số. Server luôn kẹp theo SETTINGS_LIMITS, không tin client.
-export type GameMode = 'elimination' | 'tdm' | 'infection' | 'defense'
-export const GAME_MODES: readonly GameMode[] = ['elimination', 'tdm', 'infection', 'defense']
+export type GameMode = 'elimination' | 'tdm' | 'infection' | 'defense' | 'melee'
+export const GAME_MODES: readonly GameMode[] = ['elimination', 'tdm', 'infection', 'defense', 'melee']
 export function isGameMode(v: unknown): v is GameMode { return typeof v === 'string' && (GAME_MODES as readonly string[]).includes(v) }
 /** Thể thức zombie (plan 16/17): mọi người cùng phe người (đội A), zombie là phe B; ban đêm + đèn pin; đạn dự trữ vô hạn */
 export function isZombieMode(m: GameMode): boolean { return m === 'infection' || m === 'defense' }
+/** Cận Chiến (plan 19 P7): chỉ vũ khí cận chiến, không súng / lựu đạn / mua đồ */
+export function isMeleeMode(m: GameMode): boolean { return m === 'melee' }
 
 export const MODE_LABEL: Record<GameMode, string> = {
   elimination: 'Elimination',
   tdm: 'Team Deathmatch',
   infection: 'Infection',
   defense: 'Defense',
+  melee: 'Melee',
 }
 export const MODE_DESC: Record<GameMode, string> = {
   elimination: 'One life per round. First to win 10 rounds.',
   tdm: 'Continuous respawns. First to 50 kills, or when time runs out.',
   infection: 'The mother zombie infects the room. Survive until time runs out to win.',
   defense: 'Hold the base against 10 zombie waves. The last wave has a boss.',
+  melee: 'Knives only. Team fight with combos, blocks and parries. Continuous respawns.',
 }
 
 export interface EliminationSettings {
@@ -32,6 +36,13 @@ export interface EliminationSettings {
 export interface TdmSettings {
   mode: 'tdm'
   killLimit: number       // 50
+  timeLimitMin: number    // 10
+}
+
+/** Cận Chiến (plan 19 P7): luật như Hỗn Chiến, chỉ cầm dao */
+export interface MeleeSettings {
+  mode: 'melee'
+  killLimit: number       // 30
   timeLimitMin: number    // 10
 }
 
@@ -64,7 +75,7 @@ export interface RoomConfig {
   name: string            // tên phòng, 1–32 ký tự
   map: string
   maxPlayers: number      // 2–10, chẵn
-  settings: EliminationSettings | TdmSettings | InfectionSettings | DefenseSettings
+  settings: EliminationSettings | TdmSettings | InfectionSettings | DefenseSettings | MeleeSettings
 }
 
 export const DEFAULT_SETTINGS = {
@@ -72,7 +83,8 @@ export const DEFAULT_SETTINGS = {
   tdm: { mode: 'tdm', killLimit: 50, timeLimitMin: 10 },
   infection: { mode: 'infection', rounds: 8, prepSec: 20, roundTimeSec: 180, roundEndSec: 6, matchEndSec: 15, lighting: 'night' },
   defense: { mode: 'defense', difficulty: 'normal', waves: 10, intermissionSec: 25, prepSec: 30, endSec: 20, lighting: 'night' },
-} as const satisfies { elimination: EliminationSettings; tdm: TdmSettings; infection: InfectionSettings; defense: DefenseSettings }
+  melee: { mode: 'melee', killLimit: 30, timeLimitMin: 10 },
+} as const satisfies { elimination: EliminationSettings; tdm: TdmSettings; infection: InfectionSettings; defense: DefenseSettings; melee: MeleeSettings }
 
 export const SETTINGS_LIMITS = {
   roundsToWin: [3, 16], roundTimeSec: [60, 300], killLimit: [10, 200], timeLimitMin: [3, 30],
@@ -129,6 +141,14 @@ export function sanitizeRoomConfig(name: string, map: string, raw: unknown): Roo
       ...d, lighting, difficulty,
       waves: clampInt(s.waves, SETTINGS_LIMITS.waves, d.waves),
       intermissionSec: clampInt(s.intermissionSec, SETTINGS_LIMITS.intermissionSec, d.intermissionSec),
+    } }
+  }
+  if (mode === 'melee') {
+    const d = DEFAULT_SETTINGS.melee
+    return { name, map, maxPlayers, settings: {
+      ...d,
+      killLimit: clampInt(s.killLimit, SETTINGS_LIMITS.killLimit, d.killLimit),
+      timeLimitMin: clampInt(s.timeLimitMin, SETTINGS_LIMITS.timeLimitMin, d.timeLimitMin),
     } }
   }
   const d = DEFAULT_SETTINGS.tdm

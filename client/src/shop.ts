@@ -13,9 +13,10 @@ export interface ShopDeps {
   sounds: { ok(): void; fail(): void }
 }
 
-// Menu 2 cấp: phím số cấp 1 (2–5) chọn dòng súng, cấp 2 chọn loại. Mua AK47 = B 4 2.
+// Menu 2 cấp: phím số cấp 1 (1–5) chọn dòng súng, cấp 2 chọn loại. Mua AK47 = B 4 2.
 interface GroupDef { num: number; cat: WeaponCategory; items: [number, string][] }
 const GROUPS: GroupDef[] = [
+  { num: 1, cat: 'knife', items: [[1, 'machete'], [2, 'staff'], [3, 'spear'], [4, 'hammer']] },   // vũ khí cận chiến (plan 19 P6): thay dao ở ô 1
   { num: 2, cat: 'pistol', items: [[1, 'colt'], [2, 'rulo']] },
   { num: 3, cat: 'mid', items: [[1, 'shotgun'], [2, 'smg']] },
   { num: 4, cat: 'long', items: [[1, 'm16'], [2, 'ak47'], [6, 'sniper']] },
@@ -231,6 +232,8 @@ export function createShop(deps: ShopDeps) {
     tick(): void {
       const can = deps.canShop()
       cart.classList.toggle('on', can)
+      const hide = !!deps.eco?.().noShop   // Cận Chiến: không có cửa hàng
+      if ((cart.style.display === 'none') !== hide) cart.style.display = hide ? 'none' : ''
       if (!can && open) setOpen(false)
       if (open) refresh()
     },

@@ -1,10 +1,11 @@
 import { GRENADE, makeThrowState, type ThrowState } from './grenade'
+import { MELEE } from './meleeConfig'
 
 export type WeaponCategory = 'claw' | 'knife' | 'pistol' | 'mid' | 'long' | 'grenade'
 /** Ô vũ khí (phím 1–5) của từng dòng. Ô 5 = lựu đạn (hàng tiêu hao, không tính vào 4 dòng súng) */
 export const CATEGORY_SLOT: Record<WeaponCategory, 0 | 1 | 2 | 3 | 4> = { claw: 0, knife: 0, pistol: 1, mid: 2, long: 3, grenade: 4 }
 export const CATEGORY_LABEL: Record<WeaponCategory, string> = {
-  claw: 'Claw', knife: 'Knife', pistol: 'Pistol', mid: 'Mid-range', long: 'Long gun', grenade: 'Grenade',
+  claw: 'Claw', knife: 'Melee', pistol: 'Pistol', mid: 'Mid-range', long: 'Long gun', grenade: 'Grenade',
 }
 export const SLOT_COUNT = 5
 /** Ô lựu đạn */
@@ -93,6 +94,27 @@ export interface WeaponState {
   shotBloomDeg: number    // bloom đã dùng cho phát vừa bắn (trước khi cộng bloom của chính nó): viên đầu không dính bloom của nó
   switchEndMs: number     // hết khoá đổi súng lúc này (thang seq): chưa tới thì không ngắm được
   magMult: number         // băng đạn to gấp ngần này (EconomyConfig.magMult của thể thức; cố định cả ván)
+  // Cận chiến (plan 19, melee.ts). Mọi mốc thời gian theo thang seq
+  meleeMove: number       // chỉ số chiêu đang chạy trong MeleeSet, -1 = không
+  meleeStartMs: number
+  meleeHits: number       // số nhát đã đánh của chiêu đang chạy
+  comboNode: number       // chiêu vừa kết thúc (để nối combo), -1 = không
+  chainEndMs: number      // hết giờ này thì bấm tiếp không còn nối combo
+  meleeBuf: number        // bộ đệm input: 0 không, 1 trái, 2 phải
+  meleeBufMs: number
+  aimHeld: boolean        // Btn.Aim tick trước (cạnh lên = chuột phải)
+  guardKey: boolean       // Btn.Guard tick trước
+  guardSinceMs: number    // đang đỡ từ lúc này, -1 = không đỡ
+  parryUntilMs: number    // > 0: còn cửa sổ parry tới lúc này
+  parryLockMs: number     // trước lúc này bấm đỡ không mở cửa sổ parry
+  stamina: number         // thể lực tại staminaMs (hồi theo thời gian, xem staminaAt)
+  staminaMs: number
+  staminaRegenAtMs: number
+  poise: number           // sức chịu choáng tại poiseMs (xem poiseAt)
+  poiseMs: number
+  poiseRegenAtMs: number
+  staggerUntilMs: number  // choáng tới lúc này
+  vulnerableUntilMs: number   // nhận sát thương nặng hơn tới lúc này (sau parry / vỡ thế thủ)
 }
 
 // Thời gian khoá bắn sau khi đổi súng (khớp animation hạ/đưa súng 2×0.15s ở viewmodel)
@@ -191,6 +213,38 @@ export const WEAPONS: WeaponDef[] = [
     spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
     recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
   },
+  {
+    // Búa (plan 19 mục 6): chậm, nặng, hai tay. Đòn / sát thương thật ở MELEE_SETS.hammer; damage, range chỉ để hiển thị và bot
+    id: 11, key: 'hammer', name: 'BÚA', category: 'knife', price: 1500, buyable: true, moveSpeedMul: 0.95, melee: true,
+    auto: true, damage: 70, headMult: 2.5, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 2.4,
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
+  {
+    // Mã tấu: nhanh vừa, chém chéo, một tay (MELEE_SETS.machete)
+    id: 12, key: 'machete', name: 'MÃ TẤU', category: 'knife', price: 600, buyable: true, moveSpeedMul: 1.05, melee: true,
+    auto: true, damage: 45, headMult: 2.5, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 2.3,
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
+  {
+    // Thương: tầm xa, đâm, hai tay (MELEE_SETS.spear)
+    id: 13, key: 'spear', name: 'THƯƠNG', category: 'knife', price: 900, buyable: true, moveSpeedMul: 1.0, melee: true,
+    auto: true, damage: 50, headMult: 2.5, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 3.2,
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
+  {
+    // Gậy: rẻ, nhiều đòn nhẹ, hai tay (MELEE_SETS.staff)
+    id: 14, key: 'staff', name: 'GẬY', category: 'knife', price: 300, buyable: true, moveSpeedMul: 1.05, melee: true,
+    auto: true, damage: 30, headMult: 2.5, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 2.6,
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
 ]
 
 export const WEAPON_BY_KEY: ReadonlyMap<string, WeaponDef> = new Map(WEAPONS.map(w => [w.key, w]))
@@ -210,6 +264,15 @@ export const FALLBACK_SLOTS: readonly number[] = [6, 2, -1, 1, -1]
 
 /** Cỡ băng đạn thực của súng `def` với hệ số `mult` */
 export function magSizeOf(def: WeaponDef, mult = 1): number { return Math.round(def.magSize * mult) }
+
+/** Giá trị khởi tạo của các trường cận chiến trong WeaponState (thể lực đầy, không đỡ, không choáng) */
+export function meleeInitFields(): Pick<WeaponState, 'meleeMove' | 'meleeStartMs' | 'meleeHits' | 'comboNode' | 'chainEndMs' | 'meleeBuf' | 'meleeBufMs' | 'aimHeld' | 'guardKey' | 'guardSinceMs' | 'parryUntilMs' | 'parryLockMs' | 'stamina' | 'staminaMs' | 'staminaRegenAtMs' | 'poise' | 'poiseMs' | 'poiseRegenAtMs' | 'staggerUntilMs' | 'vulnerableUntilMs'> {
+  return {
+    meleeMove: -1, meleeStartMs: 0, meleeHits: 0, comboNode: -1, chainEndMs: 0, meleeBuf: 0, meleeBufMs: 0, aimHeld: false, guardKey: false,
+    guardSinceMs: -1, parryUntilMs: 0, parryLockMs: 0, stamina: MELEE.staminaMax, staminaMs: 0, staminaRegenAtMs: 0,
+    poise: MELEE.poiseMax, poiseMs: 0, poiseRegenAtMs: 0, staggerUntilMs: 0, vulnerableUntilMs: 0,
+  }
+}
 
 export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS, magMult = 1): WeaponState {
   const slot = slots[DEFAULT_SLOT]! >= 0 ? DEFAULT_SLOT : Math.max(0, slots.findIndex(id => id >= 0))
@@ -233,5 +296,6 @@ export function makeWeaponState(slots: readonly number[] = FALLBACK_SLOTS, magMu
     shotBloomDeg: 0,
     switchEndMs: 0,
     magMult,
+    ...meleeInitFields(),
   }
 }

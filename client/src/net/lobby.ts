@@ -145,11 +145,11 @@ export function showLobby(): Promise<Session | null> {
     const done = (s: Session) => { el.remove(); resolve(s) }
     // Offline = một phòng chạy trên chính code server trong Web Worker (có bot). Worker lỗi thì rơi về offline cũ chỉ-client.
     let starting = false
-    let offlineMode: GameMode = (() => { const m = new URLSearchParams(location.search).get('offlineMode'); return m === 'infection' || m === 'defense' ? m : 'tdm' })()
-    // Chọn thể thức cho phòng offline: Hỗn Chiến (mặc định), Lây Nhiễm, Thủ Thành
+    let offlineMode: GameMode = (() => { const m = new URLSearchParams(location.search).get('offlineMode'); return m === 'infection' || m === 'defense' || m === 'melee' ? m : 'tdm' })()
+    // Chọn thể thức cho phòng offline: Hỗn Chiến (mặc định), Lây Nhiễm, Thủ Thành, Cận Chiến
     const offlineModeSelect = (): HTMLSelectElement => {
       const sel = mk('select', INPUT)
-      for (const [v, t] of [['tdm', tr('Team Deathmatch')], ['infection', tr('Infection')], ['defense', tr('Defense')]] as const) sel.add(new Option(t, v))
+      for (const [v, t] of [['tdm', tr('Team Deathmatch')], ['infection', tr('Infection')], ['defense', tr('Defense')], ['melee', tr('Melee')]] as const) sel.add(new Option(t, v))
       sel.value = offlineMode
       sel.addEventListener('change', () => { offlineMode = sel.value as GameMode })
       return sel
@@ -347,7 +347,7 @@ export function showLobby(): Promise<Session | null> {
       function syncMode(): void {
         for (const [m, c] of modeCards) c.style.borderColor = m === mode ? '#6fa0ff' : '#556'
         fRounds.wrapF.style.display = fRoundTime.wrapF.style.display = mode === 'elimination' ? '' : 'none'
-        fKills.wrapF.style.display = fMinutes.wrapF.style.display = mode === 'tdm' ? '' : 'none'
+        fKills.wrapF.style.display = fMinutes.wrapF.style.display = mode === 'tdm' || mode === 'melee' ? '' : 'none'
         fInfRounds.wrapF.style.display = fInfTime.wrapF.style.display = mode === 'infection' ? '' : 'none'
         fWaves.wrapF.style.display = fInter.wrapF.style.display = fDiff.wrapF.style.display = mode === 'defense' ? '' : 'none'
         fLight.wrapF.style.display = mode === 'infection' || mode === 'defense' ? '' : 'none'
@@ -379,7 +379,7 @@ export function showLobby(): Promise<Session | null> {
         if (!room) { err.textContent = tr('Enter a room name'); return }
         const settings: RoomOptions['settings'] = mode === 'elimination'
           ? { roundsToWin: Number(fRounds.inp.value), roundTimeSec: Number(fRoundTime.inp.value) }
-          : mode === 'tdm' ? { killLimit: Number(fKills.inp.value), timeLimitMin: Number(fMinutes.inp.value) }
+          : mode === 'tdm' || mode === 'melee' ? { killLimit: Number(fKills.inp.value), timeLimitMin: Number(fMinutes.inp.value) }
           : mode === 'infection' ? { rounds: Number(fInfRounds.inp.value), roundTimeSec: Number(fInfTime.inp.value), lighting: fLight.sel.value }
           : { waves: Number(fWaves.inp.value), intermissionSec: Number(fInter.inp.value), difficulty: fDiff.sel.value, lighting: fLight.sel.value }
         const options: RoomOptions = { mode, maxPlayers: Number(maxSel.value), settings }
