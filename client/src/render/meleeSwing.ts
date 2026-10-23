@@ -14,7 +14,31 @@ import { KNIFE_SET, moveDurationMs, type MeleeMove, type MeleeSet } from '@fps/s
 export type Pose = readonly [number, number, number, number, number, number]
 const REST: Pose = [0, 0, 0, 0, 0, 0]
 
-export interface SwingStyle { wind: Pose; hit: Pose; perHit?: Pose }
+/**
+ * Tư thế "bán kính quanh vai" cho dao (playtest 23/10): [θ, φ, ρ, w, sx, sz]. Bàn tay nằm ở vai + ρ·hướng(θ, φ), lưỡi dao chỉ dọc theo hướng đó
+ * (thẳng hàng cánh tay, bẹt nằm ngang), khuỷu do IK tự gập. θ + = sang trái, φ + = lên (rad); ρ (m) 0,4 = co khuỷu ~30°, 0,9 = duỗi ~170°;
+ * w 0..1 = mức thay cho tư thế cầm nghỉ; sx / sz = dịch điểm vai sang ngang / ra trước (thân xoay theo cú vung nên vung được > 120° mà tay vẫn nằm trong khung nhìn và trong tầm với).
+ */
+export type RPose = readonly [number, number, number, number, number, number]
+const RZERO: RPose = [0, 0, 0, 0, 0, 0]
+export interface RadStyle { rest: RPose; wind: RPose; hit: RPose }
+export interface SwingStyle { wind: Pose; hit: Pose; perHit?: Pose; rad?: RadStyle }
+
+// Điểm vai dịch sang trái khi vung ngang (thân xoay), ít hơn khi đâm
+const SX_SLASH = -0.25, SZ_SLASH = -0.1, SX_STAB = -0.1, SZ_STAB = 0
+const RHO_SLASH = 0.8
+const RHO_FAR = 0.9           // duỗi gần thẳng (~170°)
+const RHO_NEAR = 0.4          // khuỷu co ~30°
+const AIM_TH = 0.24           // từ vai phải hướng vào giữa màn hình
+/** Chém ngang qua cung rộng ~120°+: từ θa tới θb, tay gần thẳng, lưỡi ngang thẳng hàng cánh tay */
+function slash(thA: number, thB: number): RadStyle {
+  return { rest: [thA * 0.5, -0.5, 0.6, 0, SX_SLASH, SZ_SLASH], wind: [thA, -0.1, RHO_SLASH, 1, SX_SLASH, SZ_SLASH], hit: [thB, -0.1, RHO_SLASH, 1, SX_SLASH, SZ_SLASH] }
+}
+/** Đâm: co khuỷu ~30° rồi duỗi ~170°. φ0 = độ cao điểm xuất phát (bụng −0,75 / ngực −0,15) */
+function stab(phi0: number): RadStyle {
+  return { rest: [AIM_TH, phi0 - 0.1, RHO_NEAR + 0.1, 0, SX_STAB, SZ_STAB], wind: [AIM_TH, phi0, RHO_NEAR, 1, SX_STAB, SZ_STAB], hit: [AIM_TH + 0.06, 0.05, RHO_FAR, 1, SX_STAB, SZ_STAB] }
+}
+const BELLY = -0.75, CHEST = -0.15
 
 /** Dao đặt đứng trong nắm tay; khi ra đòn cổ tay ngửa ra trước (chưa tới mức chỉa thẳng) */
 const FWD = -0.55
@@ -24,16 +48,16 @@ const STAB = -0.9
 const LEAN = 0.6
 /** Tư thế cao điểm của từng chiêu: `wind` = lúc gồng (tới đúng giờ nhát đánh), `hit` = cuối cung quét */
 export const SWING_STYLES: Record<string, SwingStyle> = {
-  knife_l1:   { wind: [0.45, 0.05, 0, FWD, 0, LEAN], hit: [-0.4, 0, 0.12, FWD, 0, LEAN] },                                  // chém ngang trái → phải
-  knife_l2:   { wind: [-0.4, -0.05, 0, FWD, 0, LEAN], hit: [0.45, 0.05, 0.12, FWD, 0, LEAN] },                              // chém ngược phải → trái
-  knife_l3:   { wind: [0, 0.02, -0.2, FWD, 0, LEAN], hit: [0, 0, 0.12, FWD, 0, LEAN] },                                       // đâm liên hoàn: co tay rồi duỗi thẳng
-  knife_llr:  { wind: [0.05, 0.28, -0.05, FWD, 0, 0], hit: [0, 0, 0.12, FWD, 0, 0] },                           // giơ cao rồi giáng xuống
-  knife_spin: { wind: [0.6, 0.1, -0.05, FWD, 0, LEAN], hit: [-0.45, 0.05, 0.12, FWD, 0, LEAN] },                              // bão dao: quét hết tầm nhìn
-  knife_lr:   { wind: [-0.05, 0.28, -0.05, FWD, 0, 0], hit: [0.05, 0, 0.12, FWD, 0, 0] },
+  knife_l1:   { rad: slash(0.95, -1.0), wind: [0.45, 0.05, 0, FWD, 0, LEAN], hit: [-0.4, 0, 0.12, FWD, 0, LEAN] },                                  // chém ngang trái → phải
+  knife_l2:   { rad: slash(-1.0, 0.95), wind: [-0.4, -0.05, 0, FWD, 0, LEAN], hit: [0.45, 0.05, 0.12, FWD, 0, LEAN] },                              // chém ngược phải → trái
+  knife_l3:   { rad: stab(CHEST), wind: [0, 0.02, -0.2, FWD, 0, LEAN], hit: [0, 0, 0.12, FWD, 0, LEAN] },                                       // đâm liên hoàn: co tay rồi duỗi thẳng
+  knife_llr:  { rad: stab(CHEST), wind: [0.05, 0.28, -0.05, FWD, 0, 0], hit: [0, 0, 0.12, FWD, 0, 0] },                           // giơ cao rồi giáng xuống
+  knife_spin: { rad: slash(1.2, -2.0), wind: [0.6, 0.1, -0.05, FWD, 0, LEAN], hit: [-0.45, 0.05, 0.12, FWD, 0, LEAN] },                              // bão dao: quét hết tầm nhìn
+  knife_lr:   { rad: stab(CHEST), wind: [-0.05, 0.28, -0.05, FWD, 0, 0], hit: [0.05, 0, 0.12, FWD, 0, 0] },
   knife_rise: { wind: [0.05, -0.35, -0.05, FWD + 0.4, 0, 0], hit: [0, 0.3, 0.12, FWD + 0.4, 0, 0] },                           // khoét từ thấp lên cao
-  knife_r1:   { wind: [0, 0, -0.12, STAB, 0, 0.3], hit: [0, 0, 0.12, STAB, 0, 0.3] },                                     // đâm thẳng mạnh
-  knife_rr:   { wind: [0.03, 0, -0.1, STAB, 0, 0.3], hit: [0.03, 0, 0.12, STAB, 0, 0.3] },                               // đâm thẳng hai nhát liền
-  knife_flip: { wind: [0.45, 0, 0, FWD, 0, LEAN], hit: [-0.4, 0.05, 0.12, FWD, 0, LEAN] },                                    // lật tay chém nhanh
+  knife_r1:   { rad: stab(BELLY), wind: [0, 0, -0.12, STAB, 0, 0.3], hit: [0, 0, 0.12, STAB, 0, 0.3] },                                     // đâm thẳng mạnh
+  knife_rr:   { rad: stab(CHEST), wind: [0.03, 0, -0.1, STAB, 0, 0.3], hit: [0.03, 0, 0.12, STAB, 0, 0.3] },                               // đâm thẳng hai nhát liền
+  knife_flip: { rad: slash(-1.0, 0.9), wind: [0.45, 0, 0, FWD, 0, LEAN], hit: [-0.4, 0.05, 0.12, FWD, 0, LEAN] },                                    // lật tay chém nhanh
 }
 
 export const GUARD_POSE: Pose = [0.2, 0.1, -0.04, -0.2, 0, 1.2]             // cánh tay đưa chếch trái, lưỡi ngang trước mặt
@@ -99,9 +123,9 @@ const CANCEL_TAU = 0.07   // s: về tư thế nghỉ khi chiêu bị huỷ
 const STATE_TAU = 0.06    // s: vào/ra tư thế đỡ, choáng
 const KICK_TAU = 0.09
 
-export interface SwingFx { yaw: number; pitch: number; ext: number; wx: number; wy: number; wz: number }
+export interface SwingFx { yaw: number; pitch: number; ext: number; wx: number; wy: number; wz: number; radTheta: number; radPhi: number; radRho: number; radW: number; radSx: number; radSz: number }
 
-interface Key { t: number; p: Pose; strike: boolean }
+interface Key { t: number; p: Pose; r: RPose; strike: boolean }
 
 function clamp01(v: number): number { return v < 0 ? 0 : v > 1 ? 1 : v }
 function smooth(x: number): number { return x * x * (3 - 2 * x) }
@@ -109,16 +133,18 @@ function easeOut(x: number): number { const k = 1 - x; return 1 - k * k * k }
 
 /** Dựng keyframe một chiêu từ dữ liệu của nó: nghỉ → gồng (tới windupMs) → quét (strikeMs) → [các nhát sau] → về nghỉ (tới hết chiêu) */
 export function buildKeys(m: MeleeMove, style: SwingStyle): Key[] {
-  const keys: Key[] = [{ t: 0, p: REST, strike: false }]
+  const rad = style.rad
+  const rest: RPose = rad ? rad.rest : RZERO
+  const keys: Key[] = [{ t: 0, p: REST, r: rest, strike: false }]
   const d = style.perHit ?? REST
   for (let i = 0; i < m.hitCount; i++) {
     const t = m.windupMs + i * m.hitIntervalMs
-    const w = style.wind.map((v, k) => v + d[k]! * i) as unknown as Pose
+    const w = style.wind.map((v, k) => v + d[k]! * i) as unknown as Pose   // vẫn giữ tư thế cũ: góc nhìn thứ ba dùng nó; khung nhìn thứ nhất bị tư thế bán kính thay theo radW
     const h = style.hit.map((v, k) => v + d[k]! * i) as unknown as Pose
-    keys.push({ t, p: w, strike: false })
-    keys.push({ t: t + m.strikeMs, p: h, strike: true })
+    keys.push({ t, p: w, r: rad ? rad.wind : RZERO, strike: false })
+    keys.push({ t: t + m.strikeMs, p: h, r: rad ? rad.hit : RZERO, strike: true })
   }
-  keys.push({ t: moveDurationMs(m), p: REST, strike: false })   // về nghỉ khi hết chiêu
+  keys.push({ t: moveDurationMs(m), p: REST, r: rest, strike: false })   // về nghỉ khi hết chiêu
   return keys
 }
 
@@ -134,7 +160,7 @@ function keysOf(set: MeleeSet, look: MeleeLook): { keys: Key[][]; durations: num
 }
 
 export class MeleeSwing {
-  readonly fx: SwingFx = { yaw: 0, pitch: 0, ext: 0, wx: 0, wy: 0, wz: 0 }
+  readonly fx: SwingFx = { yaw: 0, pitch: 0, ext: 0, wx: 0, wy: 0, wz: 0, radTheta: 0, radPhi: 0, radRho: 0, radW: 0, radSx: 0, radSz: 0 }
 
   private keys: Key[][] = keysOf(KNIFE_SET, MELEE_LOOK.knife!).keys
   private durations: number[] = keysOf(KNIFE_SET, MELEE_LOOK.knife!).durations
@@ -152,6 +178,8 @@ export class MeleeSwing {
   private t = 0                 // ms từ lúc bắt đầu chiêu
   // Phần bị huỷ đang hồi về nghỉ
   private readonly fade: number[] = [0, 0, 0, 0, 0, 0]
+  private readonly fadeR: number[] = [0, 0, 0, 0, 0, 0]
+  private readonly tmpR: number[] = [0, 0, 0, 0, 0, 0]
   // Đỡ / choáng (0..1 mượt) và cú giật phản ứng
   private guardW = 0
   private staggerW = 0
@@ -186,7 +214,7 @@ export class MeleeSwing {
   /** Tắt hết ngay (đổi vũ khí) */
   reset(): void {
     this.move = -1; this.guardW = this.staggerW = 0; this.guardOn = this.staggerOn = false
-    for (let i = 0; i < 6; i++) this.fade[i] = this.kick[i] = 0
+    for (let i = 0; i < 6; i++) this.fade[i] = this.fadeR[i] = this.kick[i] = 0
   }
 
   /** Mỗi tick logic: trạng thái đỡ / choáng + chiêu có còn đang chạy bên logic không (đồng bộ để huỷ khi bị cắt giữa chừng) */
@@ -202,10 +230,10 @@ export class MeleeSwing {
   }
 
   private captureFade(): void {
-    this.sampleMove(this.fade)
+    this.sampleMove(this.fade, this.fadeR)
   }
 
-  private sampleMove(out: number[]): void {
+  private sampleMove(out: number[], outR: number[]): void {
     const keys = this.keys[this.move]!
     const t = this.t
     let i = 1
@@ -214,25 +242,27 @@ export class MeleeSwing {
     const span = b.t - a.t
     const x = span <= 0 ? 1 : clamp01((t - a.t) / span)
     const e = b.strike ? easeOut(x) : smooth(x)
-    for (let k = 0; k < 6; k++) out[k] = a.p[k]! + (b.p[k]! - a.p[k]!) * e
+    for (let k = 0; k < 6; k++) { out[k] = a.p[k]! + (b.p[k]! - a.p[k]!) * e; outR[k] = a.r[k]! + (b.r[k]! - a.r[k]!) * e }
   }
 
   update(dtSec: number): void {
     const f = this.fx
     const c = this.cur
     c[0] = c[1] = c[2] = c[3] = c[4] = c[5] = 0
+    const r = this.curR
+    r[0] = r[1] = r[2] = r[3] = r[4] = r[5] = 0
     const dt = dtSec > 0 ? dtSec : 0
 
     // Phần chiêu bị huỷ mờ dần
     const kF = Math.exp(-dt / CANCEL_TAU)
-    for (let i = 0; i < 6; i++) this.fade[i]! *= kF
-    for (let i = 0; i < 6; i++) c[i]! += this.fade[i]!
+    for (let i = 0; i < 6; i++) { this.fade[i]! *= kF; this.fadeR[i]! *= kF }
+    for (let i = 0; i < 6; i++) { c[i]! += this.fade[i]!; r[i]! += this.fadeR[i]! }
 
     // Chiêu đang chạy
     if (this.move >= 0) {
       this.t += dt * 1000
       if (this.t >= this.durations[this.move]!) this.move = -1
-      else { this.sampleMove(this.tmp); for (let i = 0; i < 6; i++) c[i]! += this.tmp[i]! }
+      else { this.sampleMove(this.tmp, this.tmpR); for (let i = 0; i < 6; i++) { c[i]! += this.tmp[i]!; r[i]! += this.tmpR[i]! } }
     }
 
     // Đỡ / choáng: chỉ khi không đang ra chiêu
@@ -246,7 +276,9 @@ export class MeleeSwing {
     for (let i = 0; i < 6; i++) { this.kick[i]! *= kK; c[i]! += this.kick[i]! }
 
     f.yaw = c[0]!; f.pitch = c[1]!; f.ext = c[2]!; f.wx = c[3]!; f.wy = c[4]!; f.wz = c[5]!
+    f.radTheta = r[0]!; f.radPhi = r[1]!; f.radRho = r[2]!; f.radW = clamp01(r[3]!); f.radSx = r[4]!; f.radSz = r[5]!
   }
 
   private readonly tmp: number[] = [0, 0, 0, 0, 0, 0]
+  private readonly curR: number[] = [0, 0, 0, 0, 0, 0]
 }

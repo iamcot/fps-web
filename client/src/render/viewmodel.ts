@@ -17,6 +17,7 @@ const GUN_DEFAULT_POS = new THREE.Vector3(0.28, -0.3, -0.45);
 /** Dao xoay so với bàn tay phải quanh trục x cục bộ (độ): lưỡi chỉa lên từ phía ngón cái */
 const _handCounter: Vec3 = [0, 0, 0];   // bàn tay hoàn lại phần xoay vũ khí trong nắm (MeleeLook.inHandDeg) nên hướng bàn tay không đổi
 const SUPPORT_REST: readonly [number, number, number] = [-0.14, -0.3, -0.5];
+const RAD_BLADE_UP = 0.4;   // rad
 const SUPPORT_ROT_DEG: readonly [number, number, number] = [10, -40, 15];
 const GUN_HIDDEN_Y = -0.55;
 const ANIM_HALF = 0.15; // 0.15 s mỗi chiều
@@ -416,6 +417,7 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
   const _fpOpts: FpSolveOpts = {};
   const _supQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(SUPPORT_ROT_DEG[0] * DEG, SUPPORT_ROT_DEG[1] * DEG, SUPPORT_ROT_DEG[2] * DEG, "XYZ"));
   let guardPull = 0;
+  const _rd = new THREE.Vector3(), _rx = new THREE.Vector3(), _ry = new THREE.Vector3(), _rz = new THREE.Vector3(), _rp = new THREE.Vector3(), _rm = new THREE.Matrix4(), _rq = new THREE.Quaternion();
   const _arm = new THREE.Vector3(), _armQ = new THREE.Quaternion(), _wristQ = new THREE.Quaternion(), _armE = new THREE.Euler(), _hand = new THREE.Vector3(), _wh = new THREE.Vector3();
   const isKnife = (id: number): boolean => WEAPONS[id]?.category === "knife";
 
@@ -643,11 +645,33 @@ export function createViewmodel(aspect: number): ViewmodelHandle {
       gunGroup.quaternion.multiply(_wristQ);
     }
 
+    // Dao bán kính quanh vai (playtest 23/10): bàn tay ở vai + ρ·hướng(θ, φ), lưỡi chỉ dọc hướng đó và bẹt nằm ngang (thẳng hàng cánh tay, mu bàn tay ngửa lên).
+    // Trộn với tư thế cầm nghỉ theo radW nên vào / ra mượt. Gốc dao: -Z = mũi, +Y = pháp tuyến mặt bẹt (xem in-hand 60° ở trên).
+    if (!nadeOut && isKnife(currentWeapon) && swing.fx.radW > 0.001) {
+      const sf = swing.fx, sh = poses.first.shoulderR;
+      const cp = Math.cos(sf.radPhi);
+      _rd.set(-Math.sin(sf.radTheta) * cp, Math.sin(sf.radPhi), -Math.cos(sf.radTheta) * cp);   // hướng vai → tay (θ + = trái)
+      _ry.set(0, 1, 0).addScaledVector(_rd, -_rd.y);                                            // trục Y của dao: lên, vuông góc với hướng
+      if (_ry.lengthSq() < 1e-6) _ry.set(0, 0, -1);
+      _ry.normalize();
+      _rz.copy(_rd).multiplyScalar(-Math.cos(RAD_BLADE_UP)).addScaledVector(_ry, -Math.sin(RAD_BLADE_UP));   // mũi ngóc nhẹ khỏi hướng cánh tay (cổ tay hơi ngửa) để lưỡi không bị cánh tay che
+      _ry.multiplyScalar(Math.cos(RAD_BLADE_UP)).addScaledVector(_rd, -Math.sin(RAD_BLADE_UP));   // pháp tuyến mặt bẹt: vuông góc với lưỡi, nằm trong mặt phẳng (hướng tay, lên)
+      _rx.crossVectors(_ry, _rz);
+      _rm.makeBasis(_rx, _ry, _rz);
+      _rq.setFromRotationMatrix(_rm);
+      _rp.set(sh[0] + sf.radSx, sh[1], sh[2] + sf.radSz).addScaledVector(_rd, sf.radRho);                  // điểm tay
+      getAnchor(currentWeapon, "hand_r", _hand).multiplyScalar(pose.scale).applyQuaternion(_rq);
+      _rp.sub(_hand);                                                                          // vị trí gunGroup để điểm nắm trùng bàn tay
+      gunGroup.position.lerp(_rp, sf.radW);
+      gunGroup.quaternion.slerp(_rq, sf.radW);
+    }
+
     // Tay: giải IK SAU khi mọi hiệu ứng đã áp lên súng (thứ tự này tránh tay trễ súng một frame)
     gunGroup.updateMatrix();
     const M = gunGroup.matrix;
     const f = poses.first;
     shoulderR.set(f.shoulderR[0], f.shoulderR[1], f.shoulderR[2]);
+    if (swing.fx.radW > 0.001 && !nadeOut && isKnife(currentWeapon)) { shoulderR.x += swing.fx.radSx * swing.fx.radW; shoulderR.z += swing.fx.radSz * swing.fx.radW; }   // thân xoay theo cú vung: vai IK dời theo điểm xoay
     shoulderL.set(f.shoulderL[0], f.shoulderL[1], f.shoulderL[2]);
     poleR.set(shoulderR.x + f.poleR[0], shoulderR.y + f.poleR[1], shoulderR.z + f.poleR[2]);
     poleL.set(shoulderL.x + f.poleL[0], shoulderL.y + f.poleL[1], shoulderL.z + f.poleL[2]);
