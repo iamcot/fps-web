@@ -824,5 +824,12 @@
     "source": "Người dùng cung cấp (assets/source/melee_glb/staff_A.glb); đã chuẩn hoá gốc/hướng/kích thước, texture webp 1024",
     "license": "CHƯA XÁC MINH",
     "url": ""
+  },
+  {
+    "file": "anims/combat.json",
+    "author": "Adobe Mixamo (animation)",
+    "source": "Clip cận chiến Mixamo trong assets/source/combat_anims, đổi bằng tools/melee/convert-clips.mjs",
+    "license": "Điều khoản Adobe Mixamo (CHƯA XÁC MINH bản hiện hành)",
+    "url": ""
   }
 ]

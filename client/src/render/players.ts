@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
-import { defaultMovement, DEFENSE, ECONOMY, INFECTION, NetFlag, TEAMS, WEAPONS, ZOMBIE_LOOK, ZOMBIE_TYPES, meleeSetOf, zombieVariation, type TeamId } from '@fps/shared'
+import { defaultMovement, DEFENSE, ECONOMY, INFECTION, NetFlag, TEAMS, moveDurationMs, WEAPONS, ZOMBIE_LOOK, ZOMBIE_TYPES, meleeSetOf, zombieVariation, type TeamId } from '@fps/shared'
 import { makeBlobShadow } from './blobShadow'
 import { MUZZLE_FALLBACK, makeFlashTexture, adjustModel } from './viewmodel'
 import { BlockArm } from './blockArm'
@@ -14,6 +14,7 @@ import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './charact
 import { createDeathFx } from './characters/deathFx'
 import { makeZombieFx, removeZombieFx, updateZombieFx, type ZombieFx } from './zombieLook'
 import { MeleeSwing, meleeLook, isStabFx, type SwingFx } from './meleeSwing'
+import { getMeleeClip, requestMeleeClips, clipTimeAt, MOVE_CLIP } from './meleeClips'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
 interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number; adsT?: number; ztype?: string; zscale?: number }
@@ -58,6 +59,7 @@ function requestGuns(): void {
 /** Bản sao model súng để đặt trên sàn (vũ khí rơi, P8); null nếu loại này không có model hoặc chưa load xong */
 export function cloneGunModel(weapon: number): THREE.Object3D | null {
   requestGuns()
+  requestMeleeClips()
   return gunModels.get(weapon)?.clone(true) ?? null
 }
 
@@ -305,6 +307,7 @@ const MELEE_TWIST_SHARE = 0.55   // phần góc quơ (yaw) mà thân trên xoắ
 const MELEE_EXT_SCALE = 1.6      // ext của viewmodel (m) → thân người: tay đã gần duỗi hết nên phóng to phần co/duỗi
 const STAGGER_LEAN = 0.3         // rad ngả sau khi choáng hẳn
 const FLINCH_LEAN = 0.22         // rad giật ngả sau khi trúng đòn
+const MELEE_CLIP_RELEASE = 0.4   // phần cuối chiêu trả tay về thế thủ (IK): đuôi clip thường buông tay xuống
 const FLINCH_TAU = 0.12          // s
 const _bodyQ = new THREE.Quaternion(), _bodyInv = new THREE.Quaternion(), _swQ = new THREE.Quaternion(), _offQ = new THREE.Quaternion()
 const _armV = new THREE.Vector3(), _xAxis = new THREE.Vector3(1, 0, 0)
@@ -391,6 +394,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   let lastNow = performance.now()
   let setId = ''
   requestGuns()
+  requestMeleeClips()
   const requestSkin = (id: string): void => { const sk = skinOfSet(getCharacterSet(id).id); if (sk) requestCharacters(sk) }
   requestSkin(setId)   // chưa biết bộ của phòng → bộ mặc định
 
@@ -568,6 +572,17 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     sw.update(dt)
     a.flinch *= Math.exp(-dt / FLINCH_TAU)
     const fx = sw.fx
+    // Clip Mixamo (nếu chiêu có clip và đã tải xong): thân trên theo clip, IK tay / xoắn thân thủ tục tạm nghỉ
+    const mc = set && sw.moveIdx >= 0 && sw.progress < 1 - MELEE_CLIP_RELEASE ? getMeleeClip(MOVE_CLIP[set.moves[sw.moveIdx]!.key] ?? '') : undefined
+    if (mc && set) {
+      const m = set.moves[sw.moveIdx]!, total = moveDurationMs(m)
+      a.rig.skel!.meleeClipT = clipTimeAt(mc, sw.progress * total, m.windupMs, total)
+      a.rig.skel!.setMeleeClip(mc)
+    } else a.rig.skel!.setMeleeClip(null)
+    if (a.rig.skel!.meleeClipW > 0.5) {
+      a.rig.skel!.bendSpine(0, sw.staggerAmount * STAGGER_LEAN + a.flinch * FLINCH_LEAN)
+      return
+    }
     const stabLean = fx.radW > 0.001 && isStabFx(fx) ? fx.radW * Math.max(0, Math.min(1, (fx.radRho - 0.4) / 0.5)) * STAB_LEAN : 0   // đâm: thân rướn về trước theo độ duỗi tay
     a.rig.skel!.bendSpine((fx.yaw * (1 - fx.radW) + fx.radTheta * fx.radW) * MELEE_TWIST_SHARE, sw.staggerAmount * STAGGER_LEAN + a.flinch * FLINCH_LEAN - stabLean)
   }
@@ -622,7 +637,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
         sk.placeAim()
         if (two) solveSkelArms(a, weapon, p.adsT ?? 0)
         else sk.refreshGunAnchor()
-        if (melee) swingSkelArm(a, weapon)
+        if (melee && sk.meleeClipW <= 0.5) swingSkelArm(a, weapon)
         if (weapon === GRENADE_ID && a.gun) nadeHand(a)
         sk.setOpacity((p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1)
       } else {
