@@ -358,7 +358,8 @@ let lastHp = 100
 // Góc nhìn thứ ba khi cầm vũ khí cận chiến (plan 19 P5): V bật/tắt, nhớ lựa chọn; chưa chọn bao giờ thì thể thức Cận Chiến mặc định bật.
 // Camera sau vai phải, không xuyên tường; viewmodel ẩn, vẽ nhân vật của chính mình. Đòn đánh vẫn tính từ mắt nhân vật như góc nhìn thứ nhất.
 const THIRD_KEY = 'fps.thirdPerson'
-const THIRD_BACK = 2.5, THIRD_RIGHT = 0.4, THIRD_UP = 0.15, THIRD_WALL_GAP = 0.25
+const THIRD_BACK = 2.4, THIRD_RIGHT = 1.4, THIRD_UP = 0.3, THIRD_WALL_GAP = 0.25
+const THIRD_CONVERGE = 7   // m phía trước nhân vật mà tâm ngắm của camera lệch vai vẫn trùng hướng đánh
 let thirdPref: boolean | null = (() => { try { const v = localStorage.getItem(THIRD_KEY); return v === null ? null : v === '1' } catch { return null } })()
 let thirdOn = false   // frame này đang vẽ góc nhìn thứ ba
 const thirdDir: [number, number, number] = [0, 0, 0], thirdOrigin: [number, number, number] = [0, 0, 0]
@@ -459,9 +460,11 @@ sessionP.then(session => {
       if (msg.outcome === 1 || msg.outcome === 2) {   // cận chiến: đòn bị đỡ / bị parry — không máu, tiếng kim loại
         if (msg.outcome === 1) hudRef?.showHitmarker(false)
         msg.outcome === 1 ? playBlock() : playGuardBreak()
+        explosionFx.kick(msg.outcome === 1 ? 0.3 : 0.5)
         return
       }
       hudRef?.showHitmarker(msg.headshot)   // chỉ hiện khi server xác nhận
+      if (meleeHeld()) explosionFx.kick(msg.headshot ? 0.7 : 0.45)   // đòn cận chiến trúng: màn hình rung (cảm giác va chạm)
       if (meleeHeld()) playersRenderer.meleeReact(msg.targetId, 'hit')   // đòn cận chiến trúng: người kia giật ngả ra sau
       // Máu: server không gửi điểm trúng nên lấy điểm trên tia vừa bắn gần thân/đầu mục tiêu nhất
       const tgt = lastSampled.find(o => o.id === msg.targetId)
@@ -617,9 +620,11 @@ sessionP.then(session => {
         vm.meleeReact(msg.outcome === 2 ? 'parry' : 'block')
         playersRenderer.meleeReact(playerId, msg.outcome === 2 ? 'parry' : 'block')   // góc nhìn thứ ba
         msg.outcome === 2 ? playParry() : playBlock()
+        explosionFx.kick(msg.outcome === 2 ? 0.5 : 0.3)
         return
       }
       if (thirdOn) playersRenderer.meleeReact(playerId, 'hit')
+      if (meleeHeld()) explosionFx.kick(msg.outcome === 3 ? 0.8 : 0.55)   // bị chém: rung mạnh hơn lúc mình chém
       const dx = msg.origin[0] - camera.position.x, dy = msg.origin[1] - camera.position.y, dz = msg.origin[2] - camera.position.z
       hurtIndicator.show(dx, dz, yaw)
       if (msg.outcome === 3) playGuardBreak()
@@ -754,6 +759,8 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       const hit = worldRef?.castRay(thirdOrigin, thirdDir, len + THIRD_WALL_GAP)
       const d = hit ? Math.max(0.1, hit.dist - THIRD_WALL_GAP) : len
       camera.position.set(thirdOrigin[0] + ox * d, thirdOrigin[1] + oy * d, thirdOrigin[2] + oz * d)
+      camera.rotation.y += Math.atan2(THIRD_RIGHT, THIRD_BACK + THIRD_CONVERGE)   // xoay vào giữa: thấy nghiêng mặt trước nhân vật, tâm ngắm vẫn hội tụ ở THIRD_CONVERGE
+      camera.rotation.x -= Math.atan2(THIRD_UP, THIRD_BACK + THIRD_CONVERGE)
     }
 
     const def   = WEAPONS[ws.current]!

@@ -114,6 +114,11 @@ export function createExplosionFx(scene: THREE.Scene, castRay: () => CastRay | n
       if (amp > shake.amp * Math.max(0, 1 - shake.t / SHAKE_S)) { shake.amp = amp; shake.t = 0 }
     },
 
+    /** Rung ngắn khi đánh trúng / bị đánh (cận chiến), amp 0..1 */
+    kick(amp: number): void {
+      if (amp > shake.amp * Math.max(0, 1 - shake.t / SHAKE_S)) { shake.amp = amp; shake.t = SHAKE_S * 0.5 }
+    },
+
     /** Mỗi frame */
     update(dt: number): void {
       for (const p of pools.flash) if (p.alive) {

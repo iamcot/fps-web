@@ -8,7 +8,7 @@ export const MELEE = {
   staminaRegenPerSec: 25,
   staminaRegenDelayMs: 800,  // sau khi tiêu thể lực, chờ bấy nhiêu mới hồi
   // Đỡ
-  guardArcDeg: 60,           // nửa góc nón chắn phía trước
+  guardArcDeg: 90,           // nửa góc nón chắn phía trước (90 = cả nửa mặt phẳng phía trước; bot đi vòng không đánh lọt bên hông)
   guardDamageMult: 0.15,     // sát thương lọt qua khi đỡ (đỡ 85%)
   guardStaminaMult: 0.5,     // đỡ trúng tốn thể lực = hệ số × damage gốc
   guardMoveMul: 0.6,
@@ -102,21 +102,28 @@ function mv(key: string, windupMs: number, recoverMs: number, damage: number, po
  * Chỉ số chiêu: 0 L1 chém ngang, 1 L2 chém ngược, 2 L3 đâm liên hoàn 2 nhát, 3 LLR đâm xuống, 4 LLRL xoay 360,
  *               5 LR đâm xuống, 6 LRL hất lên, 7 R1 đâm thẳng, 8 RR đâm thẳng 2 nhát, 9 RL lật tay chém nhanh
  */
-export const KNIFE_SET: MeleeSet = {
+const KNIFE_SLOW = 1.3   // playtest 23/10: chiêu dao quá nhanh, mắt không kịp thấy → kéo dài mọi pha thêm 30%
+const RAW_KNIFE_SET: MeleeSet = {
   roots: [0, 7],
   moves: [
-    mv('knife_l1',    110, 270, 40, 20, 15, [1, 5], 90,  arc({ yaw: [-55, 55] })),
-    mv('knife_l2',     90, 230, 40, 20, 15, [2, 3], 80,  arc({ yaw: [55, -55] })),
-    mv('knife_l3',    150, 330, 35, 14, 25, [-1, -1], 90, arc({ reach: [0.9, 2.0] }), 2, 200),
+    mv('knife_l1',    110, 270, 40, 20, 15, [1, 5], 90,  arc({ yaw: [-70, 70] })),
+    mv('knife_l2',     90, 230, 40, 20, 15, [2, 3], 80,  arc({ yaw: [70, -70] })),
+    mv('knife_l3',    150, 330, 35, 14, 25, [-1, -1], 90, arc({ reach: [0.8, 2.2] }), 2, 200),
     mv('knife_llr',   200, 380, 65, 35, 25, [4, -1], 120, arc({ pitch: [50, -50], height: same(-0.1) })),
     mv('knife_spin',  150, 500, 60, 45, 30, [-1, -1], 280, arc({ yaw: [0, 360], reach: same(1.6) })),
     mv('knife_lr',    180, 360, 65, 35, 25, [6, -1], 120, arc({ pitch: [40, -40], height: same(-0.1) })),
     mv('knife_rise',  120, 450, 50, 30, 25, [-1, -1], 120, arc({ pitch: [-50, 60], height: same(-0.4) })),
-    mv('knife_r1',    250, 450, 65, 35, 25, [9, 8], 140, arc({ pitch: same(-3), reach: [0.9, 2.0], height: same(-0.15) })),
-    mv('knife_rr',    120, 400, 30, 15, 25, [-1, -1], 100, arc({ pitch: same(-3), reach: [0.9, 1.9], height: same(-0.15) }), 2, 170),
-    mv('knife_flip',   80, 340, 45, 25, 20, [-1, -1], 80,  arc({ yaw: [50, -50] })),
+    mv('knife_r1',    250, 450, 65, 35, 25, [9, 8], 140, arc({ pitch: same(-3), reach: [0.8, 2.2], height: same(-0.15) })),
+    mv('knife_rr',    120, 400, 30, 15, 25, [-1, -1], 100, arc({ pitch: same(-3), reach: [0.8, 2.1], height: same(-0.15) }), 2, 170),
+    mv('knife_flip',   80, 340, 45, 25, 20, [-1, -1], 80,  arc({ yaw: [65, -65] })),
   ],
 }
+
+function slowed(set: MeleeSet, k: number): MeleeSet {
+  const r = (v: number) => Math.round(v * k)
+  return { roots: set.roots, moves: set.moves.map(m => ({ ...m, windupMs: r(m.windupMs), recoverMs: r(m.recoverMs), strikeMs: r(m.strikeMs), hitIntervalMs: r(m.hitIntervalMs) })) }
+}
+export const KNIFE_SET: MeleeSet = slowed(RAW_KNIFE_SET, KNIFE_SLOW)
 
 /**
  * Búa (plan 19 mục 6): chậm, nặng, hai tay.  L giáng, R quét ngang.

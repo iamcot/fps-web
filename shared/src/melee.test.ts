@@ -267,11 +267,12 @@ describe('đỡ, parry, vỡ thế thủ', () => {
     expect(a.ws.vulnerableUntilMs).toBe(9000 + MELEE.vulnerableMs)
   })
 
-  it('inGuardArc: yaw 0 nhìn -Z; ±60° trước mặt thì đỡ được', () => {
+  it('inGuardArc: yaw 0 nhìn -Z; ±90° trước mặt thì đỡ được', () => {
     expect(inGuardArc(0, 0, -3)).toBe(true)
     expect(inGuardArc(0, 0, 3)).toBe(false)
     expect(inGuardArc(0, 2, -2)).toBe(true)     // 45°
-    expect(inGuardArc(0, 3, -1)).toBe(false)    // ~71°
+    expect(inGuardArc(0, 3, -1)).toBe(true)     // ~71°
+    expect(inGuardArc(0, 3, 1)).toBe(false)     // ~108°: sau lưng
     expect(inGuardArc(Math.PI / 2, -3, 0)).toBe(true)   // quay trái 90° → nhìn -X
   })
 })

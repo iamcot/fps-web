@@ -61,7 +61,7 @@ export const MELEE_LOOK: Record<string, MeleeLook> = {
 }
 export function meleeLook(key: string | undefined): MeleeLook { return (key && MELEE_LOOK[key]) || MELEE_LOOK.knife! }
 
-const ARM_K = 0.75     // góc cung quét (server) → góc quơ cánh tay (một tay)
+const ARM_K = 0.95     // góc cung quét (server) → góc quơ cánh tay (một tay)
 const ARM_MAX = 1.3    // rad: xoáy 360° chỉ quơ tới đây (phần còn lại là thân xoay)
 /**
  * Keyframe suy từ cung quét: gồng ở đầu cung, quét tới cuối cung. Cung: yaw + = phải, pitch + = lên (độ); tay: yaw + = trái.
@@ -73,7 +73,7 @@ export function styleFromArc(m: MeleeMove, twoHand: boolean, levelWx = 0): Swing
   const a = m.arc, D = Math.PI / 180
   const cl = (v: number, lim: number) => Math.max(-lim, Math.min(lim, v))
   const thrust = a.reach[1] - a.reach[0] > 0.3
-  const e0 = thrust ? -0.14 : -0.04, e1 = 0.12
+  const e0 = thrust ? -0.2 : -0.06, e1 = thrust ? 0.2 : 0.14   // đâm vươn xa hơn (playtest 23/10: đâm quá ngắn)
   if (twoHand) {
     const dy = a.yaw[1] - a.yaw[0], dp = a.pitch[1] - a.pitch[0]
     // Cánh tay nâng lên (pitch) cũng ngóc vũ khí lên theo: cổ tay trừ lại để vũ khí nằm đúng hướng mong muốn
