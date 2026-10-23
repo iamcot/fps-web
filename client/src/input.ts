@@ -102,6 +102,9 @@ let _free = false
 export let camYaw = 0
 export let camPitch = 0
 const FREE_TURN_TAU = 0.07       // s: nhân vật quay về hướng đi (hằng số mũ)
+const FREE_AIM_TAU = 0.04         // s: nhân vật quay về hướng camera khi đánh (ngắn hơn gồng chiêu ≥ 117 ms nên nhát quét đã đúng hướng)
+const FREE_LOCK_S = 0.6          // s: sau lần bấm đánh / đỡ cuối, giữ hướng camera (chiêu vẫn đang chạy, quét theo yaw của từng cmd)
+let _lockT = 0
 const FREE_PITCH_TAU = 0.1       // s: hạ pitch về 0 khi không đánh
 const FREE_AIM_PITCH = 0.4       // phần pitch camera chuyển thành pitch đánh (camera đứng cao nhìn xuống nên không lấy hết)
 const FREE_PITCH_MIN = -0.9, FREE_PITCH_MAX = 1.2
@@ -110,14 +113,23 @@ export function setFreeCamera(on: boolean): void {
   if (on === _free) return
   _free = on
   if (on) { camYaw = yaw; camPitch = Math.max(FREE_PITCH_MIN, Math.min(FREE_PITCH_MAX, pitch)) }
-  else { yaw = camYaw; pitch = Math.max(-1.553, Math.min(1.553, camPitch)) }   // thoát: góc nhìn thứ nhất tiếp tục từ chỗ camera đang nhìn
+  else { yaw = camYaw; pitch = Math.max(-1.553, Math.min(1.553, camPitch)); _lockT = 0 }   // thoát: góc nhìn thứ nhất tiếp tục từ chỗ camera đang nhìn
 }
 /** Hướng nhìn của camera (hiển thị): camera tự do nếu đang bật, không thì hướng nhân vật */
 export function viewYaw(): number { return _free ? camYaw : yaw }
 /** Mỗi tick lúc dựng cmd: cập nhật hướng nhân vật theo camera tự do; trả nút đã chỉnh (đi → chỉ Forward). */
 export function freeLookStep(dt: number, b: number): number {
   if (!_free) return b
-  if ((b & (Btn.Fire | Btn.Aim | Btn.Guard)) !== 0) { yaw = camYaw; pitch = camPitch * FREE_AIM_PITCH; return b }   // đánh / đỡ: quay ngay về hướng camera
+  if ((b & (Btn.Fire | Btn.Aim | Btn.Guard)) !== 0) _lockT = FREE_LOCK_S
+  else if (_lockT > 0) _lockT -= dt
+  if (_lockT > 0) {   // đánh / đỡ (và 0,6 s sau đó): quay về hướng camera, WASD giữ nguyên = đi ngang
+    let d = (camYaw - yaw) % TWO_PI
+    if (d > Math.PI) d -= TWO_PI; else if (d < -Math.PI) d += TWO_PI
+    const k = 1 - Math.exp(-dt / FREE_AIM_TAU)
+    yaw += d * k
+    pitch += (camPitch * FREE_AIM_PITCH - pitch) * k
+    return b
+  }
   pitch *= Math.exp(-dt / FREE_PITCH_TAU)
   const fwd = (b & Btn.Forward ? 1 : 0) - (b & Btn.Back ? 1 : 0), side = (b & Btn.Right ? 1 : 0) - (b & Btn.Left ? 1 : 0)
   const out = b & ~(Btn.Forward | Btn.Back | Btn.Left | Btn.Right)
