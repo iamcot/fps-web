@@ -14,6 +14,7 @@ import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './charact
 import { createDeathFx } from './characters/deathFx'
 import { makeZombieFx, removeZombieFx, updateZombieFx, type ZombieFx } from './zombieLook'
 import { MeleeSwing, meleeLook, isStabFx, type SwingFx } from './meleeSwing'
+import { MeleePathDebug, meleeDebugEnabled } from './meleePathDebug'
 import { getMeleeClip, requestMeleeClips, clipTimeAt, MOVE_CLIP, GUARD_CLIP, GUARD_CLIP_T } from './meleeClips'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
@@ -59,7 +60,6 @@ function requestGuns(): void {
 /** Bản sao model súng để đặt trên sàn (vũ khí rơi, P8); null nếu loại này không có model hoặc chưa load xong */
 export function cloneGunModel(weapon: number): THREE.Object3D | null {
   requestGuns()
-  requestMeleeClips()
   return gunModels.get(weapon)?.clone(true) ?? null
 }
 
@@ -397,6 +397,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
   let setId = ''
   requestGuns()
   requestMeleeClips()
+  const pathDebug = meleeDebugEnabled() ? new MeleePathDebug(scene) : null
   const requestSkin = (id: string): void => { const sk = skinOfSet(getCharacterSet(id).id); if (sk) requestCharacters(sk) }
   requestSkin(setId)   // chưa biết bộ của phòng → bộ mặc định
 
@@ -578,12 +579,13 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     const mc = set && sw.moveIdx >= 0 && sw.progress < 1 - MELEE_CLIP_RELEASE ? getMeleeClip(MOVE_CLIP[set.moves[sw.moveIdx]!.key] ?? '') : undefined
     if (mc && set) {
       const m = set.moves[sw.moveIdx]!, total = moveDurationMs(m)
+      pathDebug?.update(m.key, sw.progress * total / 1000 * 60, a.rig.root.position.x, a.rig.root.position.y, a.rig.root.position.z, a.rig.root.rotation.y)
       a.rig.skel!.meleeClipT = clipTimeAt(mc, sw.progress * total, m.windupMs, total)
       a.rig.skel!.setMeleeClip(mc)
     } else if (set && sw.moveIdx < 0 && !meleeLook(def.key).twoHand && sw.guardAmount > 0.5 && getMeleeClip(GUARD_CLIP)) {   // đỡ một tay: giữ một khung của clip block
       a.rig.skel!.meleeClipT = GUARD_CLIP_T
       a.rig.skel!.setMeleeClip(getMeleeClip(GUARD_CLIP)!)
-    } else a.rig.skel!.setMeleeClip(null)
+    } else { a.rig.skel!.setMeleeClip(null); if (sw.moveIdx < 0) pathDebug?.update(null, 0, 0, 0, 0, 0) }
     if (a.rig.skel!.meleeClipW > 0.5) {
       a.rig.skel!.bendSpine(0, sw.staggerAmount * STAGGER_LEAN + a.flinch * FLINCH_LEAN)
       return
