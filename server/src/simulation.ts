@@ -7,6 +7,7 @@ import type { Player, Room } from './room'
 import { resolveShot } from './shooting'
 import { stepMeleeSweep } from './meleeSweep'
 import { spawnThrown, stepGrenades } from './grenades'
+import { handleInteract, stepWorldWeapons } from './worldWeapons'
 import { updateMatch } from './match'
 
 // Khi không có input mới, giữ hướng di chuyển nhưng không lặp hành động một lần
@@ -85,6 +86,9 @@ export function stepPlayer(p: Player, baseCfg: MovementConfig, room: Room | null
       const anim = { t: MsgType.GrenadeAnim, playerId: p.id, phase: ev === 'pull' ? 'pulling' : ev === 'threw' ? 'throw' : 'cancel', mode } as const
       for (const o of room.players.values()) o.transport.send(anim)
     }
+    const interactDown = (eff.buttons & Btn.Interact) !== 0
+    if (room && interactDown && !p.interactHeld) handleInteract(room, p, cmd.seq * 1000 / TICK_RATE)   // G: nhặt, không có gì để nhặt thì vứt
+    p.interactHeld = interactDown
     recoverRecoil(p.recoil, WEAPONS[p.weapon.current]!, p.weapon, cmd.seq * 1000 / TICK_RATE, DT)
     ran++
   }
@@ -131,6 +135,7 @@ export function stepRoom(room: Room, cfg: MovementConfig, serverTime = room.serv
     if (p.alive && p.state.pos[1] < VOID_Y) { p.hp = 0; p.killerId = p.id; p.killWeapon = p.weapon.current; p.killHeadshot = false }   // rớt khỏi map
   }
   room.finalizeDeaths()
+  stepWorldWeapons(room)
   stepGrenades(room)   // sau finalizeDeaths: lựu đạn rơi từ người vừa chết đã vào danh sách
   room.respawnDue()
   updateMatch(room)

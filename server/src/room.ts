@@ -4,6 +4,7 @@ import { LagHistory } from './lagComp'
 import type { RoomGrenade } from './grenades'
 import type { MeleeSweep } from './meleeSweep'
 import { dropOnDeath } from './grenades'
+import { worldWeaponSpawnMsg, type WorldWeapon } from './worldWeapons'
 import { createMode, type MatchMode } from './modes'
 import type { BotController } from './bots/controller'
 import type { NavGrid } from './bots/nav'
@@ -32,6 +33,7 @@ export interface Player {
   killerId: number               // ai bắn hạ (-1 = chưa); kèm vũ khí/headshot để gửi Kill
   killWeapon: number
   killHeadshot: boolean
+  interactHeld: boolean          // Btn.Interact (G) đang giữ ở cmd trước: chỉ nhặt / vứt ở cạnh lên
   deadCmd: InputCmd              // scratch: cmd đã bỏ nút khi đang chết
   debugShots: boolean            // F7: gửi DebugShot cho người này
   rewindClamped: number          // số phát bị kẹp vì fireRenderTime cũ hơn MAX_REWIND_MS
@@ -95,6 +97,8 @@ export class Room {
   tick = 0        // số tick của phòng (TickLoop truyền vào stepRoom; thiếu thì tự tăng) — mốc thời gian của lựu đạn
   grenades: RoomGrenade[] = []
   nextGrenadeId = 1
+  worldWeapons: WorldWeapon[] = []   // vũ khí nằm dưới đất (plan 19 P8)
+  nextWorldWeaponId = 1
   private nextId = 1
 
   // Phòng offline (plan 15): chỉ một người thật + bot. Cho phép lệnh OfflineCmd, tắt cân bằng đội tự động.
@@ -210,6 +214,7 @@ export class Room {
       killerId: -1,
       killWeapon: 0,
       killHeadshot: false,
+      interactHeld: false,
       deadCmd: { seq: 0, buttons: 0, yaw: 0, pitch: 0, weapon: 0 },
       debugShots: false,
       rewindClamped: 0,
@@ -265,6 +270,7 @@ export class Room {
     // Đội của mọi người cho người mới; đội của người mới cho cả phòng
     for (const o of this.players.values()) if (o !== player) transport.send({ t: MsgType.TeamAssigned, id: o.id, team: o.team })
     for (const o of this.players.values()) o.transport.send({ t: MsgType.TeamAssigned, id: player.id, team })
+    for (const w of this.worldWeapons) transport.send(worldWeaponSpawnMsg(w))   // vật đã nằm sẵn dưới đất
     this.mode.onPlayerJoin(this, player)
     if (this.offline) player.money = this.eco.maxMoney   // offline: tiền vô hạn hoặc nạp lại $16000 mỗi lần hồi sinh
     transport.send({ t: MsgType.MoneyEvent, delta: player.money, reason: 'reset' })

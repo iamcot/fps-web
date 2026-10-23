@@ -45,6 +45,7 @@ import { createViewmodel } from './render/viewmodel'
 import { createPoseEditor } from './render/poseEditor'
 import { createBloodFx } from './render/bloodFx'
 import { createGrenades } from './render/grenades'
+import { createWorldWeapons } from './render/worldWeapons'
 import { createGrenadeWarning } from './hudGrenadeWarn'
 import { createExplosionFx } from './render/explosionFx'
 import { createTargets, createBoards, rayBoards, updateTargets, flashTarget } from './targets'
@@ -218,6 +219,7 @@ const playersRenderer = createPlayersRenderer(scene, {
   zombieMode: () => !!sessionRef && isZombieMode(sessionRef.config.settings.mode),
 })
 const explosionFx = createExplosionFx(scene, () => (worldRef ? (o, d, m) => worldRef!.castRay(o, d, m) : null))
+const worldWeapons = createWorldWeapons(scene)
 const grenades = createGrenades(scene, {
   world: () => worldRef,
   onExplode: pos => { explosionFx.explode(pos, [camera.position.x, camera.position.y, camera.position.z]); playExplode(pos, !dead) },
@@ -441,7 +443,7 @@ sessionP.then(session => {
     session.offline ? null : `${location.origin}/?room=${encodeURIComponent(session.roomName)}`, () => toast(t('Room link copied')))
   {   // gợi ý phím bên phải màn hình (dưới killfeed)
     const st = session.config.settings
-    const items: [string, string][] = [[t('Quick switch'), 'Q'], [t('Reload'), 'R']]
+    const items: [string, string][] = [[t('Quick switch'), 'Q'], [t('Reload'), 'R'], [t('Pick up / drop weapon'), 'G']]
     if ((st.mode === 'infection' || st.mode === 'defense') && st.lighting === 'night') items.push([t('Flashlight'), 'F'])
     if (st.mode === 'defense') items.push([t('Revive teammate'), 'E'])
     keyHints.setItems(items)
@@ -523,6 +525,12 @@ sessionP.then(session => {
       // serverTime của tick 0 suy từ snapshot (serverTime = start + tick·TICK_MS); chưa có snapshot thì dùng giờ server ước lượng
       const origin = snapStore && snapStore.serverTime > 0 ? snapStore.serverTime - snapStore.tick * 1000 / TICK_RATE : clock.serverNow() - msg.spawnTick * 1000 / TICK_RATE
       grenades.onSpawn(msg, origin, session.yourId, session.teams.get(msg.ownerId) ?? 'A')
+    } else if (msg.t === MsgType.WorldWeaponSpawn) {
+      worldWeapons.onSpawn(msg)
+    } else if (msg.t === MsgType.WorldWeaponRemove) {
+      worldWeapons.onRemove(msg.id)
+    } else if (msg.t === MsgType.PickupResult) {
+      setWantedWeapon(msg.slot)   // server đã đổi tay cầm (nhặt: ô vừa nhận; vứt: về dao): cmd tiếp theo mang đúng ô
     } else if (msg.t === MsgType.GrenadeAnim) {
       const who = lastSampled.find(o => o.id === msg.playerId)
       if (who && msg.playerId !== session.yourId) {   // âm của người khác (chốt chỉ nghe được khi ở gần)
@@ -564,7 +572,7 @@ sessionP.then(session => {
       zombieHud.onRoundEnd(msg)
     } else if (msg.t === MsgType.RoundReset) {
       // Ván mới: xoá lựu đạn đang bay, vết cháy, đường đạn, máu
-      grenades.clear(); explosionFx.clear(); blood.clear()
+      grenades.clear(); explosionFx.clear(); blood.clear(); worldWeapons.clear()
     } else if (msg.t === MsgType.MatchEnd) {
       matchHud.onMatchEnd(msg, msg.mvpId !== null ? session.names.get(msg.mvpId) ?? '' : '')
       zombieHud.onMatchEnd(msg, msg.mvpId !== null ? session.names.get(msg.mvpId) ?? '' : '')
@@ -884,6 +892,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     setFlashlightAllowed(night.night && !zombieSelf)
     keyHints.setHidden(zombieSelf)
     night.update(camera, flashlightOn() && !dead && spectatingId === -2, lastSampled)
+    worldWeapons.update(dt, state.pos, snapStore?.loadout ?? null, !dead && !zombieSelf && spectatingId === -2)
     grenades.update(dt, interp.currentRenderTime > 0 ? interp.currentRenderTime : clock.serverNow(), netStats.rttMs)
     tracers.update(dt * 1000)
     blood.update(dt)

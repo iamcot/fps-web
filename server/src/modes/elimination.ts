@@ -89,6 +89,7 @@ export class EliminationMode implements MatchMode {
   // Đầu ván: xoá lựu đạn, mọi người hồi sinh ở căn cứ (mỗi người một điểm), người sống sót giữ súng
   private startFreeze(room: Room, now: number): void {
     room.grenades = []
+    room.worldWeapons = []
     for (const p of room.players.values()) p.transport.send({ t: MsgType.RoundReset, round: this.round })
     const used = { A: 0, B: 0 }
     for (const p of room.players.values()) {

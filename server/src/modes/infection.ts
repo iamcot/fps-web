@@ -139,6 +139,7 @@ export class InfectionMode implements MatchMode {
   // Đầu ván: mọi người là người, tiền = startMoney, rải đều khắp map
   private startPrep(room: Room, now: number): void {
     room.grenades = []
+    room.worldWeapons = []
     this.heroChosen = false
     for (const p of room.players.values()) p.transport.send({ t: MsgType.RoundReset, round: this.round })
     const pts = this.spreadPoints(room, room.players.size)

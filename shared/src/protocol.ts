@@ -57,6 +57,9 @@ export const MsgType = {
   WaveClear: 142,      // plan 17: hết đợt + tiền thưởng
   DefenseEnd: 143,     // plan 17: thắng/thua + thống kê
   Telegraph: 144,      // plan 17: báo trước chiêu của boss (vòng đỏ dưới đất, hướng lao)
+  WorldWeaponSpawn: 145,   // plan 19 P8: vũ khí nằm dưới đất (cả phòng; người mới vào nhận đủ danh sách)
+  WorldWeaponRemove: 146,  // vũ khí dưới đất biến mất (có người nhặt / hết hạn / ván mới)
+  PickupResult: 147,       // gửi riêng người vừa nhặt / vứt: ô cần cầm tiếp theo
 } as const
 
 export type MsgTypeValue = (typeof MsgType)[keyof typeof MsgType]
@@ -360,6 +363,26 @@ export interface GrenadeSpawnMsg {
   throwSeq: number
 }
 
+// Vũ khí nằm dưới đất (plan 19 P8). `persist` = vũ khí của map, không biến mất theo giờ.
+export interface WorldWeaponSpawnMsg {
+  t: typeof MsgType.WorldWeaponSpawn
+  id: number
+  weapon: number     // id trong WEAPONS
+  pos: [number, number, number]
+  yaw: number
+  persist?: boolean
+}
+export interface WorldWeaponRemoveMsg {
+  t: typeof MsgType.WorldWeaponRemove
+  id: number
+}
+// Server vừa nhặt / vứt cho người này: client đặt ô muốn cầm (kèm đổi vũ khí trong cmd kế)
+export interface PickupResultMsg {
+  t: typeof MsgType.PickupResult
+  action: 'pick' | 'drop'
+  slot: number
+}
+
 // Nổ (nguồn chân lý: nổ đúng chỗ này, xoá quả local). hits = sát thương đã áp cho từng người
 export interface GrenadeExplodeMsg {
   t: typeof MsgType.GrenadeExplode
@@ -400,7 +423,7 @@ export interface PongMsg {
 
 export type AnyMsg =
   | JoinMsg | InputsMsg | PingMsg | SetDebugMsg | ChooseTeamMsg | BuyMsg | ListRoomsMsg | OfflineCmdMsg
-  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg | InfectedMsg | HeroChosenMsg | InfectionCountMsg | SniffedMsg | DefenseStateMsg | WaveStartMsg | WaveClearMsg | DefenseEndMsg | TelegraphMsg
+  | WelcomeMsg | PongMsg | SnapshotMsg | PlayerJoinedMsg | PlayerLeftMsg | HitConfirmMsg | ShotFxMsg | DebugShotMsg | KillMsg | RespawnMsg | HurtMsg | MatchStateMsg | TeamAssignedMsg | ScoreboardMsg | BuyResultMsg | MoneyEventMsg | GrenadeSpawnMsg | WorldWeaponSpawnMsg | WorldWeaponRemoveMsg | PickupResultMsg | GrenadeExplodeMsg | GrenadeAnimMsg | RoomListMsg | JoinRejectedMsg | DebugCmdMsg | RoundEndMsg | RoundResetMsg | MatchEndMsg | OfflineStateMsg | BotDebugMsg | NavDebugMsg | InfectedMsg | HeroChosenMsg | InfectionCountMsg | SniffedMsg | DefenseStateMsg | WaveStartMsg | WaveClearMsg | DefenseEndMsg | TelegraphMsg
 
 export const MAX_PITCH = 1.56
 const ALL_BUTTONS = Object.values(Btn).reduce((a, b) => a | b, 0)

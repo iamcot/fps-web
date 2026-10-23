@@ -55,6 +55,12 @@ function requestGuns(): void {
   })
 }
 
+/** Bản sao model súng để đặt trên sàn (vũ khí rơi, P8); null nếu loại này không có model hoặc chưa load xong */
+export function cloneGunModel(weapon: number): THREE.Object3D | null {
+  requestGuns()
+  return gunModels.get(weapon)?.clone(true) ?? null
+}
+
 // Nhãn tên đồng đội: sprite canvas tạo một lần cho mỗi người
 function makeNameSprite(text: string, color: string): THREE.Sprite {
   const c = document.createElement('canvas')

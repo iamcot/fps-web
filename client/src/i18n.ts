@@ -58,7 +58,7 @@ const VI: Record<string, string> = {
   'In use': 'Đang dùng', 'Full ({c}/{m})': 'Đã đủ ({c}/{m})', 'sell {old} +${refund} · {verb} ${amt}': 'bán {old} +${refund} · {verb} ${amt}', 'pay': 'trả', 'get': 'nhận', '{old} is a starter weapon, no refund': '{old} cấp sẵn, không bán lại',
   'Back to the lobby? You will leave this match.': 'Về phòng chờ? Bạn sẽ rời trận này.', 'Switch to {team}? Bots switch sides too.': 'Đổi sang phe {team}? Bot cũng đổi phe theo.', 'Switch to {team}?': 'Đổi sang phe {team}?',
   'Switched to {team}': 'Đã sang phe {team}', 'Cannot switch: the other team is larger': 'Không đổi được: phe kia đã đông hơn', 'You were moved to {team} to balance the teams': 'Bạn được chuyển sang phe {team} để cân bằng',
-  'Room link copied': 'Đã sao chép link phòng', 'Quick switch': 'Đổi súng nhanh', 'Reload': 'Thay đạn', 'Flashlight': 'Bật tắt đèn', 'Revive teammate': 'Cứu đồng đội',
+  'Room link copied': 'Đã sao chép link phòng', 'Quick switch': 'Đổi súng nhanh', 'Reload': 'Thay đạn', 'Flashlight': 'Bật tắt đèn', 'Revive teammate': 'Cứu đồng đội', 'G: pick up {name}': 'G: nhặt {name}', 'Pick up / drop weapon': 'Nhặt / vứt vũ khí',
   'Offline · {map} · {mode}': 'Offline · {map} · {mode}',
   '{team} WIN': '{team} THẮNG', 'DRAW': 'HOÀ', '{team} WIN ROUND {r}': '{team} THẮNG VÁN {r}', 'ROUND DRAW': 'VÁN HOÀ', '{team} WIN THE MATCH': '{team} THẮNG TRẬN',
   'Team eliminated': 'Tiêu diệt toàn bộ', 'Time up · more players alive': 'Hết giờ · còn nhiều người hơn', 'Time up · more health left': 'Hết giờ · còn nhiều máu hơn', 'Both teams wiped out': 'Hai bên cùng hạ gục',

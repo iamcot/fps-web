@@ -99,7 +99,8 @@ export function sampleButtons(): number {
   if (_keys['KeyD'])                                            b |= Btn.Right
   if (_keys['Space'])                                           b |= Btn.Jump
   if (_keys['KeyC'] || _keys['ControlLeft'] || _keys['ControlRight']) b |= Btn.Crouch
-  if (_keys['KeyG'])                                            b |= Btn.QuickNade
+  if (_keys['KeyX'])                                            b |= Btn.QuickNade   // ném lựu đạn nhanh (trước đây phím G; G giờ nhặt / vứt vũ khí)
+  if (_keys['KeyG'])                                            b |= Btn.Interact
   if (_keys['KeyE'])                                            b |= Btn.Ability
   if (_keys['KeyQ'])                                            b |= Btn.Sniff
   if (_keys['ShiftLeft'])                                       b |= Btn.Guard   // đỡ đòn khi cầm vũ khí cận chiến (plan 19)
