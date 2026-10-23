@@ -16,7 +16,7 @@ export interface TeamTintDef {
 const TINT: Record<string, Record<TeamId, TeamTintDef>> = {
   saber:   {
     A: { color: 0x5a90f0, lumRef: 0.07, lift: 0.30, gamma: 0.8, strength: 0.1 },   // Cớm: xanh dương
-    B: { color: 0xffeccb, lumRef: 0.08, lift: 0.50, gamma: 0.8, strength: 0.2 },   // Cướp: trắng kem
+    B: { color: 0xffeccb, lumRef: 0.08, lift: 0.50, gamma: 0.8, strength: 0.4 },   // Cướp: trắng kem
   },
   classic: {
     A: { color: 0x5a90f0, lumRef: 0.03, lift: 0.30, gamma: 0.8, strength: 0.3 },
@@ -42,8 +42,8 @@ export const OUTLINE_ENEMY = 0xff3333   // đỏ   = kẻ thù
  */
 export function makeOutlineMesh(
   src: THREE.SkinnedMesh,
-  thickness = 0.013,
-  opacity = 0.9,
+  thickness = 0.01,
+  opacity = 1,
 ): THREE.SkinnedMesh {
   const mat = new THREE.MeshLambertMaterial({ color: OUTLINE_ENEMY, side: THREE.BackSide, transparent: true, opacity, depthWrite: false })
   const t = thickness.toFixed(4)
