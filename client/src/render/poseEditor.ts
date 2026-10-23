@@ -83,7 +83,7 @@ export function createPoseEditor(vm: ViewmodelHandle, weaponId: () => number, eq
     panel.append(head)
     const wsel = el('select', 'background:#111;color:#dde;margin-right:6px')
     const auto = el('option', '', '(súng đang cầm)'); auto.value = '-1'; wsel.append(auto)
-    WEAPON_KEYS.forEach((k, i) => { const o = el('option', '', k); o.value = String(i); wsel.append(o) })
+    WEAPON_KEYS.forEach((k, i) => { if (!k) return; const o = el('option', '', k); o.value = String(i); wsel.append(o) })
     wsel.value = String(selWeapon); wsel.onchange = () => { selWeapon = parseInt(wsel.value); if (selWeapon >= 0) equip?.(selWeapon); render() }
     head.append(wsel)
     const tabs = el('div', 'margin:4px 0')

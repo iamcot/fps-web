@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { KNIFE_SET, moveDurationMs } from '@fps/shared'
-import { MeleeSwing, SWING_STYLES, GUARD_POSE, buildKeys } from './meleeSwing'
+import { KNIFE_SET, MELEE_SETS, moveDurationMs } from '@fps/shared'
+import { MeleeSwing, SWING_STYLES, GUARD_POSE, buildKeys, meleeLook } from './meleeSwing'
 
 const DT = 1 / 60
 function run(s: MeleeSwing, ms: number): void { for (let i = 0; i < Math.round(ms / (DT * 1000)); i++) s.update(DT) }
@@ -108,5 +108,25 @@ describe('MeleeSwing', () => {
     s.start(1); s.update(DT)
     const q = vec(s)
     expect(Math.max(...q.map((v, i) => Math.abs(v - p[i]!)))).toBeLessThan(0.6)
+  })
+})
+
+describe('vũ khí cận chiến mới (P6)', () => {
+  it('mọi chiêu của búa / mã tấu / thương / gậy có keyframe (suy từ cung quét), chạy hết chiêu thì về nghỉ', () => {
+    for (const key of ['hammer', 'machete', 'spear', 'staff']) {
+      const set = MELEE_SETS[key]!
+      const s = new MeleeSwing()
+      s.useSet(set, meleeLook(key))
+      set.moves.forEach((m, i) => {
+        s.start(i)
+        let peak = 0
+        for (let t = 0; t < moveDurationMs(m) + 100; t += 16) {
+          s.update(0.016)
+          for (const v of Object.values(s.fx)) { expect(Number.isFinite(v), `${m.key}`).toBe(true); peak = Math.max(peak, Math.abs(v)) }
+        }
+        expect(peak, `${m.key} phải có chuyển động`).toBeGreaterThan(0.05)
+        expect(s.active).toBe(false)
+      })
+    }
   })
 })

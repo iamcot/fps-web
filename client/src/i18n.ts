@@ -43,7 +43,7 @@ const VI: Record<string, string> = {
   'Hold the base against 10 zombie waves. The last wave has a boss.': 'Cả đội giữ thành chống 10 đợt zombie, đợt cuối có boss.',
   'Knives only. Team fight with combos, blocks and parries. Continuous respawns.': 'Chỉ dùng dao. Đánh theo đội bằng combo, đỡ và parry. Hồi sinh liên tục.',
   'Cops': 'Cớm', 'Robbers': 'Cướp',
-  'Claw': 'Vuốt', 'Knife': 'Dao', 'Pistol': 'Súng ngắn', 'Mid-range': 'Súng vừa', 'Long gun': 'Súng dài', 'Grenade': 'Lựu đạn', 'Revolver': 'Rulô',
+  'Claw': 'Vuốt', 'Knife': 'Dao', 'Hammer': 'Búa', 'Machete': 'Mã tấu', 'Spear': 'Thương', 'Staff': 'Gậy', 'Pistol': 'Súng ngắn', 'Mid-range': 'Súng vừa', 'Long gun': 'Súng dài', 'Grenade': 'Lựu đạn', 'Revolver': 'Rulô',
   'Walker': 'Zombie thường', 'Runner': 'Zombie chạy', 'Crawler': 'Zombie bò', 'Leaper': 'Zombie nhảy', 'Brute': 'Zombie trâu', 'Screamer': 'Zombie gào', 'Zombie Boss': 'Đại Ca Zombie', 'Mother zombie': 'Zombie mẹ',
   'Cops & Robbers': 'Cớm & Cướp', 'Desert Storm': 'Bão Cát Sa Mạc', 'Robot (blocky)': 'Robot (khối hộp)',
   // Room status (từ server)

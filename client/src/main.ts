@@ -496,7 +496,7 @@ sessionP.then(session => {
         playersRenderer.muzzleFlash(msg.shooterId)
       } else if (msg.weapon === CLAW_ID || msg.weapon === CLAW_HEAVY_ID) {
         playersRenderer.zombieAttack(msg.shooterId, msg.weapon === CLAW_HEAVY_ID)
-      } else if (msg.moveId !== undefined) playersRenderer.meleeStart(msg.shooterId, msg.moveId)   // người khác ra chiêu: vẽ đúng động tác
+      } else if (msg.moveId !== undefined) playersRenderer.meleeStart(msg.shooterId, msg.moveId, msg.weapon)   // người khác ra chiêu: vẽ đúng động tác
       playShotOther(msg.weapon, msg.origin)
     } else if (msg.t === MsgType.DebugShot) {
       debugShots.add(msg.origin, msg.dir, msg.boxes, msg.blade)
@@ -903,7 +903,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
 
     const ev = stepWeaponCmd(ws, cmd)
     const mset = def.melee ? meleeSetOf(def) : undefined   // dao có bộ chiêu: cung quét ở server, client chỉ vẽ động tác + dự đoán trạng thái
-    if (ev === 'meleeStart') { vm.meleeStart(ws.meleeMove); playersRenderer.meleeStart(playerId, ws.meleeMove) }
+    if (ev === 'meleeStart') { vm.meleeStart(ws.meleeMove); playersRenderer.meleeStart(playerId, ws.meleeMove, ws.current) }
     if (mset) {
       vm.meleeSync(ws.guardSinceMs >= 0, nowMs < ws.staggerUntilMs, ws.meleeMove >= 0)
       hud.setMelee(meleeHudModel(meleeHudTmp, ws, mset, nowMs))

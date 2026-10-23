@@ -768,5 +768,61 @@
     "source": "assets/source/sounds/ (đã chuyển sang ogg/mp3)",
     "license": "CHƯA XÁC MINH",
     "url": ""
+  },
+  {
+    "file": "icons/weapons/hammer.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/machete.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/spear.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "icons/weapons/staff.svg",
+    "author": "Dự án FPS Web",
+    "source": "Vẽ tạm trong repo (SVG silhouette đơn giản)",
+    "license": "Tự tạo",
+    "url": ""
+  },
+  {
+    "file": "models/hammer.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Người dùng cung cấp (assets/source/melee_glb/frostbite_axe.glb); đã chuẩn hoá gốc/hướng/kích thước, texture webp 1024",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/machete.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Người dùng cung cấp (assets/source/melee_glb/machette_decor_5k.glb); đã chuẩn hoá gốc/hướng/kích thước, texture webp 1024",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/spear.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Người dùng cung cấp (assets/source/melee_glb/rift_spear.glb); đã chuẩn hoá gốc/hướng/kích thước, texture webp 1024",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
+  },
+  {
+    "file": "models/staff.glb",
+    "author": "CHƯA XÁC MINH",
+    "source": "Người dùng cung cấp (assets/source/melee_glb/staff_A.glb); đã chuẩn hoá gốc/hướng/kích thước, texture webp 1024",
+    "license": "CHƯA XÁC MINH",
+    "url": ""
   }
 ]

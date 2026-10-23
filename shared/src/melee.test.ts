@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { makeWeaponState, WEAPONS } from './weapons'
+import { makeWeaponState, weaponByKey, WEAPONS } from './weapons'
 import type { WeaponState } from './weapons'
 import { stepWeaponCmd, copyWeaponState, weaponStatesEqual, moveSpeedMul, selectSlot } from './weaponLogic'
 import { Btn } from './movement'
@@ -7,7 +7,7 @@ import type { InputCmd } from './movement'
 import { MELEE, KNIFE_SET, moveDurationMs } from './meleeConfig'
 import { TICK_RATE } from './constants'
 import {
-  comboDepth, staminaAt, poiseAt, resolveMeleeHit, makeMeleeHitResult, inGuardArc, meleeMoveMul, isStaggered, initMeleeState,
+  comboDepth, staminaAt, poiseAt, resolveMeleeHit, makeMeleeHitResult, inGuardArc, meleeMoveMul, isStaggered, initMeleeState, meleeSetOf,
 } from './melee'
 
 const TICK_MS = 1000 / TICK_RATE
@@ -389,5 +389,27 @@ describe('trạng thái', () => {
     }
     for (const r of KNIFE_SET.roots) walk(r, 0)
     expect(seen.size).toBe(n)   // mọi chiêu đều với tới được từ gốc
+  })
+})
+
+describe('bộ chiêu vũ khí cận chiến mới (P6)', () => {
+  it('mỗi vũ khí cận chiến mua được có bộ chiêu; cây combo hợp lệ (chỉ số trong khoảng, không vòng lặp)', () => {
+    for (const key of ['hammer', 'machete', 'spear', 'staff']) {
+      const def = weaponByKey(key)!
+      const set = meleeSetOf(def)!
+      expect(set, key).toBeDefined()
+      expect(def.category).toBe('knife')
+      const n = set.moves.length
+      for (const r of set.roots) expect(r).toBeGreaterThanOrEqual(0)
+      for (const m of set.moves) for (const x of m.next) expect(x).toBeLessThan(n)
+      // đi hết mọi nhánh từ gốc: không quay lại chiêu đã đi (combo luôn kết thúc)
+      const walk = (i: number, seen: Set<number>): void => {
+        expect(seen.has(i), `${key} vòng lặp tại ${set.moves[i]!.key}`).toBe(false)
+        seen.add(i)
+        for (const x of set.moves[i]!.next) if (x >= 0) walk(x, new Set(seen))
+      }
+      for (const r of set.roots) walk(r, new Set())
+      for (const m of set.moves) expect(m.strikeMs).toBeLessThanOrEqual(m.hitCount > 1 ? m.hitIntervalMs : 1e9)
+    }
   })
 })

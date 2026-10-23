@@ -859,6 +859,126 @@
           -0.36
         ]
       }
+    },
+    "machete": {
+      "anchors": {},
+      "third": {
+        "hold": "oneHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ]
+      },
+      "first": {
+        "hold": "oneHand",
+        "gunRotDeg": [
+          0.5,
+          12,
+          -4
+        ],
+        "scale": 1,
+        "gunPos": [
+          0.17,
+          -0.305,
+          -0.545
+        ]
+      }
+    },
+    "hammer": {
+      "anchors": {},
+      "third": {
+        "hold": "oneHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ]
+      },
+      "first": {
+        "hold": "twoHand",
+        "gunRotDeg": [
+          65,
+          5,
+          -25
+        ],
+        "scale": 1,
+        "gunPos": [
+          0.24,
+          -0.36,
+          -0.5
+        ]
+      }
+    },
+    "spear": {
+      "anchors": {},
+      "third": {
+        "hold": "oneHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ]
+      },
+      "first": {
+        "hold": "twoHand",
+        "gunRotDeg": [
+          12,
+          20,
+          -15
+        ],
+        "scale": 1,
+        "gunPos": [
+          0.25,
+          -0.35,
+          -0.15
+        ]
+      }
+    },
+    "staff": {
+      "anchors": {},
+      "third": {
+        "hold": "oneHand",
+        "gunPos": [
+          0.12,
+          -0.05,
+          -0.25
+        ],
+        "gunRotDeg": [
+          0,
+          0,
+          0
+        ]
+      },
+      "first": {
+        "hold": "twoHand",
+        "gunRotDeg": [
+          22,
+          25,
+          -35
+        ],
+        "scale": 1,
+        "gunPos": [
+          0.22,
+          -0.34,
+          -0.25
+        ]
+      }
     }
   }
 }

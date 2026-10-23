@@ -1,14 +1,15 @@
-// Động tác viewmodel của dao theo chiêu (plan 19, P4): keyframe cho từng chiêu của KNIFE_SET, đỡ, choáng, phản ứng khi đỡ trúng.
+// Động tác vũ khí cận chiến theo chiêu (plan 19, P4/P6): keyframe cho từng chiêu của bộ chiêu, đỡ, choáng, phản ứng khi đỡ trúng.
+// Dao có keyframe chỉnh tay (SWING_STYLES); vũ khí khác suy keyframe từ cung quét của chiêu (styleFromArc) nên luôn khớp vùng đánh của server.
 // Quơ dao = quơ cả cánh tay quanh khớp vai (viewmodel xoay gunGroup quanh vai, tay IK đi theo), không bẻ cổ tay: dao luôn cứng theo cánh tay.
 // Thuần hình ảnh (không import Three.js/DOM, không cấp phát trong update). Thời gian lấy từ dữ liệu chiêu (windup, strikeMs, hitIntervalMs...)
 // nên khớp cửa sổ quét của server.
-import { KNIFE_SET, moveDurationMs, type MeleeMove } from '@fps/shared'
+import { KNIFE_SET, moveDurationMs, type MeleeMove, type MeleeSet } from '@fps/shared'
 
 /**
  * [yaw, pitch, ext, wx, wy, wz]
  * yaw / pitch (rad): xoay cả cánh tay quanh vai trong không gian camera. +yaw = quơ sang trái, +pitch = nâng lên.
  * ext (m): duỗi tay ra / co về dọc hướng vai → tay. Tay dài tối đa ~0,9 m, tư thế nghỉ đã ~0,77 m nên ext tối đa ~ +0,12.
- * wx, wy, wz (rad): góc cổ tay quanh bàn tay, theo trục CAMERA (wx âm = ngửa ra trước, wz dương = nghiêng lưỡi sang trái), cộng lên góc cầm nghỉ (dao đứng trong nắm tay).
+ * wx, wy, wz (rad): góc cổ tay quanh bàn tay, theo trục CAMERA (wx âm = ngửa ra trước, wz dương = nghiêng lưỡi sang trái), cộng lên góc cầm nghỉ (dao đứng trong nắm tay). Thứ tự áp: z, rồi x, rồi y (Euler YXZ): chúc/ngóc trước, quay trái/phải sau.
  */
 export type Pose = readonly [number, number, number, number, number, number]
 const REST: Pose = [0, 0, 0, 0, 0, 0]
@@ -37,6 +38,60 @@ export const SWING_STYLES: Record<string, SwingStyle> = {
 
 export const GUARD_POSE: Pose = [0.2, 0.1, -0.04, -0.2, 0, 1.2]             // cánh tay đưa chếch trái, lưỡi ngang trước mặt
 export const STAGGER_POSE: Pose = [0, -0.25, -0.1, 0.35, 0, 0.2]             // tay hạ xuống, dao ngóc lên
+/** Vũ khí hai tay: đỡ = cán nằm ngang chắn trước mặt (đặt nằm ngang bằng levelWx rồi quay sang trái), đẩy ra xa mặt */
+function guardTwo(levelWx: number): Pose { return [0.12, 0.38, 0.1, levelWx - 0.38, 0.95, 0] }
+
+/** Cách nhìn của từng vũ khí cận chiến (theo WeaponDef.key) */
+export interface MeleeLook {
+  inHandDeg: number   // xoay vũ khí trong nắm tay quanh điểm nắm (dao: 60 = lưỡi đứng lên từ phía ngón cái); vũ khí hai tay = 0
+  twoHand: boolean    // tay trái nắm cán ở điểm neo hand_l (không phải tay phụ thả lỏng)
+  guard: Pose
+  /** Hai tay: góc cổ tay (wx, rad) đưa vũ khí từ tư thế nghỉ về nằm ngang chĩa trước (búa dựng đứng: âm nhiều; thương: 0) */
+  levelWx?: number
+  /** Góc nhìn thứ ba: thế thủ của tay phải (ghi đè poses.character.melee.restR / restRotDegR), hệ thân; góc xoay áp ngóc (x) trước rồi quay (y) */
+  restR?: readonly [number, number, number]
+  restRotDegR?: readonly [number, number, number]
+}
+export const MELEE_LOOK: Record<string, MeleeLook> = {
+  knife:   { inHandDeg: 60, twoHand: false, guard: GUARD_POSE },
+  machete: { inHandDeg: 60, twoHand: false, guard: GUARD_POSE },
+  hammer:  { inHandDeg: 0, twoHand: true, guard: guardTwo(-1.0), levelWx: -1.0, restR: [-0.02, -0.34, -0.3], restRotDegR: [50, 65, 0] },   // cán chéo trước ngực, đầu búa chếch lên vai trái
+  spear:   { inHandDeg: 0, twoHand: true, guard: guardTwo(-0.1), levelWx: -0.1, restR: [0.04, -0.42, -0.12], restRotDegR: [6, 10, 0] },   // ngang hông, mũi chĩa trước
+  staff:   { inHandDeg: 0, twoHand: true, guard: guardTwo(-0.45), levelWx: -0.45, restR: [0.02, -0.38, -0.2], restRotDegR: [25, 55, 0] },
+}
+export function meleeLook(key: string | undefined): MeleeLook { return (key && MELEE_LOOK[key]) || MELEE_LOOK.knife! }
+
+const ARM_K = 0.75     // góc cung quét (server) → góc quơ cánh tay (một tay)
+const ARM_MAX = 1.3    // rad: xoáy 360° chỉ quơ tới đây (phần còn lại là thân xoay)
+/**
+ * Keyframe suy từ cung quét: gồng ở đầu cung, quét tới cuối cung. Cung: yaw + = phải, pitch + = lên (độ); tay: yaw + = trái.
+ * Một tay: quơ cả cánh tay quanh vai, cổ tay ngửa FWD như dao (đâm: STAB), nghiêng lưỡi theo hướng quét ngang.
+ * Hai tay: theo dạng đòn (giáng / quét ngang / đâm): hai tay kéo vào giữa, vũ khí xoay quanh chỗ nắm (wx chúc/ngóc, wy quay trái/phải)
+ * từ tư thế nằm ngang (`levelWx`) để luôn nằm trong khung hình.
+ */
+export function styleFromArc(m: MeleeMove, twoHand: boolean, levelWx = 0): SwingStyle {
+  const a = m.arc, D = Math.PI / 180
+  const cl = (v: number, lim: number) => Math.max(-lim, Math.min(lim, v))
+  const thrust = a.reach[1] - a.reach[0] > 0.3
+  const e0 = thrust ? -0.14 : -0.04, e1 = 0.12
+  if (twoHand) {
+    const dy = a.yaw[1] - a.yaw[0], dp = a.pitch[1] - a.pitch[0]
+    // Cánh tay nâng lên (pitch) cũng ngóc vũ khí lên theo: cổ tay trừ lại để vũ khí nằm đúng hướng mong muốn
+    if (thrust) return { wind: [0.12, 0.12, -0.16, levelWx - 0.12, 0.12, 0], hit: [0.15, 0.15, 0.16, levelWx - 0.15, 0.12, 0] }
+    if (Math.abs(dp) >= Math.abs(dy)) {
+      if (dp < 0) return { wind: [0.2, 0.45, -0.1, 0.35, 0.1, 0], hit: [0.35, 0.28, 0.12, levelWx - 0.28 - 0.15, 0.15, 0] }   // giáng: giơ qua vai rồi bổ xuống giữa
+      return { wind: [0.3, 0.1, -0.05, levelWx - 0.1 - 0.5, 0.15, 0], hit: [0.25, 0.4, 0.1, levelWx - 0.4 + 0.6, 0.1, 0] }     // hất từ dưới lên
+    }
+    const sgn = dy > 0 ? 1 : -1   // quét trái → phải (cung yaw tăng) hay ngược lại
+    const sweep = cl(Math.abs(dy) * D * 0.45, 1.0)
+    return { wind: [0.3 * sgn, 0.3, -0.04, levelWx - 0.3, sweep * sgn, 0], hit: [-0.2 * sgn, 0.28, 0.1, levelWx - 0.28, -sweep * sgn, 0] }
+  }
+  const y0 = cl(-a.yaw[0] * D * ARM_K, ARM_MAX), y1 = cl(-a.yaw[1] * D * ARM_K, ARM_MAX)
+  const p0 = cl(a.pitch[0] * D * ARM_K, ARM_MAX), p1 = cl(a.pitch[1] * D * ARM_K, ARM_MAX)
+  const wx = thrust ? STAB : FWD
+  const wz = Math.abs(a.yaw[1] - a.yaw[0]) > Math.abs(a.pitch[1] - a.pitch[0]) ? LEAN : 0
+  return { wind: [y0, p0, e0, wx, 0, wz], hit: [y1, p1, e1, wx, 0, wz] }
+}
 const BLOCK_KICK: Pose = [0, 0.05, -0.06, 0, 0, 0]                           // giật lại khi đỡ trúng
 const PARRY_KICK: Pose = [0.25, 0.08, 0.05, 0, 0.2, 0]                       // gạt ra khi parry thành công
 
@@ -67,11 +122,32 @@ export function buildKeys(m: MeleeMove, style: SwingStyle): Key[] {
   return keys
 }
 
+/** Keyframe dựng sẵn theo bộ chiêu (dùng chung cho mọi MeleeSwing) */
+const keyCache = new Map<MeleeSet, { keys: Key[][]; durations: number[] }>()
+function keysOf(set: MeleeSet, look: MeleeLook): { keys: Key[][]; durations: number[] } {
+  let k = keyCache.get(set)
+  if (!k) {
+    k = { keys: set.moves.map(m => buildKeys(m, SWING_STYLES[m.key] ?? styleFromArc(m, look.twoHand, look.levelWx))), durations: set.moves.map(m => moveDurationMs(m)) }
+    keyCache.set(set, k)
+  }
+  return k
+}
+
 export class MeleeSwing {
   readonly fx: SwingFx = { yaw: 0, pitch: 0, ext: 0, wx: 0, wy: 0, wz: 0 }
 
-  private readonly keys: Key[][] = KNIFE_SET.moves.map(m => buildKeys(m, SWING_STYLES[m.key] ?? { wind: REST, hit: REST }))
-  private readonly durations: number[] = KNIFE_SET.moves.map(m => moveDurationMs(m))
+  private keys: Key[][] = keysOf(KNIFE_SET, MELEE_LOOK.knife!).keys
+  private durations: number[] = keysOf(KNIFE_SET, MELEE_LOOK.knife!).durations
+  private set: MeleeSet = KNIFE_SET
+  private guardPose: Pose = GUARD_POSE
+
+  /** Đổi vũ khí: dùng bộ chiêu + cách nhìn của vũ khí đó (huỷ hết động tác đang chạy) */
+  useSet(set: MeleeSet, look: MeleeLook): void {
+    if (set === this.set && look.guard === this.guardPose) return
+    const k = keysOf(set, look)
+    this.set = set; this.keys = k.keys; this.durations = k.durations; this.guardPose = look.guard
+    this.reset()
+  }
   private move = -1
   private t = 0                 // ms từ lúc bắt đầu chiêu
   // Phần bị huỷ đang hồi về nghỉ
@@ -163,7 +239,7 @@ export class MeleeSwing {
     const kS = 1 - Math.exp(-dt / STATE_TAU)
     this.guardW += ((this.guardOn && this.move < 0 ? 1 : 0) - this.guardW) * kS
     this.staggerW += ((this.staggerOn ? 1 : 0) - this.staggerW) * kS
-    for (let i = 0; i < 6; i++) c[i]! += GUARD_POSE[i]! * this.guardW + STAGGER_POSE[i]! * this.staggerW
+    for (let i = 0; i < 6; i++) c[i]! += this.guardPose[i]! * this.guardW + STAGGER_POSE[i]! * this.staggerW
 
     // Giật phản ứng
     const kK = Math.exp(-dt / KICK_TAU)

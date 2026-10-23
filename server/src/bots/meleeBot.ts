@@ -7,7 +7,7 @@
 //  - Hết thể lực: lùi lại, chỉ đỡ, hồi đủ mới đánh tiếp.
 import {
   Btn, KNIFE_SET, TICK_RATE, WEAPONS, defaultMovement, isStaggered, meleeSetOf, moveDurationMs, staminaAt,
-  type InputCmd, type Vec3,
+  type InputCmd, type MeleeSet, type Vec3,
 } from '@fps/shared'
 import type { Player, Room } from '../room'
 import { ZombieBrain } from '../zombies/brain'
@@ -26,10 +26,24 @@ export const MELEE_BOT = {
 }
 
 const L = 1, R = 2
-/** Chuỗi phím theo cây combo của dao (meleeConfig.ts: KNIFE_SET) */
-const COMBOS: readonly (readonly number[])[] = [
-  [L], [L, L], [L, L, L], [L, R], [L, R, L], [L, L, R], [L, L, R, L], [R], [R, R], [R, L],
-]
+const KNIFE_RANGE = 2.2   // khoảng cách trong MELEE_BOT tính cho dao; vũ khí khác co giãn theo `range`
+
+/** Mọi chuỗi phím đi được trên cây combo của bộ chiêu (L L R...), tính một lần mỗi bộ */
+const combosCache = new Map<MeleeSet, number[][]>()
+function combosOf(set: MeleeSet): number[][] {
+  let out = combosCache.get(set)
+  if (out) return out
+  out = []
+  const walk = (idx: number, keys: number[]): void => {
+    out!.push(keys)
+    const nx = set.moves[idx]!.next
+    if (nx[0] >= 0) walk(nx[0], [...keys, L])
+    if (nx[1] >= 0) walk(nx[1], [...keys, R])
+  }
+  walk(set.roots[0], [L]); walk(set.roots[1], [R])
+  combosCache.set(set, out)
+  return out
+}
 
 const _eye: Vec3 = [0, 0, 0]
 
@@ -81,10 +95,12 @@ export class MeleeBotBrain {
 
     const dx = tgt.state.pos[0] - me.state.pos[0], dz = tgt.state.pos[2] - me.state.pos[2]
     const hd = Math.hypot(dx, dz)
+    const def = WEAPONS[me.weapon.current]!, set = meleeSetOf(def) ?? KNIFE_SET
+    const k = Math.max(1, def.range / KNIFE_RANGE)   // vũ khí dài: đứng xa hơn
     const sameLevel = Math.abs(tgt.state.pos[1] - me.state.pos[1]) < 1.6
 
     // Xa (hoặc khác tầng): tìm đường
-    if (hd > MELEE_BOT.engageM || !sameLevel) {
+    if (hd > MELEE_BOT.engageM * k || !sameLevel) {
       if (this.brain) this.brain.step(cmd, me.state, tgt.state.pos, now, false)
       else { cmd.yaw = Math.atan2(-dx, -dz); cmd.buttons = Btn.Forward }
       this.keyHeld = 0
@@ -113,15 +129,15 @@ export class MeleeBotBrain {
     // Di chuyển: giữ khoảng cách, đi vòng; lùi khi hết thể lực
     let mv = 0
     if (this.retreating) mv |= Btn.Back
-    else if (hd > MELEE_BOT.attackM) mv |= Btn.Forward
-    else if (hd < MELEE_BOT.tooCloseM) mv |= Btn.Back
-    else if (hd > MELEE_BOT.keepM + 0.3) mv |= Btn.Forward
+    else if (hd > MELEE_BOT.attackM * k) mv |= Btn.Forward
+    else if (hd < MELEE_BOT.tooCloseM * k) mv |= Btn.Back
+    else if (hd > MELEE_BOT.keepM * k + 0.3) mv |= Btn.Forward
     if (now >= this.strafeUntil) { this.strafeUntil = now + rand(this.rng, pr.strafeMs); this.strafeDir = this.rng() < 0.5 ? -1 : 1 }
     mv |= this.strafeDir > 0 ? Btn.Right : Btn.Left
 
     let act = 0
     if (guarding) { act = Btn.Guard; this.combo = null }
-    else if (!this.retreating && !isStaggered(ws, myNow) && hd <= MELEE_BOT.attackM) act = this.attackKey(ws.meleeMove, ws.meleeStartMs, myNow, now, pr)
+    else if (!this.retreating && !isStaggered(ws, myNow) && hd <= MELEE_BOT.attackM * k) act = this.attackKey(set, ws.meleeMove, ws.meleeStartMs, myNow, now, pr)
     if (act !== Btn.Guard) this.keyHeld = act
     cmd.buttons = mv | act
     return cmd.yaw
@@ -175,11 +191,12 @@ export class MeleeBotBrain {
   }
 
   /** Phím đánh tick này theo chuỗi combo đang chạy (cạnh lên: bấm 1 tick rồi thả) */
-  private attackKey(moveIdx: number, startMs: number, myNow: number, now: number, pr: BotMelee): number {
+  private attackKey(set: MeleeSet, moveIdx: number, startMs: number, myNow: number, now: number, pr: BotMelee): number {
     if (this.keyHeld !== 0) return 0   // thả phím một tick để lần bấm sau là cạnh lên
     if (!this.combo) {
       if (now < this.nextComboAt) return 0
-      this.combo = COMBOS[Math.floor(this.rng() * COMBOS.length)]!
+      const combos = combosOf(set)
+      this.combo = combos[Math.floor(this.rng() * combos.length)]!
       this.comboIdx = 0
       this.aimErr = (this.rng() * 2 - 1) * pr.aimErrorDeg * DEG
     }
@@ -192,7 +209,7 @@ export class MeleeBotBrain {
     }
     // chiêu đang chạy: chỉ bấm tiếp khi sắp hết (lọt bộ đệm input) để nối combo
     if (moveIdx >= 0) {
-      const m = KNIFE_SET.moves[moveIdx]
+      const m = set.moves[moveIdx]
       if (!m || myNow - startMs < moveDurationMs(m) - MELEE_BOT.pressAheadMs) return 0
     }
     const key = this.combo[this.comboIdx++]!

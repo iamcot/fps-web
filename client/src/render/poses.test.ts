@@ -7,7 +7,7 @@ describe('loadPoses', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const p = loadPoses(raw)
     expect(warn).not.toHaveBeenCalled()
-    expect(Object.keys(p.weapons).sort()).toEqual([...WEAPON_KEYS].sort())
+    expect(Object.keys(p.weapons).sort()).toEqual(WEAPON_KEYS.filter(k => k !== null).sort())
     for (const k of ['ak47', 'm16', 'sniper', 'shotgun', 'smg']) expect(p.weapons[k]!.third.hold).toBe('twoHand')
     for (const k of ['colt', 'rulo', 'knife']) expect(p.weapons[k]!.third.hold).toBe('oneHand')
     warn.mockRestore()

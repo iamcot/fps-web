@@ -5,7 +5,7 @@ export type WeaponCategory = 'claw' | 'knife' | 'pistol' | 'mid' | 'long' | 'gre
 /** Ô vũ khí (phím 1–5) của từng dòng. Ô 5 = lựu đạn (hàng tiêu hao, không tính vào 4 dòng súng) */
 export const CATEGORY_SLOT: Record<WeaponCategory, 0 | 1 | 2 | 3 | 4> = { claw: 0, knife: 0, pistol: 1, mid: 2, long: 3, grenade: 4 }
 export const CATEGORY_LABEL: Record<WeaponCategory, string> = {
-  claw: 'Claw', knife: 'Knife', pistol: 'Pistol', mid: 'Mid-range', long: 'Long gun', grenade: 'Grenade',
+  claw: 'Claw', knife: 'Melee', pistol: 'Pistol', mid: 'Mid-range', long: 'Long gun', grenade: 'Grenade',
 }
 export const SLOT_COUNT = 5
 /** Ô lựu đạn */
@@ -210,6 +210,38 @@ export const WEAPONS: WeaponDef[] = [
     id: 10, key: 'claw_heavy', name: 'HEAVY CLAW', category: 'claw', price: 0, buyable: false, moveSpeedMul: 1, melee: true,
     auto: true, damage: 1, headMult: 1, legMult: 1,
     fireIntervalMs: 1100, magSize: 0, reloadMs: 0, range: 2.0,
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
+  {
+    // Búa (plan 19 mục 6): chậm, nặng, hai tay. Đòn / sát thương thật ở MELEE_SETS.hammer; damage, range chỉ để hiển thị và bot
+    id: 11, key: 'hammer', name: 'BÚA', category: 'knife', price: 1500, buyable: true, moveSpeedMul: 0.95, melee: true,
+    auto: true, damage: 70, headMult: 2.5, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 2.4,
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
+  {
+    // Mã tấu: nhanh vừa, chém chéo, một tay (MELEE_SETS.machete)
+    id: 12, key: 'machete', name: 'MÃ TẤU', category: 'knife', price: 600, buyable: true, moveSpeedMul: 1.05, melee: true,
+    auto: true, damage: 45, headMult: 2.5, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 2.3,
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
+  {
+    // Thương: tầm xa, đâm, hai tay (MELEE_SETS.spear)
+    id: 13, key: 'spear', name: 'THƯƠNG', category: 'knife', price: 900, buyable: true, moveSpeedMul: 1.0, melee: true,
+    auto: true, damage: 50, headMult: 2.5, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 3.2,
+    spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
+    recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
+  },
+  {
+    // Gậy: rẻ, nhiều đòn nhẹ, hai tay (MELEE_SETS.staff)
+    id: 14, key: 'staff', name: 'GẬY', category: 'knife', price: 300, buyable: true, moveSpeedMul: 1.05, melee: true,
+    auto: true, damage: 30, headMult: 2.5, legMult: 1,
+    fireIntervalMs: 450, magSize: 0, reloadMs: 0, range: 2.6,
     spread: { standDeg: 0, crouchDeg: 0, moveDeg: 0, accurateSpeed: 3, airDeg: 0, bloomPerShotDeg: 0, bloomMaxDeg: 0, bloomRecoverDegPerSec: 0, bloomRecoverDelayMs: 0 },
     recoilPitchDeg: 0, recoilYawDeg: 0, recoilRecoverDegPerSec: 0,
   },

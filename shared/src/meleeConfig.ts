@@ -118,5 +118,76 @@ export const KNIFE_SET: MeleeSet = {
   ],
 }
 
+/**
+ * Búa (plan 19 mục 6): chậm, nặng, hai tay.  L giáng, R quét ngang.
+ *   L→L giáng kép     R→L quét rồi giáng     R→R→R xoáy búa (vòng cuối 360°)
+ * Chỉ số: 0 L1 giáng, 1 LL giáng lần hai, 2 R1 quét trái→phải, 3 RR quét phải→trái, 4 RL giáng sau quét, 5 RRR xoáy 360
+ */
+export const HAMMER_SET: MeleeSet = {
+  roots: [0, 2],
+  moves: [
+    mv('hammer_l1',  450, 550, 70, 60, 30, [1, -1], 160, arc({ pitch: [60, -45], reach: same(2.3), height: same(-0.1) })),
+    mv('hammer_ll',  380, 650, 80, 70, 35, [-1, -1], 160, arc({ pitch: [70, -50], reach: same(2.4), height: same(-0.1) })),
+    mv('hammer_r1',  350, 450, 45, 45, 25, [4, 3], 180, arc({ yaw: [-70, 70], reach: same(2.3) })),
+    mv('hammer_rr',  300, 450, 45, 40, 25, [-1, 5], 180, arc({ yaw: [70, -70], reach: same(2.3) })),
+    mv('hammer_rl',  380, 600, 85, 70, 35, [-1, -1], 160, arc({ pitch: [60, -45], reach: same(2.4), height: same(-0.1) })),
+    mv('hammer_rrr', 300, 700, 60, 60, 40, [-1, -1], 380, arc({ yaw: [0, 360], reach: same(2.2) })),
+  ],
+}
+
+/**
+ * Mã tấu: nhanh vừa, chém chéo, một tay.  L chém chéo xuống, R chém chéo ngược lên.
+ *   L→R→L chữ X     L→L→R chặt ngang tầm đầu     L→R→L→R bão chém 4 nhát
+ * Chỉ số: 0 L1, 1 LL chéo ngược, 2 LR chéo lên, 3 LLR chặt đầu, 4 LRL nhát cuối chữ X, 5 LRLR bão chém, 6 R1 chéo ngược lên
+ */
+export const MACHETE_SET: MeleeSet = {
+  roots: [0, 6],
+  moves: [
+    mv('machete_l1',   180, 300, 45, 25, 18, [1, 2], 110, arc({ yaw: [45, -45], pitch: [35, -30], reach: same(2.2) })),
+    mv('machete_ll',   160, 300, 45, 25, 18, [-1, 3], 110, arc({ yaw: [-45, 45], pitch: [30, -25], reach: same(2.2) })),
+    mv('machete_lr',   150, 300, 45, 25, 18, [4, -1], 110, arc({ yaw: [-45, 45], pitch: [-30, 35], reach: same(2.2) })),
+    mv('machete_llr',  260, 450, 55, 35, 25, [-1, -1], 120, arc({ yaw: [60, -60], pitch: same(8), reach: same(2.3), height: same(0) })),
+    mv('machete_lrl',  200, 380, 60, 40, 22, [-1, 5], 120, arc({ yaw: [45, -45], pitch: [35, -30], reach: same(2.3) })),
+    mv('machete_lrlr', 150, 500, 35, 15, 35, [-1, -1], 90, arc({ yaw: [50, -50], reach: same(2.2) }), 4, 140),
+    mv('machete_r1',   180, 300, 45, 25, 18, [-1, -1], 110, arc({ yaw: [-45, 45], pitch: [-30, 35], reach: same(2.2) })),
+  ],
+}
+
+/**
+ * Thương: tầm xa, đâm, hai tay. Khởi động dài.  L đâm thẳng, R quét ngang ~100°.
+ *   L→L→L ba đâm (nhát cuối xa 3,6 m)     L→R đâm rồi quét     R→L hất rồi đâm
+ * Chỉ số: 0 L1, 1 LL, 2 LLL, 3 LR quét, 4 R1 quét, 5 RL đâm
+ */
+export const SPEAR_SET: MeleeSet = {
+  roots: [0, 4],
+  moves: [
+    mv('spear_l1',  300, 400, 50, 30, 22, [1, 3], 130, arc({ pitch: same(-2), reach: [1.4, 3.2], height: same(-0.2) })),
+    mv('spear_ll',  260, 400, 50, 30, 22, [2, -1], 130, arc({ pitch: same(-2), reach: [1.4, 3.2], height: same(-0.2) })),
+    mv('spear_lll', 320, 600, 70, 45, 30, [-1, -1], 140, arc({ pitch: same(-2), reach: [1.6, 3.6], height: same(-0.2) })),
+    mv('spear_lr',  260, 450, 40, 30, 22, [-1, -1], 160, arc({ yaw: [-50, 50], reach: same(3.0) })),
+    mv('spear_r1',  280, 450, 40, 30, 22, [5, -1], 160, arc({ yaw: [-50, 50], reach: same(3.0) })),
+    mv('spear_rl',  300, 500, 60, 40, 28, [-1, -1], 140, arc({ pitch: [-12, 0], reach: [1.4, 3.4], height: same(-0.2) })),
+  ],
+}
+
+/**
+ * Gậy: rẻ, nhiều đòn nhẹ, hai tay.  L quật chéo, R đảo hai đầu (2 nhát).
+ *   L→L→L→L mưa gậy (nhát cuối giáng mạnh)     R→L quật đầu     L→R→L ba tầng đầu / thân / chân
+ * Chỉ số: 0 L1, 1 LL, 2 LLL, 3 LLLL giáng, 4 R1 đảo hai đầu, 5 LR quét thân, 6 RL quật đầu, 7 LRL quét chân
+ */
+export const STAFF_SET: MeleeSet = {
+  roots: [0, 4],
+  moves: [
+    mv('staff_l1',   120, 180, 30, 15, 12, [1, 5], 100, arc({ yaw: [40, -40], pitch: [30, -20], reach: same(2.5) })),
+    mv('staff_ll',   100, 180, 25, 12, 12, [2, -1], 100, arc({ yaw: [-40, 40], pitch: [25, -20], reach: same(2.5) })),
+    mv('staff_lll',  100, 200, 25, 12, 12, [3, -1], 100, arc({ yaw: [40, -40], pitch: [25, -20], reach: same(2.5) })),
+    mv('staff_llll', 200, 450, 50, 35, 20, [-1, -1], 130, arc({ pitch: [60, -45], reach: same(2.6), height: same(-0.1) })),
+    mv('staff_r1',   120, 300, 20, 12, 15, [6, -1], 100, arc({ yaw: [-45, 45], reach: same(2.4) }), 2, 180),
+    mv('staff_lr',   140, 250, 25, 15, 12, [7, -1], 100, arc({ yaw: [-50, 50], pitch: same(-12), reach: same(2.5), height: same(-0.3) })),
+    mv('staff_rl',   160, 350, 30, 20, 15, [-1, -1], 110, arc({ pitch: [50, -10], reach: same(2.6), height: same(0) })),
+    mv('staff_lrl',  140, 350, 25, 15, 12, [-1, -1], 100, arc({ yaw: [50, -50], pitch: same(-35), reach: same(2.4), height: same(-0.4) })),
+  ],
+}
+
 /** Bộ chiêu theo `WeaponDef.key`. Vũ khí không có ở đây thì dùng logic bắn cũ. */
-export const MELEE_SETS: Readonly<Record<string, MeleeSet>> = { knife: KNIFE_SET }
+export const MELEE_SETS: Readonly<Record<string, MeleeSet>> = { knife: KNIFE_SET, hammer: HAMMER_SET, machete: MACHETE_SET, spear: SPEAR_SET, staff: STAFF_SET }

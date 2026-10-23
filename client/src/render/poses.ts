@@ -57,7 +57,8 @@ export interface Poses {
 }
 
 // Thứ tự = id súng trong shared (WEAPONS)
-export const WEAPON_KEYS = ['ak47', 'm16', 'colt', 'rulo', 'sniper', 'shotgun', 'knife', 'smg', 'm67'] as const
+/** Khoá trong poses.json theo id vũ khí (chỉ số = id); null = không có model (vuốt zombie) */
+export const WEAPON_KEYS = ['ak47', 'm16', 'colt', 'rulo', 'sniper', 'shotgun', 'knife', 'smg', 'm67', null, null, 'hammer', 'machete', 'spear', 'staff'] as const
 
 const DEFAULTS = {
   style: {
@@ -125,6 +126,7 @@ export function loadPoses(json: unknown): Poses {
   const w = (j.weapons && typeof j.weapons === 'object' ? j.weapons : {}) as Record<string, unknown>
   const weapons: Record<string, WeaponPose> = {}
   for (const key of WEAPON_KEYS) {
+    if (!key) continue
     const src = w[key]
     if (src === undefined) warnOnce(`thiếu weapons.${key}, cầm một tay`)
     // Súng 1 tay không dùng gunPos/gunRotDeg của góc 3: khỏi cảnh báo thiếu
