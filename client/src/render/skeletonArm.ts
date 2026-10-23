@@ -88,6 +88,12 @@ export class SkeletonArm {
     this.upper.updateWorldMatrix(false, true)
   }
 
+  /** Tầm với của tay (vai → tâm bàn tay) khi duỗi thẳng, thế giới */
+  reachWorld(): number {
+    this.upper.updateWorldMatrix(true, false)
+    return ((this.lenA0 + this.lenB0) + this.palm0 * poses.character.palmCenterFrac) * this.upper.getWorldScale(_fing).x
+  }
+
   /**
    * Viewmodel: nếu tâm bàn tay `target` (thế giới) xa vai hơn tầm với (lenA+lenB)·ext + lòng bàn tay thì trượt vai về phía đích cho vừa,
    * thay vì để tay dừng giữa chừng. Phải gọi sau resetPose() và trước solve(); resetPose() trả vai về chỗ cũ.

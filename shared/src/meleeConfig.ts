@@ -106,8 +106,8 @@ const KNIFE_SLOW = 1.3   // playtest 23/10: chiêu dao quá nhanh, mắt không 
 const RAW_KNIFE_SET: MeleeSet = {
   roots: [0, 7],
   moves: [
-    mv('knife_l1',    110, 270, 40, 20, 15, [1, 5], 90,  arc({ yaw: [-70, 70] })),
-    mv('knife_l2',     90, 230, 40, 20, 15, [2, 3], 80,  arc({ yaw: [70, -70] })),
+    mv('knife_l1',    110, 270, 40, 20, 15, [1, 5], 200,  arc({ yaw: [-70, 70] })),
+    mv('knife_l2',     90, 230, 40, 20, 15, [2, 3], 200,  arc({ yaw: [70, -70] })),
     mv('knife_l3',    150, 330, 35, 14, 25, [-1, -1], 90, arc({ reach: [0.8, 2.2] }), 2, 200),
     mv('knife_llr',   200, 380, 65, 35, 25, [4, -1], 120, arc({ pitch: same(-3), reach: [0.8, 2.2], height: same(-0.1) })),
     mv('knife_spin',  150, 500, 60, 45, 30, [-1, -1], 280, arc({ yaw: [0, 360], reach: same(1.6) })),
@@ -115,7 +115,7 @@ const RAW_KNIFE_SET: MeleeSet = {
     mv('knife_rise',  120, 450, 50, 30, 25, [-1, -1], 120, arc({ pitch: [-50, 60], height: same(-0.4) })),
     mv('knife_r1',    250, 450, 65, 35, 25, [9, 8], 140, arc({ pitch: same(-3), reach: [0.8, 2.2], height: same(-0.15) })),
     mv('knife_rr',    120, 400, 30, 15, 25, [-1, -1], 100, arc({ pitch: same(-3), reach: [0.8, 2.1], height: same(-0.15) }), 2, 170),
-    mv('knife_flip',   80, 340, 45, 25, 20, [-1, -1], 80,  arc({ yaw: [65, -65] })),
+    mv('knife_flip',   80, 340, 45, 25, 20, [-1, -1], 170,  arc({ yaw: [65, -65] })),
   ],
 }
 
