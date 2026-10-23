@@ -21,11 +21,13 @@ const REST: Pose = [0, 0, 0, 0, 0, 0]
  */
 export type RPose = readonly [number, number, number, number, number, number]
 const RZERO: RPose = [0, 0, 0, 0, 0, 0]
+/** Tư thế bán kính đang chạy là kiểu đâm (không phải chém ngang) */
+export function isStabFx(sf: { radSz: number }): boolean { return sf.radSz > -0.05 }
 export interface RadStyle { rest: RPose; wind: RPose; hit: RPose }
 export interface SwingStyle { wind: Pose; hit: Pose; perHit?: Pose; rad?: RadStyle }
 
 // Điểm vai dịch sang trái khi vung ngang (thân xoay), ít hơn khi đâm
-const SX_SLASH = -0.25, SZ_SLASH = -0.1, SX_STAB = -0.1, SZ_STAB = 0
+const SX_SLASH = -0.25, SZ_SLASH = -0.1, SX_STAB = -0.1, SZ_STAB = 0.01   // sz > 0 đánh dấu kiểu đâm (góc nhìn thứ ba: thẳng hướng hơn + thân rướn về trước)
 const RHO_SLASH = 0.8
 const RHO_FAR = 0.9           // duỗi gần thẳng (~170°)
 const RHO_NEAR = 0.4          // khuỷu co ~30°

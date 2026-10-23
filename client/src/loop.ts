@@ -3,7 +3,7 @@ import { stepMovement, lerpState, defaultMovement } from '@fps/shared'
 import type { PlayerState, MovementConfig, InputCmd, AdsMove } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { Btn } from '@fps/shared'
-import { sampleButtons, yaw, pitch, isLocked } from './input'
+import { sampleButtons, freeLookStep, yaw, pitch, isLocked } from './input'
 
 let _seq      = 0
 let _tick     = 0
@@ -34,7 +34,7 @@ export function setDowned(v: boolean): void { _downed = v }
 export function setMatchPhase(v: MatchPhase): void { _phase = v }
 
 function _buildCmd(): InputCmd {
-  let buttons = _transforming ? 0 : sampleButtons() & phaseButtonMask(_phase, !_dead) & (_downed ? DOWNED_BUTTON_MASK : ~0)   // chết / đếm ngược / hết trận / biến hình: server cũng bỏ nút này
+  let buttons = _transforming ? 0 : freeLookStep(DT, sampleButtons()) & phaseButtonMask(_phase, !_dead) & (_downed ? DOWNED_BUTTON_MASK : ~0)   // chết / đếm ngược / hết trận / biến hình: server cũng bỏ nút này
   if (!isLocked()) buttons &= ~(Btn.Fire | Btn.Reload | Btn.Aim)   // chưa khoá chuột thì không bắn/nạp/ngắm
   return { seq: _seq++, buttons, yaw, pitch, weapon: _downed ? DOWNED_WEAPON_SLOT : _weapon }
 }

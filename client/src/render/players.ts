@@ -13,7 +13,7 @@ import { GRENADE_ID } from '@fps/shared'
 import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './characters/animate'
 import { createDeathFx } from './characters/deathFx'
 import { makeZombieFx, removeZombieFx, updateZombieFx, type ZombieFx } from './zombieLook'
-import { MeleeSwing, meleeLook, type SwingFx } from './meleeSwing'
+import { MeleeSwing, meleeLook, isStabFx, type SwingFx } from './meleeSwing'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
 interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number; adsT?: number; ztype?: string; zscale?: number }
@@ -350,16 +350,18 @@ function swingSkelArm(a: Actor, weapon: number): void {
 
 // Tư thế bán kính quanh vai (xem RPose trong meleeSwing): bàn tay = vai + ρ·hướng(θ, φ) trong hệ thân, ρ tính theo tầm với thật của tay (0,92 m của viewmodel = duỗi thẳng);
 // lưỡi chỉ dọc hướng đó, bẹt nằm ngang, mũi ngóc RAD_BLADE_UP; bàn tay hơi lệch với lưỡi đúng góc dao nằm trong nắm (inHandDeg). Trộn với kết quả cũ theo radW.
-const RAD_FULL = 0.92, RAD_BLADE_UP = 0.4
+const RAD_FULL = 0.92, RAD_BLADE_UP = 0.4, STAB_BLADE_UP = 0.1, STAB_AIM = 0.35, STAB_LEAN = 0.4   // đâm ở góc ba: mũi gần ngang, hướng thẳng ra trước (θ × STAB_AIM), thân rướn tới STAB_LEAN rad
 const _rd = new THREE.Vector3(), _ru = new THREE.Vector3(), _rx = new THREE.Vector3(), _rz = new THREE.Vector3(), _rm = new THREE.Matrix4(), _rk = new THREE.Quaternion(), _rp = new THREE.Vector3()
 function radialSwing(reach: number, sf: SwingFx, inHandDeg: number): void {
+  const stab = isStabFx(sf)
+  const th = stab ? sf.radTheta * STAB_AIM : sf.radTheta, up = stab ? STAB_BLADE_UP : RAD_BLADE_UP
   const cp = Math.cos(sf.radPhi)
-  _rd.set(-Math.sin(sf.radTheta) * cp, Math.sin(sf.radPhi), -Math.cos(sf.radTheta) * cp).applyQuaternion(_bodyQ)   // hệ thân → thế giới
+  _rd.set(-Math.sin(th) * cp, Math.sin(sf.radPhi), -Math.cos(th) * cp).applyQuaternion(_bodyQ)   // hệ thân → thế giới
   _ru.set(0, 1, 0).addScaledVector(_rd, -_rd.y)
   if (_ru.lengthSq() < 1e-6) _ru.set(0, 0, -1)
   _ru.normalize()
-  _rz.copy(_rd).multiplyScalar(-Math.cos(RAD_BLADE_UP)).addScaledVector(_ru, -Math.sin(RAD_BLADE_UP))
-  _ru.multiplyScalar(Math.cos(RAD_BLADE_UP)).addScaledVector(_rd, -Math.sin(RAD_BLADE_UP))
+  _rz.copy(_rd).multiplyScalar(-Math.cos(up)).addScaledVector(_ru, -Math.sin(up))
+  _ru.multiplyScalar(Math.cos(up)).addScaledVector(_rd, -Math.sin(up))
   _rx.crossVectors(_ru, _rz)
   _rm.makeBasis(_rx, _ru, _rz)
   _rk.setFromRotationMatrix(_rm).multiply(_offQ.setFromAxisAngle(_xAxis, -inHandDeg * DEG))   // khung bàn tay = khung lưỡi quay ngược góc dao trong nắm
@@ -565,7 +567,9 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
     sw.sync((p.flags & NetFlag.Guard) !== 0, stagger, !stagger)
     sw.update(dt)
     a.flinch *= Math.exp(-dt / FLINCH_TAU)
-    a.rig.skel!.bendSpine((sw.fx.yaw * (1 - sw.fx.radW) + sw.fx.radTheta * sw.fx.radW) * MELEE_TWIST_SHARE, sw.staggerAmount * STAGGER_LEAN + a.flinch * FLINCH_LEAN)
+    const fx = sw.fx
+    const stabLean = fx.radW > 0.001 && isStabFx(fx) ? fx.radW * Math.max(0, Math.min(1, (fx.radRho - 0.4) / 0.5)) * STAB_LEAN : 0   // đâm: thân rướn về trước theo độ duỗi tay
+    a.rig.skel!.bendSpine((fx.yaw * (1 - fx.radW) + fx.radTheta * fx.radW) * MELEE_TWIST_SHARE, sw.staggerAmount * STAGGER_LEAN + a.flinch * FLINCH_LEAN - stabLean)
   }
 
   function takeKill(id: number): boolean {

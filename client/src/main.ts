@@ -10,7 +10,7 @@ import { meleeSetOf, shootDir } from '@fps/shared'
 import { CLAW_HEAVY_ID, CLAW_ID, DEFENSE, flagSpeedMul, INFECTION, ZOMBIE, isMeleeMode, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
-import { setFlashlightAllowed, flashlightOn, initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
+import { setFlashlightAllowed, flashlightOn, initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setFreeCamera, viewYaw, setSensScale, consumeWheel } from './input'
 import { createScope } from './scope'
 import { createSky, SKY_HORIZON } from './render/sky'
 import { createNight } from './render/night'
@@ -358,7 +358,7 @@ let lastHp = 100
 // Góc nhìn thứ ba khi cầm vũ khí cận chiến (plan 19 P5): V bật/tắt, nhớ lựa chọn; chưa chọn bao giờ thì thể thức Cận Chiến mặc định bật.
 // Camera sau vai phải, không xuyên tường; viewmodel ẩn, vẽ nhân vật của chính mình. Đòn đánh vẫn tính từ mắt nhân vật như góc nhìn thứ nhất.
 const THIRD_KEY = 'fps.thirdPerson'
-const THIRD_BACK = 2.4, THIRD_RIGHT = 1.4, THIRD_UP = 0.3, THIRD_WALL_GAP = 0.25
+const THIRD_BACK = 3.0, THIRD_RIGHT = 0.6, THIRD_UP = 0.5, THIRD_WALL_GAP = 0.25
 const THIRD_CONVERGE = 7   // m phía trước nhân vật mà tâm ngắm của camera lệch vai vẫn trùng hướng đánh
 let thirdPref: boolean | null = (() => { try { const v = localStorage.getItem(THIRD_KEY); return v === null ? null : v === '1' } catch { return null } })()
 let thirdOn = false   // frame này đang vẽ góc nhìn thứ ba
@@ -626,7 +626,7 @@ sessionP.then(session => {
       if (thirdOn) playersRenderer.meleeReact(playerId, 'hit')
       if (meleeHeld()) explosionFx.kick(msg.outcome === 3 ? 0.8 : 0.55)   // bị chém: rung mạnh hơn lúc mình chém
       const dx = msg.origin[0] - camera.position.x, dy = msg.origin[1] - camera.position.y, dz = msg.origin[2] - camera.position.z
-      hurtIndicator.show(dx, dz, yaw)
+      hurtIndicator.show(dx, dz, viewYaw())
       if (msg.outcome === 3) playGuardBreak()
       playHurt(dx, dy, dz)
     }
@@ -747,6 +747,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     camera.rotation.z += explosionFx.shake.rot
     updateListener(camera.position.x, camera.position.y, camera.position.z, camera.rotation.y, camera.rotation.x)
     thirdOn = meleeHeld() && thirdWanted() && !dead && spectatingId === -2 && !poseEditor.orbitOn && !zombieSelf
+    setFreeCamera(thirdOn)   // V: camera tự do quanh nhân vật (hiệu lực từ frame sau)
     if (thirdOn) {
       // Sau vai phải: lùi THIRD_BACK theo hướng nhìn, lệch phải/lên một chút; tia từ mắt ra để không xuyên tường
       const cy = camera.rotation.y, cp = camera.rotation.x, cosP = Math.cos(cp)
@@ -792,7 +793,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     for (let i = 0; i < SLOT_COUNT; i++) { const id = ws.slots[i]!; slotKeysBuf[i] = id >= 0 ? WEAPONS[id]!.key : null }
     {   // cảnh báo lựu đạn địch/của mình gần (bỏ qua đồng đội)
       const myId = sessionRef?.yourId ?? -1, myT = sessionRef?.teams.get(myId)
-      nadeWarn.update(dt, camera.position, yaw, grenades.list(), g => g.pos,
+      nadeWarn.update(dt, camera.position, viewYaw(), grenades.list(), g => g.pos,
         g => dead || (g.ownerId !== myId && !!myT && sessionRef?.teams.get(g.ownerId) === myT))
     }
     slotCountsBuf[GRENADE_SLOT] = slotKeysBuf[GRENADE_SLOT] ? (ws.ammo[GRENADE_ID] ?? 0) : null
