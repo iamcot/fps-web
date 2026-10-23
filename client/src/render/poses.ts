@@ -33,6 +33,8 @@ export interface CharacterCfg {
   handRotOffsetDegR: Vec3; handRotOffsetDegL: Vec3
   palmCenterFrac: number          // tâm lòng bàn tay = tỉ lệ này của đoạn cổ tay → khớp ngón giữa
   oneHandGunPos: Vec3; oneHandGunRotDeg: Vec3   // súng 1 tay trong hệ "bàn tay chuẩn" (ngón chĩa −Z, ngón cái +Y)
+  /** Thế thủ cận chiến (góc nhìn thứ ba): tâm bàn tay so với vai cùng bên + hướng bàn tay chuẩn, trong hệ thân (x phải, y lên, −z trước, đã xoay theo pitch) */
+  melee: { restR: Vec3; restRotDegR: Vec3; restL: Vec3; restRotDegL: Vec3 }
   anim: {
     blendTime: number; idleSpeed: number; walkRefSpeed: number; runStartSpeed: number; runBlendLen: number
     runRefSpeed: number; crouchRefSpeed: number; maxRate: number; jumpHoldS: number
@@ -70,6 +72,7 @@ const DEFAULTS = {
     spinePitchLimitDeg: 60, headPitchShare: 0.3, aimPivotOffset: [0, 0.08, 0], poleR: [0.35, -0.6, 0.3], poleL: [-0.35, -0.6, 0.1],
     handRotOffsetDegR: [0, 0, 0], handRotOffsetDegL: [0, 0, 0], palmCenterFrac: 0.6,
     oneHandGunPos: [0, 0, 0], oneHandGunRotDeg: [0, 0, 0],
+    melee: { restR: [-0.04, -0.24, -0.4], restRotDegR: [0, 0, 0], restL: [0.16, -0.26, -0.32], restRotDegL: [0, 0, 0] },
     anim: { blendTime: 0.15, idleSpeed: 0.3, walkRefSpeed: 1.6, runStartSpeed: 5, runBlendLen: 2, runRefSpeed: 5, crouchRefSpeed: 1, maxRate: 2, jumpHoldS: 0.35 },
   },
   grip: {

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { Btn, KNIFE_SET, MELEE, MELEE_OUTCOME, MatchPhase, MsgType, TICK_RATE, defaultMovement, loadMap, type AnyMsg, type HitConfirmMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
+import { Btn, KNIFE_SET, MELEE, MELEE_OUTCOME, MatchPhase, MsgType, NetFlag, TICK_RATE, defaultMovement, loadMap, type AnyMsg, type HitConfirmMsg, type InputCmd, type MapFile, type Transport } from '@fps/shared'
 import type { CollisionWorld } from '@fps/shared/physics/world'
 import { RoomManager, type Player } from './room'
-import { enqueueCmds, stepPlayer } from './simulation'
+import { enqueueCmds, sendSnapshots, stepPlayer } from './simulation'
 
 const TICK_MS = 1000 / TICK_RATE
 const map = loadMap({ name: 't', mirrorX: true, boxes: [], ramps: [], spawnsA: [{ pos: [0, 0, 0], yaw: 0 }] } as MapFile)
@@ -166,5 +166,20 @@ describe('cung quét cận chiến (P3)', () => {
     b.alive = false
     swing(room, a, 40)
     expect(hits(logs, a.id).length).toBe(0)
+  })
+})
+
+describe('cờ snapshot cận chiến (P5)', () => {
+  it('đang giữ đỡ → NetFlag.Guard, đang choáng → NetFlag.Stagger (người khác vẽ đúng thế)', () => {
+    const { room, a, b, logs } = setup()
+    swing(room, a, 4, Btn.Guard, { buttons: Btn.Guard })
+    b.weapon.staggerUntilMs = (b.lastProcessedSeq + 60) * TICK_MS
+    sendSnapshots(room, 0, 0)
+    const snap = logs.get(b.id)!.filter(m => m.t === MsgType.Snapshot).pop() as { players: { id: number; flags: number }[] }
+    const fa = snap.players.find(p => p.id === a.id)!.flags, fb = snap.players.find(p => p.id === b.id)!.flags
+    expect(fa & NetFlag.Guard).toBeTruthy()
+    expect(fa & NetFlag.Stagger).toBe(0)
+    expect(fb & NetFlag.Stagger).toBeTruthy()
+    expect(fb & NetFlag.Guard).toBe(0)
   })
 })

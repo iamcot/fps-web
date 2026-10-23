@@ -182,6 +182,8 @@ export const NetFlag = {
   Hero:      1 << 7,   // anh hùng (Lây Nhiễm): máu 200, damage ×1.5, chạy ×1.1
   Zombie:    1 << 5,   // vai zombie (plan 16): dùng cấu hình di chuyển/vuốt zombie, vẽ model zombie
   Transform: 1 << 6,   // đang biến hình (bất tử, không di chuyển được)
+  Guard:     1 << 10,  // cận chiến: đang giữ đỡ (người khác vẽ thế thủ)
+  Stagger:   1 << 11,  // cận chiến: đang choáng (bị parry / vỡ thủ / trúng đòn nặng)
 } as const
 
 export interface NetPlayer {

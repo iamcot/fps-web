@@ -87,6 +87,8 @@ export class MeleeSwing {
   get active(): boolean { return this.move >= 0 }
   /** Mức đỡ 0..1 (mượt), để tay phụ nhích theo */
   get guardAmount(): number { return this.guardW }
+  /** Mức choáng 0..1 (mượt), để thân người ngả theo (góc nhìn thứ ba) */
+  get staggerAmount(): number { return this.staggerW }
   get moveIdx(): number { return this.move }
   /** Tiến độ chiêu 0..1 */
   get progress(): number { return this.move < 0 ? 0 : clamp01(this.t / this.durations[this.move]!) }

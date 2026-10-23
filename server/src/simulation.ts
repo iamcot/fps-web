@@ -1,6 +1,6 @@
 import {
   Btn, DT, MatchPhase, NetFlag, INPUT_STARVE_GRACE_TICKS, MAX_INPUTS_PER_TICK, MAX_INPUT_QUEUE, MsgType, SEQ_AHEAD_SLACK_MS, SNAPSHOT_EVERY_TICKS, TICK_RATE, VOID_Y,
-  WEAPONS, ZOMBIE, CLAW_HEAVY_ID, meleeSetOf, DEFENSE, DOWNED_BUTTON_MASK, DOWNED_WEAPON_SLOT, isValidCmd, movementFor, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
+  WEAPONS, ZOMBIE, CLAW_HEAVY_ID, meleeSetOf, DEFENSE, DOWNED_BUTTON_MASK, DOWNED_WEAPON_SLOT, isValidCmd, isGuarding, isStaggered, movementFor, phaseButtonMask, moveSpeedMul, adsMoveFor, adsWanted, recoverRecoil, stateToNet, stepMovement, stepWeaponCmd,
   type MovementConfig, type NetPlayer,
 } from '@fps/shared'
 import type { Player, Room } from './room'
@@ -144,6 +144,7 @@ export function sendSnapshots(room: Room, tick: number, serverTime: number): voi
   for (const p of room.players.values()) {
     const flags = (p.alive ? 0 : NetFlag.Dead) | (p.alive && serverTime < p.invulnUntil ? NetFlag.Invuln : 0)
       | (p.zstats ? NetFlag.Zombie : 0) | (p.hero ? NetFlag.Hero : 0) | (p.flashlight ? NetFlag.Flashlight : 0) | (serverTime < p.transformUntil ? NetFlag.Transform : 0)
+      | (p.alive && isGuarding(p.weapon) ? NetFlag.Guard : 0) | (p.alive && isStaggered(p.weapon, p.lastProcessedSeq * 1000 / TICK_RATE) ? NetFlag.Stagger : 0)
     const np = stateToNet(p.id, p.state, Math.max(0, p.hp), flags, p.team, p.weapon.current, p.killStreak)
     if (p.zstats && p.sniffReadyAt > serverTime) { np.sniffCd = p.sniffReadyAt - serverTime; if (p.sniffUntil > serverTime) np.sniffLeft = p.sniffUntil - serverTime }
     if (p.zstats) { np.hpMax = p.zstats.hpMax; np.runSpeed = p.zstats.runSpeed; np.ztype = p.zstats.type; if (p.zstats.scale && p.zstats.scale !== 1) np.zscale = p.zstats.scale }

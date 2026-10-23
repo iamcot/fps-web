@@ -7,7 +7,7 @@ import {
 import type { MapFile, MovementConfig, SpreadParts } from '@fps/shared'
 import { makeMeleeHudModel, meleeHudModel } from './hudMelee'
 import { meleeSetOf, shootDir } from '@fps/shared'
-import { CLAW_HEAVY_ID, CLAW_ID, DEFENSE, flagSpeedMul, INFECTION, ZOMBIE, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
+import { CLAW_HEAVY_ID, CLAW_ID, DEFENSE, flagSpeedMul, INFECTION, ZOMBIE, isMeleeMode, isZombieMode, ZOMBIE_DEFAULT_RUN_SPEED, economyFor, movementFor } from '@fps/shared'
 import { createWorld, type CollisionWorld } from '@fps/shared/physics/world'
 import { buildMapMesh } from './render/mapMesh'
 import { setFlashlightAllowed, flashlightOn, initInput, setOverlayDim, applyCameraRotation, isLocked, yaw, pitch, setLook, sampleButtons, setSensScale, consumeWheel } from './input'
@@ -192,6 +192,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyQ' && prevSlot >= 0) requestSlot(prevSlot)
   if (e.code === 'KeyB') shop.toggle()
   if (e.code === 'KeyT' && isLocked()) vm.inspect()   // xem/múa dao
+  if (e.code === 'KeyV' && meleeHeld()) setThirdPerson(!thirdWanted())   // góc nhìn thứ ba khi cầm vũ khí cận chiến
   if (e.code === 'Backquote') { e.preventDefault(); askSwitchTeam() }
   if (e.code === 'F4' && debugLines) { debugLines.visible = !debugLines.visible; spawnMarkers.visible = debugLines.visible; e.preventDefault() }
 })
@@ -227,7 +228,7 @@ const grenades = createGrenades(scene, {
 })
 const nadeWarn = createGrenadeWarning()
 const nadeAimState = { pos: [0, 0, 0] as [number, number, number], vel: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, grounded: true, crouching: false, slideTimer: 0, slideCooldown: 0, adsT: 0 }
-if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __explosionFx: explosionFx })   // debug: script kiểm tra từ trình duyệt
+if (import.meta.env.DEV) Object.assign(globalThis, { __players: playersRenderer, __renderer: renderer, __grenades: grenades, __camera: camera, __explosionFx: explosionFx, __setLook: setLook })   // debug: script kiểm tra từ trình duyệt
 const interpolator = new Interpolator()
 const interpDelay = new InterpDelay()
 let prediction: Prediction | null = null
@@ -352,6 +353,21 @@ document.addEventListener('keydown', e => { if (e.code === 'Tab') { e.preventDef
 document.addEventListener('keyup', e => { if (e.code === 'Tab') { e.preventDefault(); tabHeld = false } })
 window.addEventListener('blur', () => { tabHeld = false })
 let lastHp = 100
+// Góc nhìn thứ ba khi cầm vũ khí cận chiến (plan 19 P5): V bật/tắt, nhớ lựa chọn; chưa chọn bao giờ thì thể thức Cận Chiến mặc định bật.
+// Camera sau vai phải, không xuyên tường; viewmodel ẩn, vẽ nhân vật của chính mình. Đòn đánh vẫn tính từ mắt nhân vật như góc nhìn thứ nhất.
+const THIRD_KEY = 'fps.thirdPerson'
+const THIRD_BACK = 2.5, THIRD_RIGHT = 0.4, THIRD_UP = 0.15, THIRD_WALL_GAP = 0.25
+let thirdPref: boolean | null = (() => { try { const v = localStorage.getItem(THIRD_KEY); return v === null ? null : v === '1' } catch { return null } })()
+let thirdOn = false   // frame này đang vẽ góc nhìn thứ ba
+const thirdDir: [number, number, number] = [0, 0, 0], thirdOrigin: [number, number, number] = [0, 0, 0]
+function meleeHeld(): boolean { const d = WEAPONS[ws.current]; return !!d && !!meleeSetOf(d) }
+function thirdWanted(): boolean { return thirdPref ?? isMeleeMode(sessionRef?.config.settings.mode ?? 'tdm') }
+function setThirdPerson(on: boolean): void {
+  thirdPref = on
+  try { localStorage.setItem(THIRD_KEY, on ? '1' : '0') } catch { /* chế độ riêng tư: chỉ nhớ trong phiên */ }
+}
+const thirdList: Parameters<ReturnType<typeof createPlayersRenderer>['update']>[0] = []
+const selfThird = { id: 0, pos: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, flags: 0, weapon: 0, adsT: 0 }
 const selfDebug = { id: 0, pos: [0, 0, 0] as [number, number, number], yaw: 0, pitch: 0, flags: 0, weapon: 0, adsT: 0 }   // F10
 // Offline (plan 15): panel bot, phím tắt, F11. Mọi thứ đi qua OfflineCmd tới worker; tiền vô hạn hiện `∞`.
 let infiniteMoney = false
@@ -444,6 +460,7 @@ sessionP.then(session => {
         return
       }
       hudRef?.showHitmarker(msg.headshot)   // chỉ hiện khi server xác nhận
+      if (meleeHeld()) playersRenderer.meleeReact(msg.targetId, 'hit')   // đòn cận chiến trúng: người kia giật ngả ra sau
       // Máu: server không gửi điểm trúng nên lấy điểm trên tia vừa bắn gần thân/đầu mục tiêu nhất
       const tgt = lastSampled.find(o => o.id === msg.targetId)
       if (tgt) {
@@ -479,7 +496,7 @@ sessionP.then(session => {
         playersRenderer.muzzleFlash(msg.shooterId)
       } else if (msg.weapon === CLAW_ID || msg.weapon === CLAW_HEAVY_ID) {
         playersRenderer.zombieAttack(msg.shooterId, msg.weapon === CLAW_HEAVY_ID)
-      }
+      } else if (msg.moveId !== undefined) playersRenderer.meleeStart(msg.shooterId, msg.moveId)   // người khác ra chiêu: vẽ đúng động tác
       playShotOther(msg.weapon, msg.origin)
     } else if (msg.t === MsgType.DebugShot) {
       debugShots.add(msg.origin, msg.dir, msg.boxes, msg.blade)
@@ -590,9 +607,11 @@ sessionP.then(session => {
     } else if (msg.t === MsgType.Hurt) {
       if (msg.outcome === 1 || msg.outcome === 2) {   // mình đỡ được / parry: giật dao + tiếng kim loại, không hiện chỉ hướng bị đánh
         vm.meleeReact(msg.outcome === 2 ? 'parry' : 'block')
+        playersRenderer.meleeReact(playerId, msg.outcome === 2 ? 'parry' : 'block')   // góc nhìn thứ ba
         msg.outcome === 2 ? playParry() : playBlock()
         return
       }
+      if (thirdOn) playersRenderer.meleeReact(playerId, 'hit')
       const dx = msg.origin[0] - camera.position.x, dy = msg.origin[1] - camera.position.y, dz = msg.origin[2] - camera.position.z
       hurtIndicator.show(dx, dz, yaw)
       if (msg.outcome === 3) playGuardBreak()
@@ -714,6 +733,20 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     camera.position.x += explosionFx.shake.x; camera.position.y += explosionFx.shake.y
     camera.rotation.z += explosionFx.shake.rot
     updateListener(camera.position.x, camera.position.y, camera.position.z, camera.rotation.y, camera.rotation.x)
+    thirdOn = meleeHeld() && thirdWanted() && !dead && spectatingId === -2 && !poseEditor.orbitOn && !zombieSelf
+    if (thirdOn) {
+      // Sau vai phải: lùi THIRD_BACK theo hướng nhìn, lệch phải/lên một chút; tia từ mắt ra để không xuyên tường
+      const cy = camera.rotation.y, cp = camera.rotation.x, cosP = Math.cos(cp)
+      const fx = -Math.sin(cy) * cosP, fy = Math.sin(cp), fz = -Math.cos(cy) * cosP
+      let ox = Math.cos(cy) * THIRD_RIGHT - fx * THIRD_BACK, oy = THIRD_UP - fy * THIRD_BACK, oz = -Math.sin(cy) * THIRD_RIGHT - fz * THIRD_BACK
+      const len = Math.hypot(ox, oy, oz)
+      ox /= len; oy /= len; oz /= len
+      thirdOrigin[0] = camera.position.x; thirdOrigin[1] = camera.position.y; thirdOrigin[2] = camera.position.z
+      thirdDir[0] = ox; thirdDir[1] = oy; thirdDir[2] = oz
+      const hit = worldRef?.castRay(thirdOrigin, thirdDir, len + THIRD_WALL_GAP)
+      const d = hit ? Math.max(0.1, hit.dist - THIRD_WALL_GAP) : len
+      camera.position.set(thirdOrigin[0] + ox * d, thirdOrigin[1] + oy * d, thirdOrigin[2] + oz * d)
+    }
 
     const def   = WEAPONS[ws.current]!
     const speed = Math.hypot(state.vel[0], state.vel[2])
@@ -812,7 +845,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
     if (poseEditor.orbitOn) poseEditor.applyOrbit(camera, state.pos[0], state.pos[1], state.pos[2])   // F10: camera quanh người mình
     renderer.render(scene, camera)
     renderer.clearDepth()
-    if (!poseEditor.orbitOn && spectatingId === -2) renderer.render(vm.scene, vm.cam)
+    if (!poseEditor.orbitOn && spectatingId === -2 && !thirdOn) renderer.render(vm.scene, vm.cam)
 
     // Người khác: vẽ trễ (INTERP_DELAY_MS + trễ một chiều) bằng nội suy; chưa vào phòng thì danh sách rỗng
     if (snapStore) ghosts.update(snapStore.players, snapStore.yourId)
@@ -821,12 +854,23 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
       const others = snapStore ? interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs)) : []
       selfDebug.id = playerId; selfDebug.pos = state.pos; selfDebug.yaw = state.yaw; selfDebug.pitch = state.pitch
       selfDebug.flags = (state.grounded ? NetFlag.Grounded : 0) | (state.crouching ? NetFlag.Crouching : 0) | (state.slideTimer > 0 ? NetFlag.Sliding : 0)
+        | (ws.guardSinceMs >= 0 ? NetFlag.Guard : 0) | (simMs < ws.staggerUntilMs ? NetFlag.Stagger : 0)
       selfDebug.weapon = ws.current
       selfDebug.adsT = state.adsT
       playersRenderer.update([...others.filter(o => o.id !== playerId), selfDebug], -1)
     } else if (snapStore) {
       lastSampled = interpolator.sample(clock.serverNow(), interpDelay.update(clock.oneWayMs))
-      playersRenderer.update(lastSampled)
+      if (thirdOn) {   // góc nhìn thứ ba: thêm nhân vật của chính mình (state dự đoán, cờ đỡ/choáng từ WeaponState cục bộ)
+        selfThird.id = playerId; selfThird.pos = state.pos; selfThird.yaw = state.yaw; selfThird.pitch = state.pitch
+        selfThird.flags = (state.grounded ? NetFlag.Grounded : 0) | (state.crouching ? NetFlag.Crouching : 0) | (state.slideTimer > 0 ? NetFlag.Sliding : 0)
+          | (ws.guardSinceMs >= 0 ? NetFlag.Guard : 0) | (simMs < ws.staggerUntilMs ? NetFlag.Stagger : 0)
+        selfThird.weapon = ws.current
+        selfThird.adsT = state.adsT
+        thirdList.length = 0
+        for (const o of lastSampled) if (o.id !== playerId) thirdList.push(o)
+        thirdList.push(selfThird)
+        playersRenderer.update(thirdList, -1, playerId)
+      } else playersRenderer.update(lastSampled)
     }
     night.setZombieVision(zombieSelf)
     if ((defPhase === 'prep' || defPhase === 'intermission') && !defCuePlayed && defEndsAt - clock.serverNow() < 5000 && defEndsAt > 0) { defCuePlayed = true; playScream([27, 2, (Math.random() - 0.5) * 30], true) }   // gào xa vọng lại từ phía zombie sẽ ra
@@ -859,7 +903,7 @@ createWorld(loadedMap, cfg.standHeight, cfg.crouchHeight, cfg.radius).then(world
 
     const ev = stepWeaponCmd(ws, cmd)
     const mset = def.melee ? meleeSetOf(def) : undefined   // dao có bộ chiêu: cung quét ở server, client chỉ vẽ động tác + dự đoán trạng thái
-    if (ev === 'meleeStart') vm.meleeStart(ws.meleeMove)
+    if (ev === 'meleeStart') { vm.meleeStart(ws.meleeMove); playersRenderer.meleeStart(playerId, ws.meleeMove) }
     if (mset) {
       vm.meleeSync(ws.guardSinceMs >= 0, nowMs < ws.staggerUntilMs, ws.meleeMove >= 0)
       hud.setMelee(meleeHudModel(meleeHudTmp, ws, mset, nowMs))

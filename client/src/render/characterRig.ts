@@ -501,6 +501,16 @@ export class SkelCharacter {
     this.opaque = solid
   }
 
+  /** Cận chiến (plan 19 P5): xoắn thân trên quanh trục đứng (`twist`, + = sang trái) và ngả sau (`lean`, + = ngả ra sau), chia đều các xương spine.
+   *  Gọi sau animate(), trước placeAim()/IK tay. */
+  bendSpine(twist: number, lean: number): void {
+    if (twist === 0 && lean === 0) return
+    const n = this.spine.length
+    if (twist !== 0) { _axis.set(0, 1, 0).transformDirection(this.root.matrixWorld); for (const b of this.spine) rotateAboutWorld(b, _axis, twist / n) }
+    if (lean !== 0) { _axis.set(1, 0, 0).transformDirection(this.root.matrixWorld); for (const b of this.spine) rotateAboutWorld(b, _axis, lean / n) }
+    this.root.updateMatrixWorld(true)
+  }
+
   // ── Súng ─────────────────────────────────────────────────────────────────────
   /** Đặt aimPivot ở ngực, xoay theo pitch (hệ root). Gọi sau animate(). */
   placeAim(): void {
