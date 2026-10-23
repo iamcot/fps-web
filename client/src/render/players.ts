@@ -14,7 +14,7 @@ import { makeAnimState, updateAnim, HEAD_PITCH, type AnimState } from './charact
 import { createDeathFx } from './characters/deathFx'
 import { makeZombieFx, removeZombieFx, updateZombieFx, type ZombieFx } from './zombieLook'
 import { MeleeSwing, meleeLook, isStabFx, type SwingFx } from './meleeSwing'
-import { getMeleeClip, requestMeleeClips, clipTimeAt, MOVE_CLIP } from './meleeClips'
+import { getMeleeClip, requestMeleeClips, clipTimeAt, MOVE_CLIP, GUARD_CLIP, GUARD_CLIP_T } from './meleeClips'
 
 // Tối thiểu để vẽ; NetPlayer và InterpPlayer đều thoả
 interface RenderPlayer { id: number; pos: [number, number, number]; yaw: number; pitch?: number; flags: number; weapon?: number; killStreak?: number; adsT?: number; ztype?: string; zscale?: number }
@@ -313,27 +313,29 @@ const _bodyQ = new THREE.Quaternion(), _bodyInv = new THREE.Quaternion(), _swQ =
 const _armV = new THREE.Vector3(), _xAxis = new THREE.Vector3(1, 0, 0)
 function isMeleeWeapon(id: number): boolean { const d = WEAPONS[id]; return !!d && !!meleeSetOf(d) }
 
-function swingSkelArm(a: Actor, weapon: number): void {
+function swingSkelArm(a: Actor, weapon: number, clipDriven: boolean): void {
   const sk = a.rig.skel!, sf = a.swing!.fx, m = poses.character.melee, look = meleeLook(WEAPONS[weapon]?.key)
   const restR = look.restR ?? m.restR, restRot = look.restRotDegR ?? m.restRotDegR
   sk.aimPivot.getWorldQuaternion(_bodyQ); _bodyInv.copy(_bodyQ).invert()
-  sk.root.getWorldQuaternion(_rq)
-  // Tay phải: thế thủ (trong hệ thân) rồi quơ cả cánh tay quanh vai: Q trong hệ thân → thế giới B·Q·B⁻¹
-  const arm = sk.armR
-  arm.upper.getWorldPosition(_sh)
-  _armV.set(restR[0], restR[1], restR[2]).applyQuaternion(_bodyQ)
-  _gq.setFromEuler(_eul.set(restRot[0] * DEG, restRot[1] * DEG, restRot[2] * DEG, 'YXZ')).premultiply(_bodyQ)   // khung bàn tay chuẩn
-  _swQ.setFromEuler(_eul.set(sf.pitch, sf.yaw, 0, 'YXZ')).premultiply(_bodyQ).multiply(_bodyInv)
-  _armV.applyQuaternion(_swQ)
-  const len = _armV.length()
-  if (len > 1e-6) _armV.multiplyScalar(Math.max(0.15, len + sf.ext * MELEE_EXT_SCALE) / len)
-  _handTarget.copy(_sh).add(_armV)
-  _gq.premultiply(_swQ)
-  // cổ tay quanh tâm bàn tay, theo trục thân
-  _swQ.setFromEuler(_eul.set(sf.wx, sf.wy, sf.wz, 'YXZ')).premultiply(_bodyQ).multiply(_bodyInv)
-  _gq.premultiply(_swQ)
-  if (sf.radW > 0.001) radialSwing(sk.armR.reachWorld(), sf, look.inHandDeg)   // dao: tay duỗi / co khuỷu, lưỡi thẳng hàng cánh tay (cùng tư thế với viewmodel)
-  solveHand(arm, poses.character.handRotOffsetDegR, poses.character.poleR, sk.ikWeight, poses.grip.knifeR)
+  if (!clipDriven) {
+    sk.root.getWorldQuaternion(_rq)
+    // Tay phải: thế thủ (trong hệ thân) rồi quơ cả cánh tay quanh vai: Q trong hệ thân → thế giới B·Q·B⁻¹
+    const arm = sk.armR
+    arm.upper.getWorldPosition(_sh)
+    _armV.set(restR[0], restR[1], restR[2]).applyQuaternion(_bodyQ)
+    _gq.setFromEuler(_eul.set(restRot[0] * DEG, restRot[1] * DEG, restRot[2] * DEG, 'YXZ')).premultiply(_bodyQ)   // khung bàn tay chuẩn
+    _swQ.setFromEuler(_eul.set(sf.pitch, sf.yaw, 0, 'YXZ')).premultiply(_bodyQ).multiply(_bodyInv)
+    _armV.applyQuaternion(_swQ)
+    const len = _armV.length()
+    if (len > 1e-6) _armV.multiplyScalar(Math.max(0.15, len + sf.ext * MELEE_EXT_SCALE) / len)
+    _handTarget.copy(_sh).add(_armV)
+    _gq.premultiply(_swQ)
+    // cổ tay quanh tâm bàn tay, theo trục thân
+    _swQ.setFromEuler(_eul.set(sf.wx, sf.wy, sf.wz, 'YXZ')).premultiply(_bodyQ).multiply(_bodyInv)
+    _gq.premultiply(_swQ)
+    if (sf.radW > 0.001) radialSwing(sk.armR.reachWorld(), sf, look.inHandDeg)   // dao: tay duỗi / co khuỷu, lưỡi thẳng hàng cánh tay (cùng tư thế với viewmodel)
+    solveHand(arm, poses.character.handRotOffsetDegR, poses.character.poleR, sk.ikWeight, poses.grip.knifeR)
+  } else if (!look.twoHand) return   // một tay: cả hai tay theo clip
   const armL = sk.armL
   armL.upper.getWorldPosition(_sh)
   if (look.twoHand && a.gun) {   // vũ khí hai tay: tay trái nắm cán ở điểm neo hand_l (vũ khí đã theo bàn tay phải)
@@ -578,6 +580,9 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
       const m = set.moves[sw.moveIdx]!, total = moveDurationMs(m)
       a.rig.skel!.meleeClipT = clipTimeAt(mc, sw.progress * total, m.windupMs, total)
       a.rig.skel!.setMeleeClip(mc)
+    } else if (set && sw.moveIdx < 0 && !meleeLook(def.key).twoHand && sw.guardAmount > 0.5 && getMeleeClip(GUARD_CLIP)) {   // đỡ một tay: giữ một khung của clip block
+      a.rig.skel!.meleeClipT = GUARD_CLIP_T
+      a.rig.skel!.setMeleeClip(getMeleeClip(GUARD_CLIP)!)
     } else a.rig.skel!.setMeleeClip(null)
     if (a.rig.skel!.meleeClipW > 0.5) {
       a.rig.skel!.bendSpine(0, sw.staggerAmount * STAGGER_LEAN + a.flinch * FLINCH_LEAN)
@@ -637,7 +642,7 @@ export function createPlayersRenderer(scene: THREE.Scene, info?: TeamInfo) {
         sk.placeAim()
         if (two) solveSkelArms(a, weapon, p.adsT ?? 0)
         else sk.refreshGunAnchor()
-        if (melee && sk.meleeClipW <= 0.5) swingSkelArm(a, weapon)
+        if (melee) swingSkelArm(a, weapon, sk.meleeClipW > 0.5)
         if (weapon === GRENADE_ID && a.gun) nadeHand(a)
         sk.setOpacity((p.flags & NetFlag.Invuln) ? 0.55 + 0.3 * Math.sin(nowMs / 70) : 1)
       } else {
